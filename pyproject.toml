@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "visualbench"
+version = "1.0.0"
+requires-python = ">=3.11"
+dependencies = [
+]
+
+# [tool.setuptools]
+# packages = ["visualbench"]
+
+[tool.setuptools.packages]
+find = {}  # Scanning implicit namespaces is active by default
