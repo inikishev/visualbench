@@ -7,7 +7,7 @@ from ..dataset_tools import make_dataset_from_tensor
 from ..utils import CUDA_IF_AVAILABLE
 
 
-class FitDataset2D(Benchmark):
+class DecisionBoundary(Benchmark):
     """dataset with 2 variables for live training animation. x is (n_samples, 2) or (2, n_samples), y is n_samples, or (n_samples, 1)"""
     grid_points: torch.nn.Buffer
     mask: torch.nn.Buffer
@@ -159,11 +159,12 @@ def _make_moons(*args, **kwargs):
     from sklearn.datasets import make_moons
     return make_moons(*args, **kwargs)
 
-HeavyRegMoons2D = lambda width=2, depth=32, norm=True, n_samples=2048, noise=0.2, resolution = 192, device=CUDA_IF_AVAILABLE: FitDataset2D(
+HeavyRegMoons2D = lambda width=2, depth=32, norm=True, n_samples=2048, noise=0.2, resolution = 192, device=CUDA_IF_AVAILABLE, save_preds=True: DecisionBoundary(
     *_make_moons(n_samples=n_samples, noise=noise, random_state=0),
     model=MLP(2, 1, width, depth, norm=norm),
     loss_fn=torch.nn.BCEWithLogitsLoss(),
     resolution=resolution,
     device = device,
+    save_preds=save_preds,
 )
 """benchmark from https://github.com/ClashLuke/HeavyBall/blob/main/benchmark/loss_contour.py"""

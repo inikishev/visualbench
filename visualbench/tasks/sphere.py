@@ -30,7 +30,7 @@ class Sphere(Benchmark):
         device (Device, optional): device. Defaults to 'cuda'.
     """
     target: torch.nn.Buffer
-    def __init__(self, target: Any, loss: Callable = l2, dtype: torch.dtype=torch.float32):
+    def __init__(self, target: Any, loss: Callable = l2, dtype: torch.dtype=torch.float32, make_images=True):
         self.loss_fn = loss
         target = to_float_hwc_tensor(target).to(dtype = dtype, memory_format = torch.contiguous_format)
         mat_reference = normalize_to_uint8(target)
@@ -41,9 +41,11 @@ class Sphere(Benchmark):
 
         self.target_min = self.target.min().item()
         self.target_max = self.target.max().item()
+        self.make_images = make_images
 
     def get_loss(self):
         loss = self.loss_fn(self.preds, self.target)
+        if not self.make_images: return loss
 
         #print(list(self.parameters()))
         return loss, {"image": (normalize(self.preds, 0, 255)).clamp(0,255).detach().cpu().numpy().astype(np.uint8)}

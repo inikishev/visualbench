@@ -43,7 +43,7 @@ class XOR(Benchmark):
         num_layers = 1,
         num_samples = 128,
         dropout = 0.,
-        batched = True,
+        batched = False,
         criterion = torch.nn.functional.binary_cross_entropy_with_logits
     ):
 

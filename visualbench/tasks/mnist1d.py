@@ -10,7 +10,7 @@ from urllib.request import urlopen
 import torch
 from torch import nn
 from mnist1d.data import make_dataset
-
+from myai import nn as mynn
 from ..benchmark import Benchmark, make_dataset_from_tensor, sig
 from ..utils import CUDA_IF_AVAILABLE
 
@@ -94,6 +94,7 @@ class MNIST1D(Benchmark):
         seed = 42,
         url = 'https://github.com/greydanus/mnist1d/raw/master/mnist1d_data.pkl',
         template = None,
+        autoencoder = False,
         train_batch_tfms = None,
         test_batch_tfms = None,
         log_projections = True,
@@ -137,11 +138,15 @@ class MNIST1D(Benchmark):
 
         self.model = self._save_signature(model, 'model')
         self.loss_fn = self._save_signature(loss, 'loss_fn')
+        self.autoencoder = autoencoder
         self.to(device)
+        self.model.train()
 
     def get_loss(self):
         inputs, targets = self.batch
         preds: torch.Tensor = self.model(inputs)
+        if self.autoencoder: return self.loss_fn(preds, inputs)
+
         loss = self.loss_fn(preds, targets)
         accuracy = preds.argmax(1).eq_(targets).float().mean()
         return loss, {"accuracy": accuracy}
@@ -149,6 +154,33 @@ class MNIST1D(Benchmark):
     def reset(self, model):
         super().reset()
         self.model = self._save_signature(model, 'model')
+        self.model.train()
+
+
+class SparseMNIST1D(MNIST1D):
+    def __init__(
+        self,
+        model: torch.nn.Module | sig,
+        batch_size: int | None,
+        reconstruction_loss = torch.nn.functional.mse_loss,
+        sparse_loss = torch.mean,
+        sparse_weight = 1e-3,
+        log_projections = True,
+        dtype = torch.float32,
+        device = CUDA_IF_AVAILABLE,
+    ):
+        super().__init__(model=model,batch_size=batch_size,loss=reconstruction_loss,log_projections=log_projections,dtype=dtype,device=device,autoencoder=True)
+        self.sparse_loss_fn = sparse_loss
+        self.sparse_weight = sparse_weight
+
+    def get_loss(self):
+        inputs, _ = self.batch
+        preds, features = self.model(inputs)
+        rec_loss = self.loss_fn(preds, inputs)
+        sparse_loss = self.sparse_loss_fn(features)
+        loss = rec_loss + sparse_loss*self.sparse_weight
+        return loss, {"reconstruction loss": rec_loss, "sparse loss": sparse_loss}
+
 
 
 def mnist1d_mlp(channels = (40, 80, 160, 80, 10)):
@@ -188,15 +220,73 @@ class LSTMClassifier(nn.Module):
         out = self.fc(out) # (batch_size, num_classes)
         return out
 
-MNIST1D_Linear = lambda: MNIST1D(mnist1d_mlp([40, 10]), None)
+class CNN(torch.nn.Module):
+    def __init__(self, channels = (1, 32, 64, 128, 256), fixed_bn = False):
+        super().__init__()
+        self.enc = torch.nn.Sequential(
+            *[mynn.ConvBlock(i, o, 2, 2, act='relu', norm='bn', ndim=1) for i, o in zip(channels[:-1], channels[1:])]
+        )
+        self.head = mynn.LinearBlock(channels[-1]*2, 10, flatten=True)
+        if fixed_bn: torch.func.replace_all_batch_norm_modules_(self)
+
+
+    def forward(self, x):
+        if x.ndim == 2: x = x.unsqueeze(1)
+        x = self.enc(x)
+        return self.head(x)
+
+
+class Autoencoder(torch.nn.Module):
+    def __init__(self, channels = (1, 16, 32, 64, 128, 256), act='relu',norm='bn', fixed_bn = False):
+        super().__init__()
+        channels = list(channels)
+        self.enc = torch.nn.Sequential(
+            *[mynn.ConvBlock(i, o, 2, 2, act=act, norm=norm, ndim=1) for i, o in zip(channels[:-1], channels[1:])]
+        )
+
+        channels.reverse()
+        self.dec = torch.nn.Sequential(
+            *[mynn.ConvTransposeBlock(i, o, 3, 2, act=act if n!=len(channels)-2 else None, norm=norm, ndim=1) for n, (i, o) in enumerate(zip(channels[:-1], channels[1:]))]
+        )
+
+        if fixed_bn: torch.func.replace_all_batch_norm_modules_(self)
+
+
+    def forward(self, x):
+        if x.ndim == 2:
+            x = x.unsqueeze(1)
+            sq = True
+        else: sq = False
+        l = x.shape[2]
+        feats = self.enc(x)
+        x = self.dec(feats)
+        if sq: x = x[:,0]
+        return x[:,:l], feats
+
+MNIST1D_LogisticRegression = lambda device=CUDA_IF_AVAILABLE: MNIST1D(mnist1d_mlp([40, 10]), None, device=device)
 """fullbatch single layer perceptron i.e. logistic regression"""
-MNIST1D_MLP = lambda: MNIST1D(mnist1d_mlp(), 64)
+
+MNIST1D_MLP_Minibatch = lambda layers = (40, 80, 160, 80, 10), device=CUDA_IF_AVAILABLE: MNIST1D(mnist1d_mlp(layers), 64, device=device)
 """minibatch multilayer perceptron"""
-MNIST1D_ResNet = lambda channel_step = 8: MNIST1D(mnist1d_resnet(channel_step), 64)
+
+MNIST1D_ResNet_Minibatch = lambda channel_step = 8, device=CUDA_IF_AVAILABLE: MNIST1D(mnist1d_resnet(channel_step), 64, device=device)
 """minibatch resnet"""
-MNIST1D_ResNet_Fullbatch = lambda channel_step = 8: MNIST1D(mnist1d_resnet(channel_step), None)
+
+MNIST1D_ResNet_Fullbatch = lambda channel_step = 8, device=CUDA_IF_AVAILABLE: MNIST1D(mnist1d_resnet(channel_step), None, device=device)
 """fullbatch resnet"""
-MNIST1D_ResNet_Online = lambda channel_step = 8: MNIST1D(mnist1d_resnet(channel_step), 1)
+
+MNIST1D_ResNet_Online = lambda channel_step = 8, device=CUDA_IF_AVAILABLE: MNIST1D(mnist1d_resnet(channel_step), 1, device=device)
 """online resnet"""
-MNIST1D_LSTM = lambda hidden_size = 64, num_layers = 5: MNIST1D(LSTMClassifier(1, hidden_size, num_layers, 10), 64)
+
+MNIST1D_LSTM_Minibatch = lambda hidden_size = 64, num_layers = 5, device=CUDA_IF_AVAILABLE: MNIST1D(
+    LSTMClassifier(1, hidden_size, num_layers, 10), 64, device=device)
 """minibatch LSTM"""
+
+MNIST1D_ConvNet_Minibatch = lambda channels = (1, 32, 64, 128, 256), fixed_bn = False, device = CUDA_IF_AVAILABLE: MNIST1D(
+    CNN(channels, fixed_bn), 64, device=device)
+
+MNIST1D_ConvNet_Fullbatch = lambda channels = (1, 32, 64, 128, 256), fixed_bn = False, device = CUDA_IF_AVAILABLE: MNIST1D(
+    CNN(channels, fixed_bn), None, device=device)
+
+MNIST1D_SparseAutoencoder = lambda channels = (1, 16, 32, 64, 128, 256), act='relu',norm='bn', fixed_bn = False, sparse_weight = 1e-3, device=CUDA_IF_AVAILABLE: SparseMNIST1D(
+    Autoencoder(channels, act, norm, fixed_bn), 64, sparse_weight = sparse_weight, device = device)

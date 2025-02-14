@@ -29,7 +29,7 @@ class MatrixInverse(Benchmark):
         device (Device, optional): device. Defaults to 'cuda'.
     """
     mat: torch.nn.Buffer
-    def __init__(self, mat: Any, loss: Callable = l1, dtype: torch.dtype=torch.float32):
+    def __init__(self, mat: Any, loss: Callable = l1, dtype: torch.dtype=torch.float32, make_images=True):
         mat = to_float_hwc_tensor(mat).moveaxis(-1, 0)
         if mat.shape[-1] != mat.shape[-2]: raise ValueError(f'{mat.shape = } - not a matrix!')
         mat = mat.to(dtype = dtype, memory_format = torch.contiguous_format)
@@ -50,6 +50,7 @@ class MatrixInverse(Benchmark):
         super().__init__(reference_images = [mat_reference, true_inv_reference], reference_labels = labels, save_edge_params = True, seed=0)
         self.register_buffer('mat', mat)
         self.inverse = torch.nn.Parameter(self.mat.clone().requires_grad_(True))
+        self.make_images = make_images
 
     def get_loss(self):
         AB = self.mat @ self.inverse
@@ -63,4 +64,5 @@ class MatrixInverse(Benchmark):
             self.loss_fn(AB.diagonal(0,-2,-1), I_diag)
 
         #print(list(self.parameters()))
+        if not self.make_images: return loss
         return loss, {"image_output": normalize_to_uint8(self.inverse), "image_AB": normalize_to_uint8(AB), "image_BA": normalize_to_uint8(BA),}

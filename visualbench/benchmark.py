@@ -47,9 +47,47 @@ def _set_closure_defaults_(kwargs: _ClosureKwargs) -> _ClosureKwargs:
 
 _TEST_KWARGS: _ClosureKwargs = {'enable_grad': False}
 
+def _catch(exc, warn):
+    def outer(fn):
+        def inner(*args, **kwargs):
+            try: return fn(*args, **kwargs)
+            except exc:
+                if warn: warnings.warn(f"caught that {get__name__(fn)} raised {exc!r}")
+        return inner
+    return outer
+
+
 class StopCondition(Exception): pass
 
 class Benchmark(torch.nn.Module):
+    """A benchmark.
+
+    Args:
+        train_data (Any, optional):
+            Dataloader iterable. For full batch training just pass entire dataset in a length one tuple.
+            None if this is not a dataset task. Defaults to None.
+        test_data (Any, optional):
+            test data. For full batch training just pass entire dataset in a length one tuple.
+            None if this is not a dataset task or if this task has no test dataset. Defaults to None.
+        train_batch_tmfs (Composable | None, optional):
+            transforms to apply to train batches. Defaults to None.
+        test_batch_tfms (Composable | None, optional):
+            transforms to apply to test batches. Defaults to None.
+        log_params (str, optional):
+            saves parameter vectors on each step, as well as best parameters so far. Defaults to False.
+        log_projections (str, optional):
+            saves parameters projected into 2 dimensions on each step. Defaults to True.
+        save_edge_params (str, optional):
+            stores three copies of params - first, middle, and best.
+            only works when `max_steps` is set in `run`. Defaults to False.
+        reference_images (str, optional):
+            optional reference image in `np.uint8`, will be plotted next to solution.
+            can be multiple images. Defaults to None.
+        reference_labels (str, optional): labels for reference images. Defaults to None.
+        device (str, optional): device. Defaults to 'cuda'.
+        seed (int | RNG | None, optional):
+                integer seed, RNG object or None for random seed. Used for random parameter projections. Defaults to 0.
+    """
     def __init__(
         self,
         train_data: Any = None,
@@ -64,83 +102,56 @@ class Benchmark(torch.nn.Module):
         # device: torch.types.Device = CUDA_IF_AVAILABLE,
         seed: int | RNG | None = 0,
     ):
-        """A benchmark.
-
-        Args:
-            train_data (Any, optional):
-                Dataloader iterable. For full batch training just pass entire dataset in a length one tuple.
-                None if this is not a dataset task. Defaults to None.
-            test_data (Any, optional):
-                test data. For full batch training just pass entire dataset in a length one tuple.
-                None if this is not a dataset task or if this task has no test dataset. Defaults to None.
-            train_batch_tmfs (Composable | None, optional):
-                transforms to apply to train batches. Defaults to None.
-            test_batch_tfms (Composable | None, optional):
-                transforms to apply to test batches. Defaults to None.
-            log_params (str, optional):
-                saves parameter vectors on each step, as well as best parameters so far. Defaults to False.
-            log_projections (str, optional):
-                saves parameters projected into 2 dimensions on each step. Defaults to True.
-            save_edge_params (str, optional):
-                stores three copies of params - first, middle, and best.
-                only works when `max_steps` is set in `run`. Defaults to False.
-            reference_images (str, optional):
-                optional reference image in `np.uint8`, will be plotted next to solution.
-                can be multiple images. Defaults to None.
-            reference_labels (str, optional): labels for reference images. Defaults to None.
-            device (str, optional): device. Defaults to 'cuda'.
-            seed (int | RNG | None, optional):
-                    integer seed, RNG object or None for random seed. Used for random parameter projections. Defaults to 0.
-        """
         super().__init__()
-        self.seed = seed
-        self.reset()
+        self._seed = seed
+        self._reset()
 
-        self.train_data = train_data
-        self.test_data = test_data
+        self._train_data = train_data
+        self._test_data = test_data
         self.batch: Any = None
 
-        self.log_params = log_params
-        self.log_projections = log_projections
-        self.save_edge_params = save_edge_params
+        self._log_params = log_params
+        self._log_projections = log_projections
+        self._save_edge_params = save_edge_params
 
         if (reference_images is not None) and isinstance(reference_images, (np.ndarray, torch.Tensor)): reference_images = [reference_images]
-        self.reference_images: Sequence[np.ndarray[Any, np.dtype[np.uint8]] | torch.Tensor] | None = reference_images
+        self._reference_images: Sequence[np.ndarray[Any, np.dtype[np.uint8]] | torch.Tensor] | None = reference_images
 
-        if self.reference_images is not None:
-            if (reference_labels is not None) and isinstance(reference_labels, str): reference_labels = [reference_labels] * len(self.reference_images)
-            if reference_labels is None: reference_labels = ['reference'] * len(self.reference_images)
-            if len(reference_labels) != len(self.reference_images):
-                raise ValueError(f'reference_labels must be the same length as reference_images, got f{len(reference_labels) = } and {len(self.reference_images) = }')
-        self.reference_labels: Sequence[str] | None = reference_labels
+        if self._reference_images is not None:
+            if (reference_labels is not None) and isinstance(reference_labels, str): reference_labels = [reference_labels] * len(self._reference_images)
+            if reference_labels is None: reference_labels = ['reference'] * len(self._reference_images)
+            if len(reference_labels) != len(self._reference_images):
+                raise ValueError(f'reference_labels must be the same length as reference_images, got f{len(reference_labels) = } and {len(self._reference_images) = }')
+        self._reference_labels: Sequence[str] | None = reference_labels
 
-        self.train_batch_tfms = maybe_compose(train_batch_tfms)
+        self._train_batch_tfms = maybe_compose(train_batch_tfms)
         if test_batch_tfms == 'same': test_batch_tfms = train_batch_tfms
-        self.test_batch_tfms = maybe_compose(test_batch_tfms)
+        self._test_batch_tfms = maybe_compose(test_batch_tfms)
 
         self._projections = None
 
-
-
     def reset(self, *args, **kwargs):
+        self._reset()
+
+    def _reset(self):
         """reset to without having to reinitialize dataset good for fast hyperparam testing"""
         self.zero_grad()
-        self.start_time = None
-        self.time_passed = 0
         self.logger = DictLogger()
-        self.hyperparams = {}
-        self.name: str | None = None
+        self._start_time = None
+        self._time_passed = 0
+        self._hyperparams = {}
+        self._name: str | None = None
 
-        self.best_params: torch.Tensor | None = None
-        self.initial_params: torch.Tensor | None = None
-        self.middle_params: torch.Tensor | None = None
+        self._best_params: torch.Tensor | None = None
+        self._initial_params: torch.Tensor | None = None
+        self._middle_params: torch.Tensor | None = None
 
-        self.lowest_loss = float('inf')
+        self._lowest_loss = float('inf')
 
-        self.current_step = 0
-        self.num_backwards = 0
-        self.current_batch = 0
-        self.current_epoch = 0
+        self._current_step = 0
+        self._num_backwards = 0
+        self._current_batch = 0
+        self._current_epoch = 0
 
         self._max_steps = None
         self._max_passes = None
@@ -158,16 +169,20 @@ class Benchmark(torch.nn.Module):
         self._test_every_sec = None
         self._improved = False
 
-        self.rng = RNG(self.seed)
+        self._rng = RNG(self._seed)
 
     @property
     def device(self):
         return self._first_param_device()
 
+    def parameters(self, recurse=True):
+        for n, p in self.named_parameters(recurse=recurse):
+            if not n.startswith('_ignore'): yield p
+
     @property
     def num_passes(self):
         """forward passes + backward passes"""
-        return self.current_step + self.num_backwards
+        return self._current_step + self._num_backwards
 
     def _first_param_device(self):
         return next(iter(self.parameters())).device
@@ -187,7 +202,7 @@ class Benchmark(torch.nn.Module):
     def _aggregate_test_metrics(self):
         """Logs the mean of each test metrics and resets test metrics to an empty dict"""
         for metric, values in self._test_metrics.items():
-            self.logger.log(self.current_step, metric, np.nanmean(values))
+            self.logger.log(self._current_step, metric, np.nanmean(values))
         self._test_metrics = {}
 
     def _print_progress(self, t: float):
@@ -195,15 +210,15 @@ class Benchmark(torch.nn.Module):
         # if one second passed from last print
 
         if t - self._last_print_time > 1:
-            text = f's{self.current_step}'
+            text = f's{self._current_step}'
             if self._max_steps is not None: text = f'{text}/{self._max_steps}'
             if self._max_passes is not None:
                 text = f'{text} p{self.num_passes}'
-            if self.current_batch != 0:
-                text = f'{text} b{self.current_batch}'
+            if self._current_batch != 0:
+                text = f'{text} b{self._current_batch}'
                 if self._max_batches is not None: text = f'{text}/{self._max_batches}'
-            if self.current_epoch != 0:
-                text = f'{text} e{self.current_epoch}'
+            if self._current_epoch != 0:
+                text = f'{text} e{self._current_epoch}'
                 if self._max_epochs is not None: text = f'{text}/{self._max_epochs}'
 
             if self._last_train_loss is not None and self._status == 'train':
@@ -215,18 +230,19 @@ class Benchmark(torch.nn.Module):
             self._last_print_time = t
 
     @torch.no_grad
-    def _log_params(self):
+    @_catch(ValueError, True)
+    def _log_params_and_projections(self):
         """log two parameter projections, also stores params"""
         param_vec = None
 
-        if self.log_projections:
+        if self._log_projections:
             param_vec = parameters_to_vector(self.parameters()).detach()
             if self._projections is None:
                 self._projections = torch.ones((2, param_vec.numel()), dtype = torch.bool, device = param_vec.device)
                 self._projections[0] = torch.bernoulli(
                     self._projections[0].float(),
                     p = 0.5,
-                    generator = self.rng.torch(param_vec.device),
+                    generator = self._rng.torch(param_vec.device),
                 ).to(dtype = torch.bool, device = param_vec.device)
                 self._projections[1] = ~self._projections[0]
 
@@ -234,37 +250,37 @@ class Benchmark(torch.nn.Module):
             self.log('proj2', (param_vec * self._projections[1]).mean().detach().cpu())
 
         # save parameter vectors
-        if self.log_params:
+        if self._log_params:
             if param_vec is None: param_vec = parameters_to_vector(self.parameters())
             self.log('params', param_vec.detach().cpu())
 
-        if self.save_edge_params:
+        if self._save_edge_params:
             if param_vec is None: param_vec = parameters_to_vector(self.parameters()).detach().cpu()
 
             if self._improved:
-                self.best_params = param_vec
+                self._best_params = param_vec
 
-            if self.middle_params is None:
-                if (self._max_batches is not None) and (self.current_step == self._max_batches // 2):
-                    self.middle_params = param_vec
-                elif (self._max_steps is not None) and (self.current_step == self._max_steps // 2):
-                    self.middle_params = param_vec
+            if self._middle_params is None:
+                if (self._max_batches is not None) and (self._current_step == self._max_batches // 2):
+                    self._middle_params = param_vec
+                elif (self._max_steps is not None) and (self._current_step == self._max_steps // 2):
+                    self._middle_params = param_vec
                 elif (self._max_passes is not None) and (self.num_passes == self._max_passes // 2):
-                    self.middle_params = param_vec
+                    self._middle_params = param_vec
 
     def _check_stop_condition(self):
         """terminates training via raising StopCondition when any condition is met"""
-        if (self._max_steps is not None) and self.current_step >= self._max_steps:
+        if (self._max_steps is not None) and self._current_step >= self._max_steps:
             raise StopCondition('max steps reached')
         if (self._max_passes is not None) and self.num_passes >= self._max_passes:
             raise StopCondition('max passes reached')
-        if (self._max_epochs is not None) and self.current_epoch >= self._max_epochs:
+        if (self._max_epochs is not None) and self._current_epoch >= self._max_epochs:
             raise StopCondition('max epochs reached')
-        if (self._max_batches is not None) and self.current_batch >= self._max_batches:
+        if (self._max_batches is not None) and self._current_batch >= self._max_batches:
             raise StopCondition('max batches reached')
         if (self._min_loss is not None) and (self._last_train_loss is not None) and self._last_train_loss <= self._min_loss:
             raise StopCondition('min loss reached')
-        if (self._max_time is not None) and self.time_passed >= self._max_time:
+        if (self._max_time is not None) and self._time_passed >= self._max_time:
             raise StopCondition("max time reached")
 
     def _ensure_stop_condition_exists(self):
@@ -274,16 +290,16 @@ class Benchmark(torch.nn.Module):
     @torch.no_grad
     def _batch_tfms(self, batch):
         """applies train or test batch transforms to the batch depending on self._status."""
-        if self._status == 'train': return self.train_batch_tfms(batch)
-        return self.test_batch_tfms(batch)
+        if self._status == 'train': return self._train_batch_tfms(batch)
+        return self._test_batch_tfms(batch)
 
     def _save_signature(self, obj, name: str):
         """save signature to hyperparameters and return resolved object"""
         if isinstance(obj, sig):
-            self.hyperparams.update({name: obj.extra_signature()})
+            self._hyperparams.update({name: obj.extra_signature()})
             obj = obj.resolve()
         else:
-            self.hyperparams.update({name: get__name__(obj)})
+            self._hyperparams.update({name: get__name__(obj)})
         return obj
 
     # region plotting
@@ -299,20 +315,21 @@ class Benchmark(torch.nn.Module):
         # create solution first not to modify Fig if it raises NotImplementedError
         images = []
         labels = []
-        if self.best_params is None: raise RuntimeError("No best params")
-        sol = self._make_solution_image(self.best_params.to(self.device), *args, **kwargs) # pylint:disable = assignment-from-none
-        if sol is not None:
-            images.append(sol)
-            labels.append('best solution')
+        #if self._best_params is None: raise NotImplementedError("No best params")
+        if self._best_params is not None:
+            sol = self._make_solution_image(self._best_params.to(self.device), *args, **kwargs) # pylint:disable = assignment-from-none
+            if sol is not None:
+                images.append(sol)
+                labels.append('best solution')
         for key, value in self.logger.items():
             if key.startswith(('train image', 'test image')):
                 x = value[self.logger.argmin('train loss')]
                 images.append(x)
                 labels.append(key.replace('train image_', '').replace('test image_', ''))
-        if self.reference_images is not None:
-            if self.reference_labels is None: raise ValueError("Can't happen")
-            images.extend(self.reference_images)
-            labels.extend(self.reference_labels)
+        if self._reference_images is not None:
+            if self._reference_labels is None: raise ValueError("Can't happen")
+            images.extend(self._reference_images)
+            labels.extend(self._reference_labels)
         if len(images) == 0:
             raise NotImplementedError(f'Solution plotting is not implemented for {self.__class__.__name__}')
 
@@ -343,7 +360,7 @@ class Benchmark(torch.nn.Module):
         with OpenCVRenderer(file, fps = fps) as renderer:
             lowest_loss = float('inf')
 
-            for step, loss in Progress(self.logger['train loss'].items(), sec=0.1, enable=progress):
+            for step, loss in enumerate(Progress(self.logger['train loss'].values(), sec=0.1, enable=progress)):
                 # add current and best image
                 images = []
                 if make_sol_images: images.append(self._make_solution_image(param_history[step].to(self.device)))
@@ -358,8 +375,8 @@ class Benchmark(torch.nn.Module):
                     images.append(value[step])
 
                 # add reference image
-                if self.reference_images is not None:
-                    images.extend(self.reference_images)
+                if self._reference_images is not None:
+                    images.extend(self._reference_images)
 
                 if len(images) == 0:
                     raise NotImplementedError(f'Solution plotting is not implemented for {self.__class__.__name__}')
@@ -390,9 +407,10 @@ class Benchmark(torch.nn.Module):
 
         torch.nn.utils.vector_to_parameters(cur_params.to(self.device), self.parameters())
 
-    def plot_loss(self, show=True, fig=None):
+    def plot_loss(self, show=True, fig=None, yscale=None):
         """plot train and test (if applicable to this benchmark) losses per step."""
         fig = self.logger.plot(*(i for i in ['train loss', 'test loss'] if i in self.logger), fig = fig)
+        if yscale is not None: fig.yscale(yscale)
         if show: fig.show()
         return fig
 
@@ -415,7 +433,7 @@ class Benchmark(torch.nn.Module):
         if fig is None: fig = Fig()
 
         # define a plane that goes through self.initial_params, self.middle_params, self.best_params
-        if self.best_params is not None: x0 = self.best_params
+        if self._best_params is not None: x0 = self._best_params
         else: x0 = torch.nn.utils.parameters_to_vector(self.parameters())
         cur_params = torch.nn.utils.parameters_to_vector(self.parameters())
 
@@ -460,7 +478,7 @@ class Benchmark(torch.nn.Module):
         """creates dir/logger.npz, dir/hyperparams.yaml, dir/attrs.yaml and dir/model.txt"""
         self.logger.save(os.path.join(dir, 'logger.npz'))
         yamlwrite(
-            make_dict_serializeable(self.hyperparams, raw_strings = False, recursive=True),
+            make_dict_serializeable(self._hyperparams, raw_strings = False, recursive=True),
             os.path.join(dir, 'hyperparams.yaml')
         )
         txtwrite(str(self), os.path.join(dir, 'model.txt'))
@@ -471,10 +489,10 @@ class Benchmark(torch.nn.Module):
     def save_run(self, root:str):
         """saves run to root/self.name or date if it is none."""
         now = datetime.now().strftime("%Y.%m.%d %H-%M-%S")
-        if self.name is None:
+        if self._name is None:
             name = f'{self.__class__.__name__} {now}'
         else:
-            name = f'{self.name} {now}'
+            name = f'{self._name} {now}'
         if not os.path.exists(root): os.mkdir(root)
         while os.path.exists(os.path.join(root, name)): name = f'{name}-'
         os.mkdir(os.path.join(root, name))
@@ -529,40 +547,40 @@ class Benchmark(torch.nn.Module):
         self.log(f'{self._status} loss', loss_cpu)
 
         # save loss to lowest_loss (this is only for benchmarks with no test set)
-        if loss < self.lowest_loss:
-            self.lowest_loss = loss
+        if loss < self._lowest_loss:
+            self._lowest_loss = loss
             self._improved = True
 
         if training:
 
-            self._log_params()
+            self._log_params_and_projections()
             self._last_train_loss = loss_cpu
 
             # log time
             cur_time = time.time()
             # start timer after one backward pass to let things compile for free
-            if self.start_time is None and self.current_step != 0:
-                self.start_time = cur_time
-            if self.start_time is not None:
-                self.time_passed = cur_time - self.start_time
+            if self._start_time is None and self._current_step != 0:
+                self._start_time = cur_time
+            if self._start_time is not None:
+                self._time_passed = cur_time - self._start_time
 
-            self.log('time', self.time_passed)
-            self._print_progress(self.time_passed)
+            self.log('time', self._time_passed)
+            self._print_progress(self._time_passed)
 
 
-            if self.current_step == 0:
+            if self._current_step == 0:
                 print('first train step...', end = '\r')
                 self._first_train_step_time = cur_time
-            elif self.current_step == 1:
+            elif self._current_step == 1:
                 print(f'first train step took {(cur_time - self._first_train_step_time):.3f} sec.', end = '\r')
 
-            self.current_step += 1
+            self._current_step += 1
 
             # test epoch
-            if (self.test_data is not None) and \
-                (((self._test_every_steps is not None) and self.current_step % self._test_every_steps == 0) or \
+            if (self._test_data is not None) and \
+                (((self._test_every_steps is not None) and self._current_step % self._test_every_steps == 0) or \
                 ((self._test_every_sec is not None) and cur_time - self._last_test_time > self._test_every_sec)):
-                self.test_epoch(self.test_data)
+                self.test_epoch(self._test_data)
 
         else:
             self._last_test_loss = loss_cpu
@@ -605,6 +623,8 @@ class Benchmark(torch.nn.Module):
         """
         if len(args) > 1: raise ValueError(f'{args = }')
 
+        if self._status == 'train': self.train()
+        else: self.eval()
         loss = self.forward()
 
         if kwargs['enable_grad']: # type:ignore
@@ -615,7 +635,7 @@ class Benchmark(torch.nn.Module):
                     warnings.warn("loss didn't require grad!")
                     return loss
 
-                self.num_backwards += 1
+                self._num_backwards += 1
                 if kwargs['zero_grad']: self.zero_grad() # type:ignore
                 loss.backward(retain_graph = kwargs['retain_graph'], create_graph = kwargs["create_graph"]) # type:ignore
 
@@ -630,7 +650,7 @@ class Benchmark(torch.nn.Module):
                 self.train()
                 self._status = 'train'
                 optimizer.step(partial(self.closure, kwargs = kwargs))
-                self.current_batch += 1
+                self._current_batch += 1
         else:
             with torch.inference_mode():
                 self.eval()
@@ -648,7 +668,7 @@ class Benchmark(torch.nn.Module):
             self.one_batch(optimizer, batch, train, kwargs)
 
         if train:
-            self.current_epoch += 1
+            self._current_epoch += 1
 
         else:
             self._aggregate_test_metrics()
@@ -678,15 +698,16 @@ class Benchmark(torch.nn.Module):
         min_loss: float | None = None,
         test_every_steps: int | None = None,
         test_every_sec: float | None = None,
+
         name: str | None = None,
         hyperparams: Mapping | None = None,
         **kwargs: Unpack[_ClosureKwargs]
     ):
         optimizer = self._save_signature(optimizer, 'optimizer')
-        if name is None and self.name is None:
+        if name is None and self._name is None:
             name = get__name__(optimizer)
-        if name is not None: self.name = name
-        if hyperparams is not None: self.hyperparams.update({"hyperparams": hyperparams})
+        if name is not None: self._name = name
+        if hyperparams is not None: self._hyperparams.update({"hyperparams": hyperparams})
 
         # self.to(self.device)
         self._max_steps = max_steps
@@ -699,26 +720,26 @@ class Benchmark(torch.nn.Module):
         self._test_every_sec = test_every_sec
         self._ensure_stop_condition_exists()
         kwargs = _set_closure_defaults_(kwargs)
-        self._log_params()
-        if self.save_edge_params: self.initial_params = parameters_to_vector(self.parameters())
+        self._log_params_and_projections()
+        if self._save_edge_params: self._initial_params = parameters_to_vector(self.parameters())
 
-        if self.test_data is not None:
+        if self._test_data is not None:
             # if test_every is None:
                 # warnings.warn('test_every is not set, will not test during training!')
-            self.test_epoch(self.test_data)
+            self.test_epoch(self._test_data)
 
         try:
             # train/test or batch training
-            if self.train_data is not None:
+            if self._train_data is not None:
                 for _ in range(max_epochs) if max_epochs is not None else itertools.count():
-                    self.one_epoch(optimizer, self.train_data, train = True, kwargs = kwargs)
+                    self.one_epoch(optimizer, self._train_data, train = True, kwargs = kwargs)
             else:
                 for _ in range(max_batches) if max_batches is not None else itertools.count():
                     self.one_step(optimizer, train = True, kwargs = kwargs)
         except StopCondition:
             pass
         finally:
-            if self.test_data is not None: self.test_epoch(self.test_data)
+            if self._test_data is not None: self.test_epoch(self._test_data)
             self._print_progress(time.time())
     # endregion
 
@@ -778,7 +799,7 @@ class Benchmark(torch.nn.Module):
         best_value = float('inf')
         if maximize: best_value = -best_value
         for i in range(len(grid[0])):
-            self.reset(**{k:v() for k,v in reset_call_kws.items()})
+            self._reset(**{k:v() for k,v in reset_call_kws.items()})
             grid_kwargs = {k: grid_vals[k][i].item() for k in grid_vals}
             opt_kwargs = grid_kwargs.copy()
             opt_kwargs.update(other_kws)
@@ -867,7 +888,7 @@ class Benchmark(torch.nn.Module):
         study = optuna.create_study(sampler = sampler, direction="maximize" if maximize else 'minimize')
 
         for i in range(n_trials):
-            self.reset(**{k:v() for k,v in reset_call_kws.items()})
+            self._reset(**{k:v() for k,v in reset_call_kws.items()})
             trial = study.ask()
             suggested_kwargs = kws_maker(trial)
             opt_kwargs = suggested_kwargs.copy()
