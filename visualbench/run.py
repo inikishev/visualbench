@@ -78,6 +78,7 @@ class Task:
         if not os.path.exists(self.task_dir): os.mkdir(self.task_dir)
 
         self.info_file = os.path.join(self.task_dir, 'info.yaml')
+        self._needs_yaml_update = False
         if os.path.exists(self.info_file):
             self.info = yamlread(self.info_file)
         else:
@@ -110,7 +111,6 @@ class Task:
                     },
                 }
 
-        self._needs_yaml_update = False
 
     def _check_res(self, res: "Result"):
         for rel_point, info in self.info.items():
@@ -398,7 +398,7 @@ def plot_loss(task, opts = None, root = 'runs', log_scale=False, metric = 'train
     d = (ymax - ymin)*0.05
     if log_scale:
         # fig.ylim(10**(ymin), 10**(ymax))
-        fig.yscale('log')
+        fig.yscale('symlog', linthresh = 1e-8)
     else:
         fig.ylim(ymin-d, ymax+d)
 
@@ -528,7 +528,7 @@ def run(name:str, opt_fn, has_lr=True, root='runs', save=True, show=True, savefi
         max_search_time=60,
         min_loss=-1,
     )
-    _search(task, False)
+    _search(task, False, train_sigma=3)
 
     # ------------------------------- MNIST-1D MLP ------------------------------- #
     bench = MNIST1D_MLP_Minibatch().cuda()
@@ -549,7 +549,7 @@ def run(name:str, opt_fn, has_lr=True, root='runs', save=True, show=True, savefi
         test_every_steps = 10,
     )
 
-    _search(task, False, train_sigma=3)
+    _search(task, False, train_sigma=2)
 
 
     # # ------------------------------- MNIST-1D LSTM ------------------------------ #

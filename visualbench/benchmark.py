@@ -202,7 +202,7 @@ class Benchmark(torch.nn.Module):
     def _aggregate_test_metrics(self):
         """Logs the mean of each test metrics and resets test metrics to an empty dict"""
         for metric, values in self._test_metrics.items():
-            self.logger.log(self._current_step, metric, np.nanmean(values))
+            self.logger.log(self.num_passes, metric, np.nanmean(values))
         self._test_metrics = {}
 
     def _print_progress(self, t: float):
