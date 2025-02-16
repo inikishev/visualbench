@@ -15,6 +15,8 @@ from .linalg import (
     JordanForm,
     LUPivot,
     MatrixLogarithm,
+    MatrixRoot,
+    MatrixSign,
     MatrixSqrt,
     MoorePenrose,
     TensorTrainDecomposition,
@@ -26,6 +28,7 @@ from .synthetic import (
     AlphaBeta1,
     Convex,
     NonlinearMatrixFactorization,
+    SelfRecurrent,
     Rosenbrock,
     Sphere,
 )

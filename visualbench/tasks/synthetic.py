@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .._utils import _normalize_to_uint8, _make_float_tensor
+from .._utils import _normalize_to_uint8, _make_float_tensor, _make_float_hwc_square_matrix
 from ..benchmark import Benchmark
 
 
@@ -174,3 +174,56 @@ class AlphaBeta1(Benchmark):
         return loss
 
 
+def _graft(x,to,ord):
+    x_norm = torch.linalg.vector_norm(x,ord=ord) # pylint:disable=not-callable
+    to_norm = torch.linalg.vector_norm(to,ord=ord) # pylint:disable=not-callable
+    return x * (to_norm/x_norm)
+
+def _full01(size, generator):
+    return torch.full(size, 0.1, dtype = torch.float32)
+
+class SelfRecurrent(Benchmark):
+    """finds A such that all of A^i for i in (2, n) is n, but normalizes each previous A to M's norm"""
+    def __init__(self, M, n: int, loss = F.mse_loss, init = _full01, graft_ord:int|None=2, act=None, make_images=True):
+        super().__init__()
+        self.M = nn.Buffer(_make_float_hwc_square_matrix(M).moveaxis(-1, 0))
+        if self.M.shape[-1] != self.M.shape[-2]: raise ValueError(f'{self.M.shape = } - not a matrix!')
+        self.A = nn.Parameter(init(self.M.shape, generator = self.rng.torch()))
+        self.n = n
+        self.loss = loss
+        self.graft_ord = graft_ord
+        self.act = act
+
+        self.make_images = make_images
+        if make_images:
+            self.add_reference_image("target", self.M, to_uint8=True)
+            self.set_display_best("image A^n")
+
+
+    def get_loss(self):
+        """
+        Compute the loss between exp(A) and the target matrix B.
+
+        Args:
+            B (torch.Tensor): Target matrix. Expected shape (n, n).
+
+        Returns:
+            torch.Tensor: Frobenius norm loss between exp(A) and B.
+        """
+        loss = 0
+        powers = []
+        A = self.A
+        for p in range(2, self.n+1):
+            A = A@A
+            if self.graft_ord is not None: A = _graft(A, self.M, ord = self.graft_ord)
+            loss = loss + self.loss(A, self.M)
+            powers.append(A)
+            if self.act is not None and p!= self.n: A = self.act(A)
+
+        if self.make_images:
+            self.log_difference("image update A", self.A, to_uint8=True)
+            self.log("image A", self.A, False, to_uint8=True)
+            for i, p in enumerate(powers):
+                self.log(f"image A^{i+2}", p, False, to_uint8=True)
+
+        return loss

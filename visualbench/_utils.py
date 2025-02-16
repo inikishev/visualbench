@@ -38,6 +38,7 @@ def _make_float_hw3_tensor(x: Any) -> torch.Tensor:
         return torch.randn(x, generator=torch.Generator().manual_seed(0))
     return force_hw3(_make_float_tensor(x))
 
+
 def test_make_float_hw3_tensor():
     assert _make_float_hw3_tensor(4).shape == (4,4,3), _make_float_hw3_tensor(4).shape
     assert _make_float_hw3_tensor((5, 6)).shape == (5,6,3), _make_float_hw3_tensor((5,6)).shape
@@ -53,6 +54,18 @@ def _make_float_hwc_tensor(x: Any) -> torch.Tensor:
         if x[0] < x[2]: x = (x[1], x[2], x[0])
         return torch.randn(x, generator=torch.Generator().manual_seed(0))
     return force_hwc(_make_float_tensor(x))
+
+
+def _make_float_hwc_square_matrix(x: Any) -> torch.Tensor:
+    x = _make_float_hwc_tensor(x)
+    if x.shape[1] == x.shape[0]: return x
+    if x.shape[0] > x.shape[1]:
+        print(f"got matrix of shape {x.shape} where it needs to be square so trimming down to {x.shape[1], x.shape[1], x.shape[2]}")
+        return x[:x.shape[1]]
+    if x.shape[0] < x.shape[1]:
+        print(f"got matrix of shape {x.shape} where it needs to be square so trimming down to {x.shape[0], x.shape[0], x.shape[2]}")
+        return x[:, :x.shape[0]]
+    raise RuntimeError(f"wtf {x.shape}")
 
 def test_make_float_hwc_tensor():
     assert _make_float_hwc_tensor(4).shape == (4,4,1), _make_float_hw3_tensor(4).shape

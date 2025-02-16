@@ -10,9 +10,23 @@ from myai.transforms import normalize, totensor
 from torch import nn
 from torch.nn import functional as F
 
-from .._utils import _make_float_hwc_tensor, _normalize_to_uint8, _make_float_tensor, sinkhorn
+from .._utils import _make_float_hwc_tensor, _normalize_to_uint8, _make_float_tensor, sinkhorn, _make_float_hwc_square_matrix
 from ..benchmark import Benchmark
 
+def _square(x):return x**2
+
+def _zeros(size, generator):
+    return torch.zeros(size, dtype=torch.float32)
+def _ones(size, generator):
+    return torch.ones(size, dtype=torch.float32)
+def _full01(size, generator):
+    return torch.full(size, 0.1, dtype = torch.float32)
+def _full001(size, generator):
+    return torch.full(size, 0.01, dtype = torch.float32)
+def _normal01(size, generator):
+    x = torch.empty(size, dtype = torch.float32)
+    nn.init.normal_(x, mean=0.0, std=0.1, generator=generator)
+    return x
 
 def _expand_channels(x:torch.Tensor, ch:int):
     if ch == 1: return x.unsqueeze(0)
@@ -30,7 +44,7 @@ class Inverse(Benchmark):
     """
     def __init__(self, A: Any, loss: Callable = torch.nn.functional.mse_loss, dtype: torch.dtype=torch.float32, make_images=True):
         super().__init__(log_projections = True, seed=0)
-        matrix: torch.Tensor = _make_float_hwc_tensor(A).moveaxis(-1, 0)
+        matrix: torch.Tensor = _make_float_hwc_square_matrix(A).moveaxis(-1, 0)
         if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
         matrix = matrix.to(dtype = dtype, memory_format = torch.contiguous_format)
         self.loss_fn = loss
@@ -186,18 +200,7 @@ class Whitening(Benchmark):
 
         return loss
 
-def _square(x):return x**2
 
-def _zeros(size, generator):
-    return torch.zeros(size, dtype=torch.float32)
-def _ones(size, generator):
-    return torch.ones(size, dtype=torch.float32)
-def _full001(size, generator):
-    return torch.full(size, 0.01, dtype = torch.float32)
-def _normal01(size, generator):
-    x = torch.empty(size, dtype = torch.float32)
-    nn.init.normal_(x, mean=0.0, std=0.1, generator=generator)
-    return x
 
 # Matches true SVD with randn not with zeros
 # randn and 0.01 produce similar results, ones slightly harder
@@ -497,7 +500,7 @@ class Cholesky(Benchmark):
     """Cholesky as objective"""
     def __init__(self, A, loss = F.mse_loss, non_negative_fn=_square, init = _full001, make_images = True):
         super().__init__(log_projections = True, seed=0)
-        matrix = _make_float_hwc_tensor(A).moveaxis(-1, 0)
+        matrix = _make_float_hwc_square_matrix(A).moveaxis(-1, 0)
         if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
 
         self.A = torch.nn.Buffer(matrix.contiguous())
@@ -772,7 +775,7 @@ class MatrixSqrt(Benchmark):
 
     def __init__(self, A, loss = F.mse_loss, init = _full001, make_images=True):
         super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
+        self.A = nn.Buffer(_make_float_hwc_square_matrix(A).moveaxis(-1, 0).contiguous())
         if self.A.shape[-1] != self.A.shape[-2]: raise ValueError(f'{self.A.shape = } - not a matrix!')
 
         self.B = nn.Parameter(init(self.A.shape, generator = self.rng.torch()).contiguous())
@@ -1061,7 +1064,7 @@ class MatrixLogarithm(Benchmark):
     """finds matrix such that exp(matrix) = M"""
     def __init__(self, M, loss = F.mse_loss, init = _zeros, make_images=True):
         super().__init__()
-        self.M = nn.Buffer(_make_float_hwc_tensor(M).moveaxis(-1, 0))
+        self.M = nn.Buffer(_make_float_hwc_square_matrix(M).moveaxis(-1, 0))
         if self.M.shape[-1] != self.M.shape[-2]: raise ValueError(f'{self.M.shape = } - not a matrix!')
         self.log_M = nn.Parameter(init(self.M.shape, generator = self.rng.torch()))
         self.loss = loss
@@ -1142,3 +1145,81 @@ class JordanForm(Benchmark):
 
         return total_loss
 
+
+class MatrixRoot(Benchmark):
+    """finds A such that A^n = M"""
+    def __init__(self, M, n: int, loss = F.mse_loss, init = _full01, make_images=True):
+        super().__init__()
+        self.M = nn.Buffer(_make_float_hwc_square_matrix(M).moveaxis(-1, 0))
+        if self.M.shape[-1] != self.M.shape[-2]: raise ValueError(f'{self.M.shape = } - not a matrix!')
+        self.A = nn.Parameter(init(self.M.shape, generator = self.rng.torch()))
+        self.n = n
+        self.loss = loss
+
+        self.make_images = make_images
+        if make_images:
+            self.add_reference_image("target", self.M, to_uint8=True)
+            self.set_display_best("image A^n")
+
+
+    def get_loss(self):
+        """
+        Compute the loss between exp(A) and the target matrix B.
+
+        Args:
+            B (torch.Tensor): Target matrix. Expected shape (n, n).
+
+        Returns:
+            torch.Tensor: Frobenius norm loss between exp(A) and B.
+        """
+        An = torch.linalg.matrix_power(self.A, n = self.n)
+        loss = self.loss(An, self.M)
+
+        if self.make_images:
+            self.log("image A^n", An, False, to_uint8=True)
+            self.log("image A", self.A, False, to_uint8=True)
+            self.log_difference("image update A", self.A, to_uint8=True)
+
+        return loss
+
+
+class MatrixSign(Benchmark):
+    """objective is to converge to fixed point of Newton-Schulz iteration"""
+    def __init__(self, M, loss = F.mse_loss, make_images = True):
+        super().__init__()
+        self.M = nn.Buffer(_make_float_hwc_square_matrix(M).moveaxis(-1, 0).contiguous())
+        if self.M.shape[-1] != self.M.shape[-2]: raise ValueError(f'{self.M.shape = } - not a matrix!')
+
+        self.loss = loss
+        b = self.M.size(0)
+        n = self.M.size(1)
+        self.n = n
+        self.I = torch.nn.Buffer(torch.eye(n, dtype=torch.float32).unsqueeze(0).repeat_interleave(b, 0).contiguous())
+
+        # Compute spectral norm of A and scale to ensure convergence
+        with torch.no_grad():
+            spectral_norm = torch.linalg.norm(self.M, ord=2, dim = (-2, -1), keepdim = True)
+            scaling_factor = spectral_norm * 1.1  # Ensure ||S_init||_2 < 1
+            S_init = self.M / scaling_factor
+
+        # Initialize learnable parameter S
+        self.S = nn.Parameter(S_init.clone().contiguous())
+
+        self.make_images = make_images
+        if make_images:
+            self.add_reference_image("input", self.M, to_uint8=True)
+
+
+    def get_loss(self):
+        S = self.S
+        # Newton-Schulz step
+        S_next = 0.5 * S @ (3.0 * self.I - S @ S)
+        # loss to drive residual to zero
+        loss = self.loss(S, S_next)
+
+        if self.make_images:
+            self.log("image S next", S_next, False, to_uint8=True)
+            self.log("image S", S, False, to_uint8=True)
+            self.log_difference("image update S", S, to_uint8=True)
+
+        return loss
