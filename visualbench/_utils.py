@@ -1,3 +1,4 @@
+import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal, Unpack
 
@@ -214,6 +215,10 @@ def _plot_loss(bench: "Benchmark", ylim: Literal['auto'] | Sequence[float] | Non
     if fig is None: fig = Fig()
 
     possible_keys = [f'train {y}', f'test {y}', f'{y}']
+    keys_in_logger = [i for i in possible_keys if i in bench.logger]
+    if len(keys_in_logger) == 0:
+        warnings.warn(f"No key `{y}` found in benchmark {bench.__class__.__name__}")
+        return fig
 
     # automatic ylim from first and min values
     if (ylim == 'auto') and (yscale is None) and y in ('loss', 'train loss', 'test loss'):

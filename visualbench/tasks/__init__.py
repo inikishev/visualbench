@@ -15,6 +15,7 @@ from .linalg import (
     MoorePenrose,
     TensorTrainDecomposition,
     Whitening,
+    MPS,
 )
 from .packing import BoxPacking, RotatingBoxPacking, SpherePacking
 from .synthetic import (
@@ -24,4 +25,4 @@ from .synthetic import (
     Rosenbrock,
     Sphere,
 )
-from .operators import Argsort
+from .operators import Sorting

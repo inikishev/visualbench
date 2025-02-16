@@ -7,8 +7,8 @@ from ..benchmark import Benchmark
 def _zeros(size, generator):
     return torch.zeros(size, dtype=torch.float32)
 
-class Argsort(Benchmark):
-    """differentiable argsort objective via sinkhorn iteration
+class Sorting(Benchmark):
+    """differentiable sorting objective via sinkhorn iteration
 
     Args:
         vec (_type_): vector to optimize argsort for
@@ -19,12 +19,12 @@ class Argsort(Benchmark):
         init (_type_, optional): _description_. Defaults to torch.randn.
         make_images (bool, optional): _description_. Defaults to True.
     """
-    def __init__(self, vec, sinkhorn_iters: int | None = 10, binary_weight = 0.2, ortho_weight = 0.2, p=2, init = _zeros, make_images = True):
+    def __init__(self, vec=torch.randint(0, 100, (100,), generator=torch.Generator().manual_seed(0)), sinkhorn_iters: int | None = 10, binary_weight = 0.2, ortho_weight = 0.2, p=2, init = _zeros, make_images = True):
         super().__init__(log_projections=True)
 
         self.sinkhorn_iters = sinkhorn_iters
         self.make_images = make_images
-        self.binary_weight = binary_weight
+        self.binary_weight = binary_weight # TODO cycle this from 0 to 1
         self.ortho_weight = ortho_weight
         self.p = p
 

@@ -252,7 +252,6 @@ class SVD(Benchmark):
 
     def get_loss(self):
         S = self.non_negative_fn(self.s_raw)
-        # Ensure S is non-negative (e.g., using squared or abs in parameterization)
 
         S_mat = torch.diag_embed(S)
 
@@ -272,8 +271,8 @@ class SVD(Benchmark):
             self.log('image reconstruction', rec, False, to_uint8=True)
             self.log('image U', U_sorted, False, to_uint8=True)
             self.log('image Vh',Vh_sorted, False, to_uint8=True)
-            self.log_difference('image update U', U_sorted, to_uint8=True)
-            self.log_difference('image update Vh', Vh_sorted, to_uint8=True)
+            # self.log_difference('image update U', U_sorted, to_uint8=True)
+            # self.log_difference('image update Vh', Vh_sorted, to_uint8=True)
 
         return recon_loss + self.ortho_weight * (U_ortho_loss + V_ortho_loss)
 
@@ -353,12 +352,11 @@ class LU(Benchmark):
     def __init__(self, A, loss = F.mse_loss, init = _zeros, make_images = True):
         super().__init__(log_projections = True, seed=0)
         matrix = _make_float_hwc_tensor(A).moveaxis(-1, 0)
-        # Input matrix is expected to have shape (channels, m, m)
+
         self.A = torch.nn.Buffer(matrix.contiguous())
         b, m, n = matrix.shape
-        k = min(m, n)  # Determine decomposition rank
+        k = min(m, n)
 
-        # Initialize parameters for L and U with appropriate masks
         self.L = nn.Parameter(init((b, m, k), generator=self.rng.torch()) * torch.tril(torch.ones(m, k), diagonal=-1).unsqueeze(0).contiguous())
         self.U = nn.Parameter(init((b, k, n), generator=self.rng.torch()) * torch.triu(torch.ones(k, n)).unsqueeze(0).contiguous())
 
@@ -379,17 +377,10 @@ class LU(Benchmark):
             self.set_display_best('image LU', True)
 
     def get_loss(self):
-        # Retrieve the input matrix from buffer
         A = self.A
         L = torch.tril(self.L, diagonal=-1) + self.I  # shape (channels, m, m)
-
-        # Construct U as upper triangular
         U = torch.triu(self.U, diagonal=0)
-
-        # Compute the reconstructed matrix
         LU = torch.bmm(L, U)  # shape (channels, m, m)
-
-        # Calculate mean squared error loss
         loss = self.loss_fn(LU, A)
 
         if self.make_images:
@@ -411,12 +402,10 @@ class LUPivot(Benchmark):
     def __init__(self, A, sinkhorn_iters: int | None=10, ortho_weight = 1, binary_weight = 1, sq_loss=False, init = _zeros, make_images = True):
 
         super().__init__(log_projections = True, seed=0)
-        # Register the input matrix as a buffer
         self.A = torch.nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         B, M, N = self.A.shape
         K = min(M, N)
 
-        # Initialize parameters for L, U, and P
         self.L = nn.Parameter(init((B, M, K), generator=self.rng.torch()).contiguous())
         self.U = nn.Parameter(init((B, K, N), generator=self.rng.torch()).contiguous())
         self.P_logits = nn.Parameter(init((B, M, M), generator=self.rng.torch()).contiguous())
@@ -446,20 +435,12 @@ class LUPivot(Benchmark):
     def get_loss(self):
         A = self.A
 
-        # Compute row-stochastic permutation matrix using softmax
         if self.sinkhorn_iters is None: P = torch.softmax(self.P_logits, dim=-1)  # (C, M, M)
         else: P = sinkhorn(self.P_logits, self.sinkhorn_iters)
 
-        # Compute PA = P @ A for each channel
         PA = torch.bmm(P, A)  # (C, M, N)
-
         L = self.L * self.L_mask + self.diag_mask
-
-        # Construct upper triangular matrix U
-
         U = self.U * self.U_mask
-
-        # Compute LU = L @ U
         LU = torch.bmm(L, U)  # (C, M, N)
 
         # Reconstruction loss: ||PA - LU||_F^2
@@ -476,7 +457,6 @@ class LUPivot(Benchmark):
         # Encourage entries of P to be close to 0 or 1
         binary_loss = torch.sum(P * (1 - P))
 
-        # Total loss combines all components
         total_loss = reconstruction_loss + ortho_loss*self.ortho_weight + binary_loss*self.binary_weight
 
         if self.make_images:
@@ -501,11 +481,9 @@ class Cholesky(Benchmark):
         matrix = _make_float_hwc_tensor(A).moveaxis(-1, 0)
         if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
 
-        # Input matrix is expected to have shape (channels, m, m)
         self.A = torch.nn.Buffer(matrix.contiguous())
         b, n, _ = matrix.shape
 
-        # Initialize parameters for L and U with appropriate masks
         self.L = nn.Parameter(init((b, n, n), generator=self.rng.torch()).tril(-1).contiguous())
         self.diag_raw = nn.Parameter(init((b, n), generator=self.rng.torch()).contiguous())
         self.non_negative_fn = non_negative_fn
@@ -524,13 +502,10 @@ class Cholesky(Benchmark):
 
 
     def get_loss(self):
-
         A = self.A
         L = self.L.tril(-1) + torch.diag_embed(self.non_negative_fn(self.diag_raw))
-
         LLT = torch.bmm(L, L.transpose(-1, -2))
 
-        # Calculate mean squared error loss
         loss = self.loss_fn(LLT, A)
 
         if self.make_images:
@@ -565,7 +540,6 @@ class MoorePenrose(Benchmark):
         A = self.A
         X = self.X
 
-        # Compute AX and XA for efficiency
         AX = torch.matmul(A, X)
         XA = torch.matmul(X, A)
 
@@ -610,7 +584,7 @@ class EigenDecomposition(Benchmark):
 
         # Initialize eigenvectors (Q) with random orthogonal matrices
         rand_Q = init((C, N, N), generator=self.rng.torch())
-        Q, _ = torch.linalg.qr(rand_Q)  # QR decomposition for orthogonal initialization
+        Q, _ = torch.linalg.qr(rand_Q)
         self.Q = nn.Parameter(Q.contiguous())
 
         # Initialize eigenvalues as a parameter (diagonal of Lambda)
@@ -632,16 +606,10 @@ class EigenDecomposition(Benchmark):
         """
         Compute the reconstruction loss using the current eigenvectors and eigenvalues.
         """
-        # Form diagonal eigenvalue matrices (C, N, N)
         Lambda = torch.diag_embed(self.eigenvalues)
-
-        # Compute inverse of eigenvectors matrix Q
         Q_inv = torch.linalg.inv(self.Q)  # (C, N, N)
-
-        # Reconstruct the matrix: A_recon = Q * Lambda * Q^{-1}
         A_recon = torch.matmul(torch.matmul(self.Q, Lambda), Q_inv)
 
-        # Frobenius norm squared loss between input and reconstructed matrix
         loss = torch.linalg.norm(self.A - A_recon, ord='fro', dim = (-1, -2))
         if self.sq: loss = loss**2
 
@@ -667,10 +635,8 @@ class Bruhat(Benchmark):
         self.sq_loss = sq_loss
         self.make_images = make_images
 
-        # Initialize parameters for B and B' (upper triangular including diagonal)
         self.B = nn.Parameter(torch.zeros(self.b, self.n, self.n).contiguous())
         self.B_prime = nn.Parameter(torch.zeros(self.b, self.n, self.n).contiguous())
-        # Logits for the permutation matrix
         self.w_logits = nn.Parameter(init((self.b, self.n, self.n), generator=self.rng.torch()).contiguous())
 
         # Initialize off-diagonal elements with small random values
@@ -684,26 +650,25 @@ class Bruhat(Benchmark):
         self.set_display_best("image reconstruction")
 
     def get_loss(self):
-        # Construct B with exp(diag) and upper off-diagonal
+        # B with exp(diag) and upper off-diagonal
         B_diag = torch.diag_embed(torch.exp(torch.diagonal(self.B, dim1 = -2, dim2 = -1)))
         B_upper_off = torch.triu(self.B, diagonal=1)
         B = B_diag + B_upper_off
 
-        # Construct B' similarly
+        # B' same
         B_prime_diag = torch.diag_embed(torch.exp(torch.diagonal(self.B_prime, dim1 = -2, dim2 = -1)))
         B_prime_upper_off = torch.triu(self.B_prime, diagonal=1)
         B_prime = B_prime_diag + B_prime_upper_off
 
-        # Apply Sinkhorn to get doubly stochastic matrix
         w_ds = sinkhorn(self.w_logits, self.sinkhorn_iters)
 
-        # Reconstruction loss
+        # reconstruction loss
         recon = B @ w_ds @ B_prime
         frob_loss = torch.norm(self.A - recon, p='fro', dim = (-2, -1))
         if self.sq_loss: frob_loss = frob_loss.pow(2).mean()
         else: frob_loss = frob_loss.mean()
 
-        # Entropy regularization to push w_ds towards permutation matrix
+        # regularization to push w_ds towards permutation matrix
         entropy = -torch.sum(w_ds * torch.log(w_ds + 1e-10))
         entropy_loss = self.entropy_weight * entropy
 
@@ -757,26 +722,21 @@ class InterpolativeDecomposition(Benchmark):
         """
         if self.sinkhorn_iters is not None: P = sinkhorn(self.P_logits, self.sinkhorn_iters)
         else: P = torch.softmax(self.P_logits, dim=2)  # Shape: (k, n)
-
-        # Compute the basis matrix as weighted sum of A's columns
         basis = self.A @ P.transpose(-2, -1)  # Shape: (m, k)
-
-        # Reconstruct the matrix using the basis and coefficients
         recon = basis @ self.S  # Shape: (m, n)
 
-        # Frobenius norm reconstruction loss
+        # reconstruction loss
         reconstruction_loss = torch.norm(self.A - recon, p='fro', dim = (-2, -1)).mean()
 
-        # Diversity regularization (encourage distinct column selection)
+        # encourage distinct columns
         if self.sinkhorn_iters is not None:
             column_usage = P.sum(dim=1)  # (n,)
             diversity_loss = -torch.sum(column_usage * torch.log(column_usage + 1e-10))
 
         else:
-            # Entropy regularization to encourage peaked distributions
+            # encourage peaked distributions
             diversity_loss = -torch.sum(P * torch.log(P + 1e-10), dim=2).mean()
 
-        # Total loss combines reconstruction and regularization
         total_loss = reconstruction_loss + self.lambda_reg * diversity_loss
 
         if self.make_images:
@@ -840,10 +800,7 @@ class CanonicalPolyadicDecomposition(Benchmark):
             self.set_display_best("image reconstructed")
 
     def get_loss(self):
-        # Reconstruct tensor using Einstein summation (efficient outer products + sum)
         reconstructed = torch.einsum('ir,jr,kr->ijk', self.A, self.B, self.C)
-
-        # Compute squared Frobenius norm of the error (reconstruction loss)
         loss = self.loss(reconstructed, self.T)
 
         if self.make_images:
@@ -869,7 +826,8 @@ class PCA(Benchmark):
         Args:
         """
         super().__init__(log_projections = True, seed=0)
-        self.X = nn.Buffer(_make_float_hwc_tensor(X).moveaxis(-1, 0))
+        X = _make_float_hwc_tensor(X).moveaxis(-1, 0)
+        self.X = nn.Buffer(X - X.mean())
 
         self.loss = loss
         self.batched = batched
@@ -885,27 +843,16 @@ class PCA(Benchmark):
             self.set_display_best("image reconstructed")
 
     def get_loss(self):
-        """
-        Args:
-            X (torch.Tensor): Input data tensor of shape (batch_size, input_dim),
-                              assumed to be centered (zero mean).
-        Returns:
-            torch.Tensor: Reconstruction loss (scalar).
-        """
-        # Ensure the input is centered (user's responsibility)
-
-        # Compute QR decomposition of W to get orthonormal projection matrix Q
+        # orthonormal projection matrix Q
         Q, _ = torch.linalg.qr(self.W)
 
-        # Project data onto the orthonormal basis (Q)
+        # project data onto the orthonormal basis (Q)
         if self.batched: X = self.X
         else: X = self.X.view(-1, self.X.shape[-1])
         X_proj = X @ Q  # (batch_size, output_dim)
 
-        # Reconstruct the data from the low-dimensional projection
+        # reconstruct the data from the low-dimensional projection
         X_recon = X_proj @ Q.transpose(-2, -1)  # (batch_size, input_dim)
-
-        # Compute mean squared reconstruction error
         loss = self.loss(X, X_recon)
 
         if self.make_images:
@@ -941,7 +888,7 @@ class TensorTrainDecomposition(Benchmark):
                 f"Length of ranks must be {self.ndim - 1} for a {self.ndim}-dimensional tensor."
             )
 
-        # Initialize TT cores
+        # TT cores
         self.cores = nn.ParameterList()
         for i in range(self.ndim):
             if i == 0:
@@ -964,20 +911,75 @@ class TensorTrainDecomposition(Benchmark):
             self.set_display_best("image reconstructed")
 
     def get_loss(self):
-        # Reconstruct the tensor from the TT cores
-        current = self.cores[0].squeeze(0)  # Remove the first singleton dimension
+        current = self.cores[0].squeeze(0)
 
         for i in range(1, self.ndim):
             core = self.cores[i]
             r_prev, d_i, r_next = core.shape
-            # Reshape core for matrix multiplication
+            # reshape for matrix multiplication
             core_reshaped = core.reshape(r_prev, -1)
             current = torch.matmul(current, core_reshaped)
-            # Reshape to merge current dimension and prepare for next core
+            # merge current dimension and prepare for next core
             current = current.reshape(-1, r_next)
 
         reconstructed = current.reshape(self.T.shape)
         loss = self.loss(reconstructed, self.T)
+
+        if self.make_images and self.is_image:
+            self.log("image reconstructed", reconstructed, False, to_uint8=True)
+
+        return loss
+
+
+# no convergence with zeros and stuck on ones or full
+class MPS(Benchmark):
+    """matrix product state bend dims 1 less length than T.ndim"""
+    def __init__(self, T, bond_dims: Sequence[int], loss = F.mse_loss, make_images = True):
+        super().__init__()
+        self.T = nn.Buffer(_make_float_tensor(T))
+        self.bond_dims = bond_dims
+        d = self.T.shape
+        N = len(d)
+        self.loss_fn = loss
+
+        assert len(bond_dims) == N - 1, (
+            f"bond_dims length ({len(bond_dims)}) must be one less than "
+            f"target tensor's number of dimensions ({N})"
+        )
+
+        self.cores = nn.ParameterList()
+        # 1st core: (1, d[0], bond_dims[0])
+        self.cores.append(nn.Parameter(torch.randn(1, d[0], bond_dims[0])))
+        # middle cores: (bond_dims[i-1], d[i], bond_dims[i])
+        for i in range(1, N-1):
+            self.cores.append(nn.Parameter(
+                torch.randn(bond_dims[i-1], d[i], bond_dims[i])
+            ))
+        # last core: (bond_dims[-1], d[-1], 1)
+        self.cores.append(nn.Parameter(
+            torch.randn(bond_dims[-1], d[-1], 1)
+        ))
+
+        self.is_image = False
+        self.make_images = make_images
+        if make_images:
+            if self.T.ndim == 2 or (self.T.ndim == 3 and (self.T.shape[0]<=3 or self.T.shape[2]<=3)):
+                self.is_image = True
+                self.add_reference_image("target", self.T, to_uint8=True)
+            self.set_display_best("image reconstructed")
+
+    def get_loss(self):
+        current = self.cores[0].squeeze(0)  # Shape: (d0, bond_dim_0)
+
+        for i in range(1, len(self.cores)):
+            core = self.cores[i]
+            #contracts the bond dimension between current and core
+            current = torch.einsum('ab,bcd->acd', current, core)
+            # merge the physical dimensions
+            current = current.reshape(-1, core.shape[2])
+
+        reconstructed = current.view(self.T.shape)
+        loss = self.loss_fn(reconstructed, self.T)
 
         if self.make_images and self.is_image:
             self.log("image reconstructed", reconstructed, False, to_uint8=True)
