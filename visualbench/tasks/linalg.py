@@ -935,7 +935,7 @@ class TensorTrainDecomposition(Benchmark):
 class MPS(Benchmark):
     """matrix product state bend dims 1 less length than T.ndim"""
     def __init__(self, T, bond_dims: Sequence[int], loss = F.mse_loss, make_images = True):
-        super().__init__()
+        super().__init__(log_projections = True, seed=0)
         self.T = nn.Buffer(_make_float_tensor(T))
         self.bond_dims = bond_dims
         d = self.T.shape
@@ -985,3 +985,57 @@ class MPS(Benchmark):
             self.log("image reconstructed", reconstructed, False, to_uint8=True)
 
         return loss
+
+
+class CompactHOSVD(Benchmark):
+    """Compact Higher-order singular value decomposition
+
+    ranks same length as T.ndim"""
+    def __init__(self, T, ranks, loss = F.mse_loss, ortho_weight=1.0, make_images = True):
+        super().__init__(log_projections = True, seed=0)
+        self.T = nn.Buffer(_make_float_tensor(T))
+        assert self.T.ndim == len(ranks), (self.T.ndim, len(ranks))
+        self.tensor_shape = self.T.shape
+        self.ranks = ranks
+        self.ortho_weight = ortho_weight
+        self.loss = loss
+
+        self.factors = nn.ParameterList()
+        for dim, rank in zip(self.T.shape, ranks):
+            U = torch.randn(dim, rank)
+            U, _ = torch.linalg.qr(U)  # Orthogonal initialization
+            self.factors.append(nn.Parameter(U.contiguous()))
+
+        self.core = nn.Parameter(torch.randn(*ranks).contiguous())
+        nn.init.normal_(self.core, mean=0.0, std=0.02)
+
+        self.is_image = False
+        self.make_images = make_images
+        if make_images:
+            if self.T.ndim == 2 or (self.T.ndim == 3 and (self.T.shape[0]<=3 or self.T.shape[2]<=3)):
+                self.is_image = True
+                self.add_reference_image("target", self.T, to_uint8=True)
+            self.set_display_best("image reconstructed")
+
+    def get_loss(self):
+        current_core = self.core
+        for i, U in enumerate(self.factors):
+            current_core = torch.tensordot(U, current_core, dims=([1], [i])) # type:ignore
+
+        current_core = current_core.permute(2, 1, 0)
+        reconstruction_loss = self.loss(current_core, self.T)
+
+        # orthogonality regularization
+        ortho_loss = 0.0
+        for U in self.factors:
+            ortho = torch.mm(U.T, U)
+            identity = torch.eye(U.size(1), device=U.device)
+            ortho_loss += torch.sum((ortho - identity) ** 2)
+
+        # Total loss combining both terms
+        total_loss = reconstruction_loss + self.ortho_weight * ortho_loss
+
+        if self.make_images and self.is_image:
+            self.log("image reconstructed", current_core, False, to_uint8=True)
+
+        return total_loss
