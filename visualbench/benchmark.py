@@ -144,7 +144,7 @@ class Benchmark(torch.nn.Module, ABC):
             if name in self._test_metrics: self._test_metrics[name].append(value)
             else: self._test_metrics[name] = [value]
 
-    def log_difference(self, name: str, value: Any, to_uint8 = False):
+    def log_difference(self, name: str, value: Any, to_uint8):
         """basically saves last update to name to visualzie optimziation dynamics, train only"""
         if name not in self._previous_difference_values:
             prev = self._previous_difference_values[name] = _maybe_detach_clone(value)
