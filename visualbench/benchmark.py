@@ -28,8 +28,8 @@ from ._utils import (
     _print_final_report,
     _print_progress,
     _render_video,
-    _to_float_hw3_tensor,
-    _to_float_tensor,
+    _make_float_hw3_tensor,
+    _make_float_tensor,
 )
 
 
@@ -292,7 +292,7 @@ class Benchmark(torch.nn.Module, ABC):
         return self
 
     def add_reference_image(self, key: str, image:Any, to_uint8 = True):
-        image = _to_float_tensor(image)
+        image = _make_float_tensor(image)
         if to_uint8: image = _normalize_to_uint8(image)
         self.reference_images[key] = image
 

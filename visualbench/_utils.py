@@ -16,14 +16,37 @@ if TYPE_CHECKING:
 
 CUDA_IF_AVAILABLE = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
-def _to_float_tensor(x: Any) -> torch.Tensor:
+def _make_float_tensor(x: Any) -> torch.Tensor:
     if isinstance(x, str): return znormalize(imreadtensor(x).float()).contiguous()
     if isinstance(x, torch.Tensor): return x.clone().float().contiguous()
     if isinstance(x, np.ndarray): return torch.from_numpy(x).float().contiguous()
     return torch.from_numpy(np.asarray(x)).float().contiguous()
 
-def _to_float_hw3_tensor(x: Any) -> torch.Tensor: return force_hw3(_to_float_tensor(x))
-def _to_float_hwc_tensor(x: Any) -> torch.Tensor: return force_hwc(_to_float_tensor(x))
+def __tensor_from_ints(x):
+    """if x is int, generates (1, x, x), if tuple of its, generates"""
+    return None
+
+def _make_float_hw3_tensor(x: Any) -> torch.Tensor:
+    if isinstance(x, int):
+        return torch.randn((x, x, 3), generator=torch.Generator().manual_seed(0))
+    if isinstance(x, tuple) and len(x) == 2 and all(isinstance(i, int) for i in x):
+        return torch.randn(tuple(list(x) + [3]), generator=torch.Generator().manual_seed(0))
+    if isinstance(x, tuple) and len(x) == 3 and all(isinstance(i, int) for i in x):
+        if x[0] < x[2]: x = (x[1], x[2], 3)
+        else: x = (x[0], x[1], 3)
+        return torch.randn(x, generator=torch.Generator().manual_seed(0))
+    return force_hw3(_make_float_tensor(x))
+
+
+def _make_float_hwc_tensor(x: Any) -> torch.Tensor:
+    if isinstance(x, int):
+        return torch.randn((x, x, 1), generator=torch.Generator().manual_seed(0))
+    if isinstance(x, tuple) and len(x) == 2 and all(isinstance(i, int) for i in x):
+        return torch.randn(tuple(list(x) + [1]), generator=torch.Generator().manual_seed(0))
+    if isinstance(x, tuple) and len(x) == 3 and all(isinstance(i, int) for i in x):
+        if x[0] < x[2]: x = (x[1], x[2], x[0])
+        return torch.randn(x, generator=torch.Generator().manual_seed(0))
+    return force_hwc(_make_float_tensor(x))
 
 def _ensure_float(x) -> float:
     if isinstance(x, torch.Tensor): return x.detach().cpu().item()

@@ -10,7 +10,7 @@ from myai.transforms import normalize
 from torch import nn
 from torch.nn import functional as F
 
-from .._utils import _normalize_to_uint8, _to_float_hwc_tensor
+from .._utils import _make_float_hwc_tensor, _normalize_to_uint8
 from ..benchmark import Benchmark
 
 
@@ -30,7 +30,7 @@ class Inverse(Benchmark):
     """
     def __init__(self, A: Any, loss: Callable = torch.nn.functional.mse_loss, dtype: torch.dtype=torch.float32, save_images=True):
         super().__init__(log_projections = True, seed=0)
-        matrix: torch.Tensor = _to_float_hwc_tensor(A).moveaxis(-1, 0)
+        matrix: torch.Tensor = _make_float_hwc_tensor(A).moveaxis(-1, 0)
         if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
         matrix = matrix.to(dtype = dtype, memory_format = torch.contiguous_format)
         self.loss_fn = loss
@@ -123,7 +123,7 @@ class Whitening(Benchmark):
     ):
 
         super().__init__(log_projections = True, seed=0)
-        matrix = _to_float_hwc_tensor(A).movedim(-1, 0)
+        matrix = _make_float_hwc_tensor(A).movedim(-1, 0)
 
         if matrix.shape[-2] <= matrix.shape[-1]:
             self.shorter_side = -2
@@ -221,7 +221,7 @@ class SVD(Benchmark):
         self.ortho_weight = ortho_weight
         self.loss = loss
 
-        matrix: torch.Tensor = _to_float_hwc_tensor(A).moveaxis(-1, 0).to(memory_format = torch.contiguous_format)
+        matrix: torch.Tensor = _make_float_hwc_tensor(A).moveaxis(-1, 0).to(memory_format = torch.contiguous_format)
         self.A = torch.nn.Buffer(matrix.contiguous())
 
         b, self.m, self.n = matrix.shape
@@ -293,7 +293,7 @@ class QR(Benchmark):
         self.loss = loss
         self.ortho_weight = ortho_weight
 
-        matrix: torch.Tensor = _to_float_hwc_tensor(A).moveaxis(-1, 0).to(memory_format = torch.contiguous_format)
+        matrix: torch.Tensor = _make_float_hwc_tensor(A).moveaxis(-1, 0).to(memory_format = torch.contiguous_format)
         self.A = torch.nn.Buffer(matrix)
 
         b, m, n = matrix.shape
@@ -352,7 +352,7 @@ class LU(Benchmark):
     """LU as objective"""
     def __init__(self, A, loss = F.mse_loss, init = _zeros, save_images = True):
         super().__init__(log_projections = True, seed=0)
-        matrix = _to_float_hwc_tensor(A).moveaxis(-1, 0)
+        matrix = _make_float_hwc_tensor(A).moveaxis(-1, 0)
         # Input matrix is expected to have shape (channels, m, m)
         self.A = torch.nn.Buffer(matrix.contiguous())
         b, m, n = matrix.shape
@@ -421,7 +421,7 @@ class LUPivot(Benchmark):
 
         super().__init__(log_projections = True, seed=0)
         # Register the input matrix as a buffer
-        self.A = torch.nn.Buffer(_to_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
+        self.A = torch.nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         B, M, N = self.A.shape
         K = min(M, N)
 
@@ -507,7 +507,7 @@ class Cholesky(Benchmark):
     """Cholesky as objective"""
     def __init__(self, A, loss = F.mse_loss, non_negative_fn=_square, init = _full001, save_images = True):
         super().__init__(log_projections = True, seed=0)
-        matrix = _to_float_hwc_tensor(A).moveaxis(-1, 0)
+        matrix = _make_float_hwc_tensor(A).moveaxis(-1, 0)
         if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
 
         # Input matrix is expected to have shape (channels, m, m)
@@ -553,7 +553,7 @@ class Cholesky(Benchmark):
 class MoorePenrose(Benchmark):
     def __init__(self, A, loss = F.mse_loss, init = _zeros, save_images = True):
         super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_to_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
+        self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         C, M, N = self.A.shape
 
         self.X = nn.Parameter(init((C, N, M), generator=self.rng.torch()).contiguous())
@@ -614,7 +614,7 @@ class EigenDecomposition(Benchmark):
     """
     def __init__(self, A, sq=False, init = _ones, save_images=True):
         super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_to_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
+        self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         C, N, _ = self.A.shape
 
         # Initialize eigenvectors (Q) with random orthogonal matrices
@@ -668,7 +668,7 @@ class EigenDecomposition(Benchmark):
 class Bruhat(Benchmark):
     def __init__(self, A, entropy_weight=0.1, sinkhorn_iters=10, sq_loss = False, init = _ones, save_images = True):
         super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_to_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
+        self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         self.b = self.A.size(0)
         self.n = self.A.size(-1)
         self.entropy_weight = entropy_weight
@@ -742,7 +742,7 @@ class InterpolativeDecomposition(Benchmark):
     """
     def __init__(self, A, k, lambda_reg=0.1, sinkhorn_iters: int | None=10, init = _zeros,  save_images=True):
         super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_to_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
+        self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         self.k = k
         self.lambda_reg = lambda_reg
         self.b, self.m, self.n = self.A.shape
@@ -804,7 +804,7 @@ class MatrixSqrt(Benchmark):
 
     def __init__(self, A, loss = F.mse_loss, init = _full001, save_images=True):
         super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_to_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
+        self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         if self.A.shape[-1] != self.A.shape[-2]: raise ValueError(f'{self.A.shape = } - not a matrix!')
 
         self.B = nn.Parameter(init(self.A.shape, generator = self.rng.torch()).contiguous())
@@ -824,3 +824,36 @@ class MatrixSqrt(Benchmark):
             self.log_difference('image update B', self.B, to_uint8=True)
         return loss
 
+# better results with randn than zeros ones and full001 but maybe ones is better because it is harder
+class CanonicalPolyadicDecomposition(Benchmark):
+    """Canonical polyadic decomposition (this is for 3D tensors which RGB image is)"""
+    def __init__(self, T, rank, loss = F.mse_loss, init = torch.randn, init_std=0.1, save_images = True):
+        super().__init__(log_projections = True, seed=0)
+        self.rank = rank
+        self.T = nn.Buffer(_make_float_hwc_tensor(T).moveaxis(-1, 0))
+        self.dims = self.T.shape
+        self.loss = loss
+
+        if len(self.dims) != 3:
+            raise ValueError("TensorRankDecomposition currently supports 3D tensors only.")
+
+        self.A = nn.Parameter(init((self.dims[0], rank), generator = self.rng.torch()) * init_std)
+        self.B = nn.Parameter(init((self.dims[1], rank), generator = self.rng.torch()) * init_std)
+        self.C = nn.Parameter(init((self.dims[2], rank), generator = self.rng.torch()) * init_std)
+
+        self.save_images = save_images
+        if save_images:
+            self.add_reference_image('input', self.T)
+            self.set_display_best("image reconstructed")
+
+    def get_loss(self):
+        # Reconstruct tensor using Einstein summation (efficient outer products + sum)
+        reconstructed = torch.einsum('ir,jr,kr->ijk', self.A, self.B, self.C)
+
+        # Compute squared Frobenius norm of the error (reconstruction loss)
+        loss = self.loss(reconstructed, self.T)
+
+        if self.save_images:
+            self.log('image reconstructed', reconstructed, False, to_uint8=True)
+
+        return loss

@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .._utils import _normalize_to_uint8, _to_float_tensor
+from .._utils import _normalize_to_uint8, _make_float_tensor
 from ..benchmark import Benchmark
 
 
@@ -27,11 +27,11 @@ class Sphere(Benchmark):
 
         # target tensor
         if isinstance(target, int): target = torch.randn(target, dtype=torch.float32, generator=self.rng.torch())
-        self.target = torch.nn.Buffer(_to_float_tensor(target))
+        self.target = torch.nn.Buffer(_make_float_tensor(target))
 
         # prediction tensor
         if init is None: init = torch.zeros_like(self.target)
-        self.x = torch.nn.Parameter(_to_float_tensor(init).contiguous())
+        self.x = torch.nn.Parameter(_make_float_tensor(init).contiguous())
         self.criterion = criterion
 
         # reference image for plotting
@@ -42,7 +42,9 @@ class Sphere(Benchmark):
 
     def get_loss(self):
         # log current recreated image if target is an image
-        if self.save_images and len(self.reference_images) != 0: self.log('image preds', self.x, False, to_uint8=True)
+        if self.save_images and len(self.reference_images) != 0:
+            self.log('image preds', self.x, False, to_uint8=True)
+            self.log_difference('image update', self.x, to_uint8=True)
 
         # return loss
         return self.criterion(self.x, self.target)
