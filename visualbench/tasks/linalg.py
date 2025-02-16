@@ -28,14 +28,14 @@ class Inverse(Benchmark):
         dtype (dtype, optional): dtype. Defaults to torch.float32.
         device (Device, optional): device. Defaults to 'cuda'.
     """
-    def __init__(self, A: Any, loss: Callable = torch.nn.functional.mse_loss, dtype: torch.dtype=torch.float32, save_images=True):
+    def __init__(self, A: Any, loss: Callable = torch.nn.functional.mse_loss, dtype: torch.dtype=torch.float32, make_images=True):
         super().__init__(log_projections = True, seed=0)
         matrix: torch.Tensor = _make_float_hwc_tensor(A).moveaxis(-1, 0)
         if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
         matrix = matrix.to(dtype = dtype, memory_format = torch.contiguous_format)
         self.loss_fn = loss
 
-        if save_images:
+        if make_images:
             self.add_reference_image('input', matrix)
             # invert the matrix to show as reference
             try:
@@ -47,7 +47,7 @@ class Inverse(Benchmark):
 
         self.A = torch.nn.Buffer(matrix.contiguous())
         self.B = torch.nn.Parameter(self.A.clone().contiguous().requires_grad_(True))
-        self.save_images = save_images
+        self.make_images = make_images
         self.set_display_best('image inverse', True)
 
 
@@ -64,7 +64,7 @@ class Inverse(Benchmark):
             self.loss_fn(BA.diagonal(0,-2,-1), I_diag) +\
             self.loss_fn(AB.diagonal(0,-2,-1), I_diag)
 
-        if self.save_images:
+        if self.make_images:
             self.log('image inverse', self.B, False, to_uint8=True)
             self.log('image AB', AB, False, to_uint8=True)
             self.log('image BA', BA, False, to_uint8=True)
@@ -107,7 +107,7 @@ class Whitening(Benchmark):
         norm_loss (Callable, optional): loss for norms to match. Defaults to torch.nn.functional.mse_loss.
         weights (tuple, optional): weights for losses like this `(id_loss, dist_loss, norm_loss)`. Defaults to (1.0, 0.0, 0.5).
         side (str, optional): which side to pick smallest or largest. Defaults to "max".
-        save_images (bool, optional): if true saves images for video rendering. Defaults to True.
+        make_images (bool, optional): if true saves images for video rendering. Defaults to True.
         eps (float, optional): epsilon for dividing by norm. Defaults to 1e-8.
     """
     def __init__(
@@ -118,7 +118,7 @@ class Whitening(Benchmark):
         norm_loss=torch.nn.functional.mse_loss,
         weights=(1.0, 0.1, 0.5),
         side: Literal["min", "max"] = "max",
-        save_images = True,
+        make_images = True,
         eps=1e-8,
     ):
 
@@ -137,7 +137,7 @@ class Whitening(Benchmark):
         matrix = matrix / (matrix.norm(dim=self.norm_dim, keepdim=True) + eps)
 
         # SVD orthogonalized matrix for reference
-        if save_images:
+        if make_images:
             self.add_reference_image('input', matrix)
             svd = _svd_orthogonalize(matrix)
             self.add_reference_image('SVD', svd)
@@ -155,7 +155,7 @@ class Whitening(Benchmark):
         self.dist_loss = dist_loss
         self.norm_loss = norm_loss
         self.side = side
-        self.save_image = save_images
+        self.save_image = make_images
 
     def get_loss(self):
 
@@ -212,11 +212,11 @@ class SVD(Benchmark):
         A (Any): input matrix
         ortho_weight (_type_, optional): orthogonality loss weight. Defaults to 1..
         non_negative_fn (_type_, optional): function to ensure non-negativity, can also try sigmoid or softplus or something. Defaults to _square.
-        save_images (bool, optional): saves images for plotting and video rednering. Defaults to True.
+        make_images (bool, optional): saves images for plotting and video rednering. Defaults to True.
     """
-    def __init__(self, A: Any, ortho_weight = 1., loss = _fro_loss, non_negative_fn=_square, init = torch.randn, save_images=True):
+    def __init__(self, A: Any, ortho_weight = 1., loss = _fro_loss, non_negative_fn=_square, init = torch.randn, make_images=True):
         super().__init__(log_projections = True, seed=0)
-        self.save_images = save_images
+        self.make_images = make_images
         self.non_negative_fn = non_negative_fn
         self.ortho_weight = ortho_weight
         self.loss = loss
@@ -238,7 +238,7 @@ class SVD(Benchmark):
         torch.nn.init.orthogonal_(self.V, generator=self.rng.torch())
 
         # real SVD outputs for reference
-        if save_images:
+        if make_images:
             self.add_reference_image('input', matrix)
             try:
                 U, S, Vh = torch.linalg.svd(matrix, full_matrices=False) # pylint:disable = not-callable
@@ -265,7 +265,7 @@ class SVD(Benchmark):
         U_ortho_loss = torch.linalg.norm(self.U.swapaxes(-1,-2) @ self.U - self.I_k, ord='fro', dim = (-2,-1)).mean()
         V_ortho_loss = torch.linalg.norm(Vh @ self.V - self.I_k, ord='fro', dim = (-2,-1)).mean()
 
-        if self.save_images:
+        if self.make_images:
             S_sorted, indices = torch.sort(S**2, descending=True)
             U_sorted = torch.gather(self.U, 2, indices.unsqueeze(1).expand(-1, self.m, -1))
             Vh_sorted = torch.gather(Vh, 1, indices.unsqueeze(-1).expand(-1, -1, self.n))
@@ -285,11 +285,11 @@ class QR(Benchmark):
         A (Any): input matrix
         ortho_weight (_type_, optional): orthogonality loss weight. Defaults to 1..
         non_negative_fn (_type_, optional): function to ensure non-negativity, can also try sigmoid or softplus or something. Defaults to _square.
-        save_images (bool, optional): saves images for plotting and video rednering. Defaults to True.
+        make_images (bool, optional): saves images for plotting and video rednering. Defaults to True.
     """
-    def __init__(self, A: Any, ortho_weight = 1., loss = torch.nn.functional.mse_loss, init = _zeros, save_images=True):
+    def __init__(self, A: Any, ortho_weight = 1., loss = torch.nn.functional.mse_loss, init = _zeros, make_images=True):
         super().__init__(log_projections = True, seed=0)
-        self.save_images = save_images
+        self.make_images = make_images
         self.loss = loss
         self.ortho_weight = ortho_weight
 
@@ -311,7 +311,7 @@ class QR(Benchmark):
         self.identity = nn.Buffer(identity.contiguous())
 
         # real QR outputs for reference
-        if save_images:
+        if make_images:
             self.add_reference_image('input', matrix)
             try:
                 Q, R = torch.linalg.qr(matrix) # pylint:disable = not-callable
@@ -337,7 +337,7 @@ class QR(Benchmark):
         # orthogonality loss
         # ortho_loss = torch.linalg.norm(self.Q.swapaxes(-1,-2) @ self.Q - self.I_k, ord='fro', dim = (-2,-1)).mean()
 
-        if self.save_images:
+        if self.make_images:
             self.log('image QR', QR, False, to_uint8=True)
             self.log('image Q', self.Q, False, to_uint8=True)
             self.log('image R', R, False, to_uint8=True)
@@ -350,7 +350,7 @@ class QR(Benchmark):
 # easier and less noisy with zeros
 class LU(Benchmark):
     """LU as objective"""
-    def __init__(self, A, loss = F.mse_loss, init = _zeros, save_images = True):
+    def __init__(self, A, loss = F.mse_loss, init = _zeros, make_images = True):
         super().__init__(log_projections = True, seed=0)
         matrix = _make_float_hwc_tensor(A).moveaxis(-1, 0)
         # Input matrix is expected to have shape (channels, m, m)
@@ -366,8 +366,8 @@ class LU(Benchmark):
         self.loss_fn = loss
 
         # real SVD outputs for reference
-        self.save_images = save_images
-        if save_images:
+        self.make_images = make_images
+        if make_images:
             self.add_reference_image('input', matrix)
             try:
                 _, L, U = torch.linalg.lu(matrix.cuda(), pivot=False) # pylint:disable = not-callable
@@ -392,7 +392,7 @@ class LU(Benchmark):
         # Calculate mean squared error loss
         loss = self.loss_fn(LU, A)
 
-        if self.save_images:
+        if self.make_images:
             self.log('image LU', LU, False, to_uint8=True)
             self.log('image L', L, False, to_uint8=True)
             self.log('image U', U, False, to_uint8=True)
@@ -417,7 +417,7 @@ def sinkhorn(logits, num_iters=10):
 class LUPivot(Benchmark):
     """LU with pivoting with P represented via sinkhorn iteration or by simple penalty if sinkhorn_iters is None.
     One of the few linalg objectives where L-BFGS is not the best."""
-    def __init__(self, A, sinkhorn_iters: int | None=10, ortho_weight = 1, binary_weight = 1, sq_loss=False, init = _zeros, save_images = True):
+    def __init__(self, A, sinkhorn_iters: int | None=10, ortho_weight = 1, binary_weight = 1, sq_loss=False, init = _zeros, make_images = True):
 
         super().__init__(log_projections = True, seed=0)
         # Register the input matrix as a buffer
@@ -435,12 +435,12 @@ class LUPivot(Benchmark):
         self.identity = nn.Buffer(torch.eye(M).unsqueeze(0).contiguous())
 
         self.sinkhorn_iters = sinkhorn_iters
-        self.save_images = save_images
+        self.make_images = make_images
         self.ortho_weight = ortho_weight
         self.binary_weight = binary_weight
         self.sq_loss = sq_loss
 
-        if save_images:
+        if make_images:
             self.add_reference_image('input', self.A)
             try:
                 P, L, U = torch.linalg.lu(self.A) # pylint:disable = not-callable
@@ -488,7 +488,7 @@ class LUPivot(Benchmark):
         # Total loss combines all components
         total_loss = reconstruction_loss + ortho_loss*self.ortho_weight + binary_loss*self.binary_weight
 
-        if self.save_images:
+        if self.make_images:
             self.log('image LU', LU, False, to_uint8=True)
             self.log('image P logits', self.P, False, to_uint8=True)
             self.log('image P', P, False, to_uint8=True)
@@ -505,7 +505,7 @@ class LUPivot(Benchmark):
 # randn vs 0.01 - 0.01 converges much faster and looks better randn might be good because its a bit harder but stick to 001
 class Cholesky(Benchmark):
     """Cholesky as objective"""
-    def __init__(self, A, loss = F.mse_loss, non_negative_fn=_square, init = _full001, save_images = True):
+    def __init__(self, A, loss = F.mse_loss, non_negative_fn=_square, init = _full001, make_images = True):
         super().__init__(log_projections = True, seed=0)
         matrix = _make_float_hwc_tensor(A).moveaxis(-1, 0)
         if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
@@ -521,8 +521,8 @@ class Cholesky(Benchmark):
         self.loss_fn = loss
 
         # real cholesky outputs for reference
-        self.save_images = save_images
-        if save_images:
+        self.make_images = make_images
+        if make_images:
             self.add_reference_image('input', matrix)
             try:
                 L = torch.linalg.cholesky_ex(matrix) # pylint:disable = not-callable
@@ -542,7 +542,7 @@ class Cholesky(Benchmark):
         # Calculate mean squared error loss
         loss = self.loss_fn(LLT, A)
 
-        if self.save_images:
+        if self.make_images:
             self.log('image LLT', LLT, False, to_uint8=True)
             self.log('image L', L, False, to_uint8=True)
             self.log_difference('image update L', L, to_uint8=True)
@@ -551,7 +551,7 @@ class Cholesky(Benchmark):
 
 # zeros is much better
 class MoorePenrose(Benchmark):
-    def __init__(self, A, loss = F.mse_loss, init = _zeros, save_images = True):
+    def __init__(self, A, loss = F.mse_loss, init = _zeros, make_images = True):
         super().__init__(log_projections = True, seed=0)
         self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         C, M, N = self.A.shape
@@ -559,8 +559,8 @@ class MoorePenrose(Benchmark):
         self.X = nn.Parameter(init((C, N, M), generator=self.rng.torch()).contiguous())
         self.loss_fn = loss
         # real pinv outputs for reference
-        self.save_images = save_images
-        if save_images:
+        self.make_images = make_images
+        if make_images:
             self.add_reference_image('input', self.A)
             try:
                 pinv = torch.linalg.pinv(self.A) # pylint:disable = not-callable
@@ -592,7 +592,7 @@ class MoorePenrose(Benchmark):
         # Term 4: || (X A)^T - X A ||_F^2 (symmetry of X A)
         term4 = self.loss_fn(XA.transpose(-2, -1), XA)
 
-        if self.save_images:
+        if self.make_images:
             self.log('image pseudoinverse', X, False, to_uint8=True)
             self.log('image XA', XA, False, to_uint8=True)
             self.log('image AX', AX, False, to_uint8=True)
@@ -612,7 +612,7 @@ class EigenDecomposition(Benchmark):
     Args:
         input_matrix (torch.Tensor): Input matrix with leading channel dimension (C, N, N).
     """
-    def __init__(self, A, sq=False, init = _ones, save_images=True):
+    def __init__(self, A, sq=False, init = _ones, make_images=True):
         super().__init__(log_projections = True, seed=0)
         self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         C, N, _ = self.A.shape
@@ -626,9 +626,9 @@ class EigenDecomposition(Benchmark):
         self.eigenvalues = nn.Parameter(torch.ones(C, N).contiguous())
 
         self.sq = sq
-        self.save_images = save_images
+        self.make_images = make_images
 
-        if save_images:
+        if make_images:
             self.add_reference_image('input', self.A)
             try:
                 L, V = torch.linalg.eig(self.A) # pylint:disable = not-callable
@@ -654,7 +654,7 @@ class EigenDecomposition(Benchmark):
         loss = torch.linalg.norm(self.A - A_recon, ord='fro', dim = (-1, -2))
         if self.sq: loss = loss**2
 
-        if self.save_images:
+        if self.make_images:
             self.log('image reconstructed', A_recon, False, to_uint8=True)
             self.log('image eugenvectors', self.Q, False, to_uint8=True)
             self.log('image Q inv', Q_inv, False, to_uint8=True)
@@ -666,7 +666,7 @@ class EigenDecomposition(Benchmark):
 # L-BFGS really struggles with zeros
 # ones is like best of both worlds
 class Bruhat(Benchmark):
-    def __init__(self, A, entropy_weight=0.1, sinkhorn_iters=10, sq_loss = False, init = _ones, save_images = True):
+    def __init__(self, A, entropy_weight=0.1, sinkhorn_iters=10, sq_loss = False, init = _ones, make_images = True):
         super().__init__(log_projections = True, seed=0)
         self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         self.b = self.A.size(0)
@@ -674,7 +674,7 @@ class Bruhat(Benchmark):
         self.entropy_weight = entropy_weight
         self.sinkhorn_iters = sinkhorn_iters
         self.sq_loss = sq_loss
-        self.save_images = save_images
+        self.make_images = make_images
 
         # Initialize parameters for B and B' (upper triangular including diagonal)
         self.B = nn.Parameter(torch.zeros(self.b, self.n, self.n).contiguous())
@@ -688,7 +688,7 @@ class Bruhat(Benchmark):
             self.B[:, triu_rows, triu_cols] += init((triu_rows.size(0), ), generator=self.rng.torch()) * 0.1
             self.B_prime[:, triu_rows, triu_cols] += init((triu_rows.size(0), ), generator=self.rng.torch()) * 0.1
 
-        if save_images:
+        if make_images:
             self.add_reference_image('input', self.A)
         self.set_display_best("image reconstruction")
 
@@ -716,7 +716,7 @@ class Bruhat(Benchmark):
         entropy = -torch.sum(w_ds * torch.log(w_ds + 1e-10))
         entropy_loss = self.entropy_weight * entropy
 
-        if self.save_images:
+        if self.make_images:
             self.log('image reconstruction', recon, False, to_uint8=True)
             self.log('image B', B, False, to_uint8=True)
             self.log('image B prime', B_prime, False, to_uint8=True)
@@ -740,21 +740,21 @@ class InterpolativeDecomposition(Benchmark):
         temp (float): Temperature for logit sharpening
         lambda_reg (float): Regularization strength for column diversity
     """
-    def __init__(self, A, k, lambda_reg=0.1, sinkhorn_iters: int | None=10, init = _zeros,  save_images=True):
+    def __init__(self, A, k, lambda_reg=0.1, sinkhorn_iters: int | None=10, init = _zeros,  make_images=True):
         super().__init__(log_projections = True, seed=0)
         self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         self.k = k
         self.lambda_reg = lambda_reg
         self.b, self.m, self.n = self.A.shape
         self.sinkhorn_iters = sinkhorn_iters
-        self.save_images = save_images
+        self.make_images = make_images
 
         # Logits for selecting k columns (k distributions over n columns)
         self.P_logits = torch.nn.Parameter(torch.randn((self.b, k, self.n), generator = self.rng.torch()).contiguous())
         # Coefficient matrix
         self.S = torch.nn.Parameter(init((self.b, k, self.n), generator = self.rng.torch()).mul(0.01).contiguous())
         self.set_display_best("image reconstruction")
-        if save_images:
+        if make_images:
             self.add_reference_image('input', self.A)
 
     def get_loss(self):
@@ -788,7 +788,7 @@ class InterpolativeDecomposition(Benchmark):
         # Total loss combines reconstruction and regularization
         total_loss = reconstruction_loss + self.lambda_reg * diversity_loss
 
-        if self.save_images:
+        if self.make_images:
             self.log('image reconstruction', recon, False, to_uint8=True)
             self.log('image P logits', self.P_logits, False, to_uint8=True)
             self.log('image P', P, False, to_uint8=True)
@@ -802,7 +802,7 @@ class InterpolativeDecomposition(Benchmark):
 # no progress with zeros, large values with ones but good with 0.01
 class MatrixSqrt(Benchmark):
 
-    def __init__(self, A, loss = F.mse_loss, init = _full001, save_images=True):
+    def __init__(self, A, loss = F.mse_loss, init = _full001, make_images=True):
         super().__init__(log_projections = True, seed=0)
         self.A = nn.Buffer(_make_float_hwc_tensor(A).moveaxis(-1, 0).contiguous())
         if self.A.shape[-1] != self.A.shape[-2]: raise ValueError(f'{self.A.shape = } - not a matrix!')
@@ -810,15 +810,15 @@ class MatrixSqrt(Benchmark):
         self.B = nn.Parameter(init(self.A.shape, generator = self.rng.torch()).contiguous())
 
         self.loss = loss
-        self.save_images = save_images
+        self.make_images = make_images
         self.set_display_best("image BB")
-        if save_images:
+        if make_images:
             self.add_reference_image('input', self.A)
 
     def get_loss(self):
         BB = self.B @ self.B
         loss = self.loss(BB, self.A)
-        if self.save_images:
+        if self.make_images:
             self.log('image BB', BB, False, to_uint8=True)
             self.log('image B', self.B, False, to_uint8=True)
             self.log_difference('image update B', self.B, to_uint8=True)
@@ -827,7 +827,7 @@ class MatrixSqrt(Benchmark):
 # better results with randn than zeros ones and full001 but maybe ones is better because it is harder
 class CanonicalPolyadicDecomposition(Benchmark):
     """Canonical polyadic decomposition (this is for 3D tensors which RGB image is)"""
-    def __init__(self, T, rank, loss = F.mse_loss, init = torch.randn, init_std=0.1, save_images = True):
+    def __init__(self, T, rank, loss = F.mse_loss, init = torch.randn, init_std=0.1, make_images = True):
         super().__init__(log_projections = True, seed=0)
         self.rank = rank
         self.T = nn.Buffer(_make_float_hwc_tensor(T).moveaxis(-1, 0))
@@ -841,8 +841,8 @@ class CanonicalPolyadicDecomposition(Benchmark):
         self.B = nn.Parameter(init((self.dims[1], rank), generator = self.rng.torch()) * init_std)
         self.C = nn.Parameter(init((self.dims[2], rank), generator = self.rng.torch()) * init_std)
 
-        self.save_images = save_images
-        if save_images:
+        self.make_images = make_images
+        if make_images:
             self.add_reference_image('input', self.T)
             self.set_display_best("image reconstructed")
 
@@ -853,7 +853,7 @@ class CanonicalPolyadicDecomposition(Benchmark):
         # Compute squared Frobenius norm of the error (reconstruction loss)
         loss = self.loss(reconstructed, self.T)
 
-        if self.save_images:
+        if self.make_images:
             self.log('image reconstructed', reconstructed, False, to_uint8=True)
 
         return loss
@@ -867,10 +867,10 @@ class PCA(Benchmark):
         batched (bool, optional): _description_. Defaults to False.
         loss (_type_, optional): _description_. Defaults to F.mse_loss.
         init (_type_, optional): _description_. Defaults to torch.randn.
-        save_images (bool, optional): _description_. Defaults to True.
+        make_images (bool, optional): _description_. Defaults to True.
 
     """
-    def __init__(self, X, output_dim, batched = False, loss = F.mse_loss, init = torch.randn, save_images = True):
+    def __init__(self, X, output_dim, batched = False, loss = F.mse_loss, init = torch.randn, make_images = True):
         """_summary_
 
         Args:
@@ -886,8 +886,8 @@ class PCA(Benchmark):
             X_2d = self.X.view(-1, self.X.shape[-1])
             self.W = nn.Parameter(init((X_2d.shape[1], output_dim), generator = self.rng.torch()))
 
-        self.save_images = save_images
-        if save_images:
+        self.make_images = make_images
+        if make_images:
             self.add_reference_image('input', self.X)
             self.set_display_best("image reconstructed")
 
@@ -915,7 +915,7 @@ class PCA(Benchmark):
         # Compute mean squared reconstruction error
         loss = self.loss(X, X_recon)
 
-        if self.save_images:
+        if self.make_images:
             self.log('image reconstructed', X_recon.view_as(self.X), False, to_uint8=True)
             self.log('image projected', X_proj, False, to_uint8=True)
             self.log('image W', self.W, False, to_uint8=True)

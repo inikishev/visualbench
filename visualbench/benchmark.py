@@ -291,10 +291,9 @@ class Benchmark(torch.nn.Module, ABC):
 
         return self
 
-    def add_reference_image(self, key: str, image:Any, to_uint8 = True):
-        image = _make_float_tensor(image)
+    def add_reference_image(self, key: str, image:np.ndarray | torch.Tensor, to_uint8 = True):
         if to_uint8: image = _normalize_to_uint8(image)
-        self.reference_images[key] = image
+        self.reference_images[key] = image # type:ignore
 
     def set_display_best(self, key: str, display_best: bool = True):
         if key in self.display_best_keys:

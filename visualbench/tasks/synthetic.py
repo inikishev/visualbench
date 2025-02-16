@@ -21,9 +21,9 @@ class Sphere(Benchmark):
         criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
         log_image (bool, optional): if true logs predicted images for video rendering. Defaults to True.
     """
-    def __init__(self, target: Any, init=None, criterion = torch.nn.functional.mse_loss, save_images = True,):
+    def __init__(self, target: Any, init=None, criterion = torch.nn.functional.mse_loss, make_images = True,):
         super().__init__(log_params=False, log_projections=True)
-        self.save_images = save_images
+        self.make_images = make_images
 
         # target tensor
         if isinstance(target, int): target = torch.randn(target, dtype=torch.float32, generator=self.rng.torch())
@@ -42,7 +42,7 @@ class Sphere(Benchmark):
 
     def get_loss(self):
         # log current recreated image if target is an image
-        if self.save_images and len(self.reference_images) != 0:
+        if self.make_images and len(self.reference_images) != 0:
             self.log('image preds', self.x, False, to_uint8=True)
             self.log_difference('image update', self.x, to_uint8=True)
 
@@ -103,6 +103,7 @@ class Rosenbrock(Benchmark):
 
 
 class NonlinearMatrixFactorization(Benchmark):
+    """matrix factorization with some extra things to make it harder, no visualization"""
     def __init__(self, latent_dim=64, n=1000, seed=0):
         super().__init__(seed=seed, log_projections=True)
         g = self.rng.torch()
