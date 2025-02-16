@@ -25,4 +25,4 @@ from .synthetic import (
     Rosenbrock,
     Sphere,
 )
-from .operators import Sorting
+from .operations import Sorting
