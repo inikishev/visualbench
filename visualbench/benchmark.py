@@ -325,6 +325,7 @@ class Benchmark(torch.nn.Module, ABC):
         self.plot_loss(fig=fig, show=False)
 
         # plot any other metrics
+        if isinstance(metrics, str): metrics = (metrics, )
         for metric in metrics: self.plot_loss(y=metric, fig=fig.add(metric), show=False)
 
         # plot trajectory if it was logged

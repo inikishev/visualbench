@@ -10,7 +10,7 @@ from myai.transforms import normalize, totensor
 from torch import nn
 from torch.nn import functional as F
 
-from .._utils import _make_float_hwc_tensor, _normalize_to_uint8, _make_float_tensor
+from .._utils import _make_float_hwc_tensor, _normalize_to_uint8, _make_float_tensor, sinkhorn
 from ..benchmark import Benchmark
 
 
@@ -403,15 +403,6 @@ class LU(Benchmark):
         return loss
 
 
-def sinkhorn(logits, num_iters=10):
-    """Applies Sinkhorn normalization to logits to generate a doubly stochastic matrix."""
-    log_alpha = logits
-    for _ in range(num_iters):
-        log_alpha = log_alpha - torch.logsumexp(log_alpha, dim=2, keepdim=True)
-        log_alpha = log_alpha - torch.logsumexp(log_alpha, dim=1, keepdim=True)
-    return torch.exp(log_alpha)
-
-
 
 # zeros and normal - same results, zeros looks better
 class LUPivot(Benchmark):
@@ -428,7 +419,7 @@ class LUPivot(Benchmark):
         # Initialize parameters for L, U, and P
         self.L = nn.Parameter(init((B, M, K), generator=self.rng.torch()).contiguous())
         self.U = nn.Parameter(init((B, K, N), generator=self.rng.torch()).contiguous())
-        self.P = nn.Parameter(init((B, M, M), generator=self.rng.torch()).contiguous())
+        self.P_logits = nn.Parameter(init((B, M, M), generator=self.rng.torch()).contiguous())
         self.L_mask = nn.Buffer(torch.tril(torch.ones(M, K), diagonal=-1).unsqueeze(0).contiguous())
         self.diag_mask = nn.Buffer(torch.eye(M, K).unsqueeze(0).contiguous())  # (1, M, K)
         self.U_mask = nn.Buffer(torch.triu(torch.ones(K, N)).unsqueeze(0).contiguous())  # (1, K, N)
@@ -456,8 +447,8 @@ class LUPivot(Benchmark):
         A = self.A
 
         # Compute row-stochastic permutation matrix using softmax
-        if self.sinkhorn_iters is None: P = torch.softmax(self.P, dim=-1)  # (C, M, M)
-        else: P = sinkhorn(self.P, self.sinkhorn_iters)
+        if self.sinkhorn_iters is None: P = torch.softmax(self.P_logits, dim=-1)  # (C, M, M)
+        else: P = sinkhorn(self.P_logits, self.sinkhorn_iters)
 
         # Compute PA = P @ A for each channel
         PA = torch.bmm(P, A)  # (C, M, N)
@@ -478,7 +469,7 @@ class LUPivot(Benchmark):
         # Regularization to encourage P to be a permutation matrix
         # Encourage P to be orthogonal (PP^T = I)
           # (1, M, M)
-        PPt = torch.bmm(P, P.transpose(1, 2))  # (C, M, M)
+        PPt = torch.bmm(P, P.transpose(-2, -1))  # (C, M, M)
         ortho_loss = torch.norm(PPt - self.identity, p='fro')
         if self.sq_loss: reconstruction_loss = reconstruction_loss ** 2
 
@@ -490,13 +481,13 @@ class LUPivot(Benchmark):
 
         if self.make_images:
             self.log('image LU', LU, False, to_uint8=True)
-            self.log('image P logits', self.P, False, to_uint8=True)
+            self.log('image P logits', self.P_logits, False, to_uint8=True)
             self.log('image P', P, False, to_uint8=True)
             self.log('image L', L, False, to_uint8=True)
             self.log('image U', U, False, to_uint8=True)
             self.log_difference('image update L', L, to_uint8=True)
             self.log_difference('image update U', U, to_uint8=True)
-            self.log_difference('image update P logits', self.P, to_uint8=True)
+            self.log_difference('image update P logits', self.P_logits, to_uint8=True)
 
         return total_loss
 

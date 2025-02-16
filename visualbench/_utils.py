@@ -69,6 +69,16 @@ def _maybe_detach_clone(x: torch.Tensor | np.ndarray):
     if isinstance(x, np.ndarray): return x.copy()
     return x
 
+
+def sinkhorn(logits, num_iters=10):
+    """Applies Sinkhorn normalization to logits to generate a doubly stochastic matrix."""
+    log_alpha = logits
+    for _ in range(num_iters):
+        log_alpha = log_alpha - torch.logsumexp(log_alpha, dim=-1, keepdim=True)
+        log_alpha = log_alpha - torch.logsumexp(log_alpha, dim=-2, keepdim=True)
+    return torch.exp(log_alpha)
+
+
 @torch.no_grad
 def _normalize_to_uint8(x:torch.Tensor | np.ndarray | torch.nn.Buffer) -> np.ndarray:
     """normalizes to 0-255 range and converts to numpy uint8 array"""
@@ -206,13 +216,14 @@ def _plot_loss(bench: "Benchmark", ylim: Literal['auto'] | Sequence[float] | Non
     possible_keys = [f'train {y}', f'test {y}', f'{y}']
 
     # automatic ylim from first and min values
-    if (ylim == 'auto') and (yscale is None):
+    if (ylim == 'auto') and (yscale is None) and y in ('loss', 'train loss', 'test loss'):
         ymin = min([bench.logger.min(i) for i in possible_keys if i in bench.logger])
         ymax = max([bench.logger.first(i) for i in possible_keys if i in bench.logger])
         # expand range a little
         d = ymax - ymin
         ymin -= d*0.05; ymax += d*0.05
         ylim = (ymin, ymax)
+    if ylim == 'auto': ylim = None
 
     if yscale is not None: fig.yscale(yscale)
 
