@@ -1,16 +1,16 @@
 # pylint:disable=not-callable, redefined-outer-name
 """linear algebra objectives"""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
 import numpy as np
 import torch
-from myai.transforms import normalize
+from myai.transforms import normalize, totensor
 from torch import nn
 from torch.nn import functional as F
 
-from .._utils import _make_float_hwc_tensor, _normalize_to_uint8
+from .._utils import _make_float_hwc_tensor, _normalize_to_uint8, _make_float_tensor
 from ..benchmark import Benchmark
 
 
@@ -830,7 +830,9 @@ class CanonicalPolyadicDecomposition(Benchmark):
     def __init__(self, T, rank, loss = F.mse_loss, init = torch.randn, init_std=0.1, make_images = True):
         super().__init__(log_projections = True, seed=0)
         self.rank = rank
-        self.T = nn.Buffer(_make_float_hwc_tensor(T).moveaxis(-1, 0))
+        T = _make_float_tensor(T)
+        if T.shape[2] <= 4: T = T.moveaxis(-1, 0)
+        self.T = nn.Buffer(T)
         self.dims = self.T.shape
         self.loss = loss
 
@@ -919,4 +921,74 @@ class PCA(Benchmark):
             self.log('image reconstructed', X_recon.view_as(self.X), False, to_uint8=True)
             self.log('image projected', X_proj, False, to_uint8=True)
             self.log('image W', self.W, False, to_uint8=True)
+        return loss
+
+
+# no convergence with zeros and stuck on ones or full
+class TensorTrainDecomposition(Benchmark):
+    """_summary_
+
+    Args:
+        T  target tensor (note if path to rgb image it will be channel first)
+        ranks (_type_): list of ints length 1 less than T.ndim
+
+    Raises:
+        ValueError: _description_
+    """
+    def __init__(self, T: torch.Tensor | np.ndarray | Any, ranks: Sequence[int], loss: Callable = F.mse_loss, init = torch.randn, make_images=True):
+        super().__init__(log_projections = True, seed=0)
+        self.T = nn.Buffer(_make_float_tensor(T))
+
+        self.shape = list(self.T.shape)
+        self.ndim = len(self.shape)
+        self.ranks = ranks
+        self.loss = loss
+        self.make_images = make_images
+
+        if len(ranks) != self.ndim - 1:
+            raise ValueError(
+                f"Length of ranks must be {self.ndim - 1} for a {self.ndim}-dimensional tensor."
+            )
+
+        # Initialize TT cores
+        self.cores = nn.ParameterList()
+        for i in range(self.ndim):
+            if i == 0:
+                in_rank = 1
+                out_rank = ranks[i]
+            elif i == self.ndim - 1:
+                in_rank = ranks[i - 1]
+                out_rank = 1
+            else:
+                in_rank = ranks[i - 1]
+                out_rank = ranks[i]
+            core = nn.Parameter(init((in_rank, self.shape[i], out_rank), generator = self.rng.torch()))
+            self.cores.append(core)
+
+        self.is_image = False
+        if make_images:
+            if self.T.ndim == 2 or (self.T.ndim == 3 and (self.T.shape[0]<=3 or self.T.shape[2]<=3)):
+                self.is_image = True
+                self.add_reference_image("target", self.T, to_uint8=True)
+            self.set_display_best("image reconstructed")
+
+    def get_loss(self):
+        # Reconstruct the tensor from the TT cores
+        current = self.cores[0].squeeze(0)  # Remove the first singleton dimension
+
+        for i in range(1, self.ndim):
+            core = self.cores[i]
+            r_prev, d_i, r_next = core.shape
+            # Reshape core for matrix multiplication
+            core_reshaped = core.reshape(r_prev, -1)
+            current = torch.matmul(current, core_reshaped)
+            # Reshape to merge current dimension and prepare for next core
+            current = current.reshape(-1, r_next)
+
+        reconstructed = current.reshape(self.T.shape)
+        loss = self.loss(reconstructed, self.T)
+
+        if self.make_images and self.is_image:
+            self.log("image reconstructed", reconstructed, False, to_uint8=True)
+
         return loss

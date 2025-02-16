@@ -52,7 +52,7 @@ class RectangleReconstructor(Benchmark):
         super().__init__(log_projections=True)
         # 3HW image
         self.register_buffer('target_image', target_image)
-        self.add_reference_image('image target', (target_image*255).detach().cpu().numpy().astype(np.uint8), to_uint8=False)
+        self.add_reference_image('target', (target_image*255).detach().cpu().numpy().astype(np.uint8), to_uint8=False)
 
         self.num_rectangles = num_rectangles
         self.loss_fn = loss_fn
