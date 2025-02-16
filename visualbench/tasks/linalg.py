@@ -857,3 +857,66 @@ class CanonicalPolyadicDecomposition(Benchmark):
             self.log('image reconstructed', reconstructed, False, to_uint8=True)
 
         return loss
+
+
+class PCA(Benchmark):
+    """
+    Args:
+        X (_type_): _description_
+        output_dim (int): Number of principal components to compute.
+        batched (bool, optional): _description_. Defaults to False.
+        loss (_type_, optional): _description_. Defaults to F.mse_loss.
+        init (_type_, optional): _description_. Defaults to torch.randn.
+        save_images (bool, optional): _description_. Defaults to True.
+
+    """
+    def __init__(self, X, output_dim, batched = False, loss = F.mse_loss, init = torch.randn, save_images = True):
+        """_summary_
+
+        Args:
+        """
+        super().__init__(log_projections = True, seed=0)
+        self.X = nn.Buffer(_make_float_hwc_tensor(X).moveaxis(-1, 0))
+
+        self.loss = loss
+        self.batched = batched
+        if batched:
+            self.W = nn.Parameter(init((self.X.shape[0], self.X.shape[2], output_dim), generator = self.rng.torch()))
+        else:
+            X_2d = self.X.view(-1, self.X.shape[-1])
+            self.W = nn.Parameter(init((X_2d.shape[1], output_dim), generator = self.rng.torch()))
+
+        self.save_images = save_images
+        if save_images:
+            self.add_reference_image('input', self.X)
+            self.set_display_best("image reconstructed")
+
+    def get_loss(self):
+        """
+        Args:
+            X (torch.Tensor): Input data tensor of shape (batch_size, input_dim),
+                              assumed to be centered (zero mean).
+        Returns:
+            torch.Tensor: Reconstruction loss (scalar).
+        """
+        # Ensure the input is centered (user's responsibility)
+
+        # Compute QR decomposition of W to get orthonormal projection matrix Q
+        Q, _ = torch.linalg.qr(self.W)
+
+        # Project data onto the orthonormal basis (Q)
+        if self.batched: X = self.X
+        else: X = self.X.view(-1, self.X.shape[-1])
+        X_proj = X @ Q  # (batch_size, output_dim)
+
+        # Reconstruct the data from the low-dimensional projection
+        X_recon = X_proj @ Q.transpose(-2, -1)  # (batch_size, input_dim)
+
+        # Compute mean squared reconstruction error
+        loss = self.loss(X, X_recon)
+
+        if self.save_images:
+            self.log('image reconstructed', X_recon.view_as(self.X), False, to_uint8=True)
+            self.log('image projected', X_proj, False, to_uint8=True)
+            self.log('image W', self.W, False, to_uint8=True)
+        return loss
