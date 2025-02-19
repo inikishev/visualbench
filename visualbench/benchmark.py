@@ -1,7 +1,7 @@
 import itertools
 import time
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from contextlib import nullcontext
 from typing import Any, Literal, Unpack, final
 
@@ -11,6 +11,7 @@ from myai.logger import DictLogger
 from myai.plt_tools import Fig
 from myai.plt_tools._types import _K_Line2D
 from myai.rng import RNG
+from myai.torch_tools import copy_state_dict
 
 from ._utils import (
     _aggregate_test_metrics_,
@@ -20,6 +21,8 @@ from ._utils import (
     _ensure_float,
     _ensure_stop_condition_exists_,
     _log_params_and_projections_,
+    _make_float_hw3_tensor,
+    _make_float_tensor,
     _maybe_detach_clone,
     _normalize_to_uint8,
     _plot_images,
@@ -28,8 +31,9 @@ from ._utils import (
     _print_final_report,
     _print_progress,
     _render_video,
-    _make_float_hw3_tensor,
-    _make_float_tensor,
+    _search,
+    plot_lr_search_curve,
+    plot_metric,
 )
 
 
@@ -57,7 +61,17 @@ class Benchmark(torch.nn.Module, ABC):
         self._log_projections: bool = log_projections
         self._seed: int | None = seed
         self._print_progress = True
+        self._make_images = False
+        self._initial_state_dict = None
         self._reset()
+
+    def _store_initial_state_dict(self):
+        """gets called before run or before first function evaluation depending on what is called first, saves deep copy of state dict on cpu"""
+        self._initial_state_dict = copy_state_dict(self, device='cpu')
+
+    def _restore_initial_state_dict(self):
+        if self._initial_state_dict is None: raise RuntimeError("_initial_state_dict is None")
+        self.load_state_dict(copy_state_dict(self._initial_state_dict))
 
     def reset(self):
         """resets this benchmark to initial state, may be faster than creating new benchmark (this needs to be implemented by benchmarks)"""
@@ -97,6 +111,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._proj1: torch.Tensor | None = None
         self._proj2: torch.Tensor | None = None
 
+        if self._initial_state_dict is not None: self._restore_initial_state_dict()
         self.train()
 
     @property
@@ -162,6 +177,11 @@ class Benchmark(torch.nn.Module, ABC):
     @final
     def forward(self) -> torch.Tensor:
         """get_loss + logs params, loss and checks stop conditions"""
+        # store initial state dict on 1st step
+        # this also gets called at the beginning of run to make time more accurate
+        # but this is for when function is evaluated manually
+        if self._initial_state_dict is None: self._store_initial_state_dict()
+
         # terminate if stop condition reached
         if self.training:
             msg = _check_stop_condition(self)
@@ -267,6 +287,8 @@ class Benchmark(torch.nn.Module, ABC):
         test_every_seconds: float | None = None,
         progress = True
     ):
+        if self._initial_state_dict is None: self._store_initial_state_dict()
+
         self._max_forwards = max_forwards
         self._max_passes = max_passes
         self._max_batches = max_batches
@@ -277,6 +299,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._test_every_epochs = test_every_epochs
         self._test_every_seconds = test_every_seconds
         self._print_progress = progress
+        _ensure_stop_condition_exists_(self)
 
         self.train()
 
@@ -344,4 +367,45 @@ class Benchmark(torch.nn.Module, ABC):
         del spec['self']
         return _render_video(self, **spec)
 
+    def search(
+        self,
+        task_name: str,
+        opt_name: str,
+        target_metrics: dict[str, bool], # {metric: maximize}; first target metric is targeted by binary search
+        optimizer_fn: Callable,
+        max_passes: int | None = None,
+        max_forwards: int | None = None,
+        max_batches: int | None = None,
+        max_epochs: int | None = None,
+        max_seconds: float | None = None,
+        test_every_forwards: int | None = None,
+        test_every_batches: int | None = None,
+        test_every_epochs: int | None = None,
+        test_every_seconds: float | None = None,
+        lrs10: Sequence[float] | None = (1, 0, -1, -2, -3, -4, -5),
+        progress: Literal['full', 'reduced', 'none'] = 'reduced',
+        root = 'runs',
+        print_achievements = True,
+
+        # lr tuning kwargs
+        lr_binary_search_steps = 2, # binary search steps
+        max_lr_expansions = 5, # separate count for when best lr is on the edge
+        plot=False,
+    ):
+        # performance settings
+        self._log_params = False
+        self._log_projections = False
+        self._make_images = False
+
+        spec = locals().copy()
+        spec['bench'] = spec.pop('self')
+        del spec['plot']
+        _search(**spec)
+
+        if plot:
+            fig = Fig()
+            for metric in target_metrics.keys():
+                plot_metric(task_name = task_name, metric = metric, opts = opt_name, root=root, fig=fig.add(metric), show=False)
+            plot_lr_search_curve(task_name = task_name, opts = opt_name, root=root, fig = fig.add('lrs'), show=False)
+            fig.show(axsize = (12, 6))
 

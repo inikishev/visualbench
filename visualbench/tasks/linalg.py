@@ -53,7 +53,7 @@ class Inverse(Benchmark):
             self.add_reference_image('input', matrix)
             # invert the matrix to show as reference
             try:
-                true_inv = torch.linalg.inv(matrix) # pylint:disable=not-callable
+                true_inv, info = torch.linalg.inv_ex(matrix) # pylint:disable=not-callable
                 self.add_reference_image('true inverse', true_inv)
             except torch.linalg.LinAlgError as e:
                 pinv = torch.linalg.pinv(matrix) # pylint:disable=not-callable
@@ -61,7 +61,7 @@ class Inverse(Benchmark):
 
         self.A = torch.nn.Buffer(matrix.contiguous())
         self.B = torch.nn.Parameter(self.A.clone().contiguous().requires_grad_(True))
-        self.make_images = make_images
+        self._make_images = make_images
         self.set_display_best('image inverse', True)
 
 
@@ -78,7 +78,7 @@ class Inverse(Benchmark):
             self.loss_fn(BA.diagonal(0,-2,-1), I_diag) +\
             self.loss_fn(AB.diagonal(0,-2,-1), I_diag)
 
-        if self.make_images:
+        if self._make_images:
             self.log('image inverse', self.B, False, to_uint8=True)
             self.log('image AB', AB, False, to_uint8=True)
             self.log('image BA', BA, False, to_uint8=True)
@@ -179,17 +179,17 @@ class Whitening(Benchmark):
             pred = self.whitened.swapaxes(-1,-2) @ self.whitened
 
         id_loss = self.id_loss(pred, self.target)
-        self.log('id loss', id_loss, False)
+        # self.log('id loss', id_loss, False)
         loss = id_loss * self.weights[0]
 
         if self.weights[1] != 0:
             dist_loss = self.dist_loss(self.whitened, self.original)
-            self.log('dist loss', dist_loss, False)
+            # self.log('dist loss', dist_loss, False)
             loss = loss + dist_loss * self.weights[1]
 
         if self.weights[2] != 0:
             norm_loss = self.norm_loss(pred.norm(dim = self.norm_dim), self.norm_target)
-            self.log('norm loss', id_loss, False)
+            # self.log('norm loss', id_loss, False)
             loss = loss + norm_loss * self.weights[2]
 
         if self.save_image:
@@ -229,7 +229,7 @@ class SVD(Benchmark):
         make_images=True,
     ):
         super().__init__(log_projections = True, seed=0)
-        self.make_images = make_images
+        self._make_images = make_images
         self.non_negative_fn = non_negative_fn
         self.ortho_weight = ortho_weight
         self.loss = loss
@@ -278,7 +278,7 @@ class SVD(Benchmark):
         U_ortho_loss = self.ortho_loss(self.U.swapaxes(-1,-2) @ self.U, self.I_k)
         V_ortho_loss = self.ortho_loss(Vh @ self.V, self.I_k)
 
-        if self.make_images:
+        if self._make_images:
             S_sorted, indices = torch.sort(S**2, descending=True)
             U_sorted = torch.gather(self.U, 2, indices.unsqueeze(1).expand(-1, self.m, -1))
             Vh_sorted = torch.gather(Vh, 1, indices.unsqueeze(-1).expand(-1, -1, self.n))
@@ -311,7 +311,7 @@ class QR(Benchmark):
         make_images=True,
     ):
         super().__init__(log_projections = True, seed=0)
-        self.make_images = make_images
+        self._make_images = make_images
         self.loss = loss
         self.ortho_loss=ortho_loss
         self.ortho_weight = ortho_weight
@@ -360,7 +360,7 @@ class QR(Benchmark):
         # orthogonality loss
         # ortho_loss = torch.linalg.norm(self.Q.swapaxes(-1,-2) @ self.Q - self.I_k, ord='fro', dim = (-2,-1)).mean()
 
-        if self.make_images:
+        if self._make_images:
             self.log('image QR', QR, False, to_uint8=True)
             self.log('image Q', self.Q, False, to_uint8=True)
             self.log('image R', R, False, to_uint8=True)
@@ -388,7 +388,7 @@ class LU(Benchmark):
         self.loss_fn = loss
 
         # real SVD outputs for reference
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image('input', matrix)
             try:
@@ -407,7 +407,7 @@ class LU(Benchmark):
         LU = torch.bmm(L, U)  # shape (channels, m, m)
         loss = self.loss_fn(LU, A)
 
-        if self.make_images:
+        if self._make_images:
             self.log('image LU', LU, False, to_uint8=True)
             self.log('image L', L, False, to_uint8=True)
             self.log('image U', U, False, to_uint8=True)
@@ -440,7 +440,7 @@ class LUPivot(Benchmark):
         self.identity = nn.Buffer(torch.eye(M).unsqueeze(0).repeat_interleave(B, 0).contiguous())
 
         self.sinkhorn_iters = sinkhorn_iters
-        self.make_images = make_images
+        self._make_images = make_images
         self.ortho_weight = ortho_weight
         self.binary_weight = binary_weight
 
@@ -481,7 +481,7 @@ class LUPivot(Benchmark):
 
         total_loss = reconstruction_loss + ortho_loss*self.ortho_weight + binary_loss*self.binary_weight
 
-        if self.make_images:
+        if self._make_images:
             self.log('image LU', LU, False, to_uint8=True)
             self.log('image P logits', self.P_logits, False, to_uint8=True)
             self.log('image P', P, False, to_uint8=True)
@@ -512,11 +512,11 @@ class Cholesky(Benchmark):
         self.loss_fn = loss
 
         # real cholesky outputs for reference
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image('input', matrix)
             try:
-                L = torch.linalg.cholesky_ex(matrix) # pylint:disable = not-callable
+                L, info = torch.linalg.cholesky_ex(matrix) # pylint:disable = not-callable
                 self.add_reference_image('L - true', L)
             except Exception as e:
                 print(f"True choleksy failed (could mean matrix is not positive definite): {e!r}")
@@ -530,7 +530,7 @@ class Cholesky(Benchmark):
 
         loss = self.loss_fn(LLT, A)
 
-        if self.make_images:
+        if self._make_images:
             self.log('image LLT', LLT, False, to_uint8=True)
             self.log('image L', L, False, to_uint8=True)
             self.log_difference('image update L', L, to_uint8=True)
@@ -547,7 +547,7 @@ class MoorePenrose(Benchmark):
         self.X = nn.Parameter(init((C, N, M), generator=self.rng.torch()).contiguous())
         self.loss_fn = loss
         # real pinv outputs for reference
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image('input', self.A)
             try:
@@ -579,7 +579,7 @@ class MoorePenrose(Benchmark):
         # Term 4: || (X A)^T - X A ||_F^2 (symmetry of X A)
         term4 = self.loss_fn(XA.transpose(-2, -1), XA)
 
-        if self.make_images:
+        if self._make_images:
             self.log('image pseudoinverse', X, False, to_uint8=True)
             self.log('image XA', XA, False, to_uint8=True)
             self.log('image AX', AX, False, to_uint8=True)
@@ -612,7 +612,7 @@ class EigenDecomposition(Benchmark):
         # Initialize eigenvalues as a parameter (diagonal of Lambda)
         self.eigenvalues = nn.Parameter(torch.ones(C, N).contiguous())
 
-        self.make_images = make_images
+        self._make_images = make_images
         self.loss = loss
 
         if make_images:
@@ -628,13 +628,19 @@ class EigenDecomposition(Benchmark):
         """
         Compute the reconstruction loss using the current eigenvectors and eigenvalues.
         """
+        loss = 0
         Lambda = torch.diag_embed(self.eigenvalues)
-        Q_inv = torch.linalg.inv(self.Q)  # (C, N, N)
+        try:
+            Q_inv, info = torch.linalg.inv_ex(self.Q)  # (C, N, N)
+        except Exception as e:
+            Q_inv = torch.linalg.pinv(self.Q)
+            loss = 1
+
         A_recon = torch.matmul(torch.matmul(self.Q, Lambda), Q_inv)
 
-        loss = self.loss(self.A, A_recon)
+        loss = loss + self.loss(self.A, A_recon)
 
-        if self.make_images:
+        if self._make_images:
             self.log('image reconstructed', A_recon, False, to_uint8=True)
             self.log('image eugenvectors', self.Q, False, to_uint8=True)
             self.log('image Q inv', Q_inv, False, to_uint8=True)
@@ -654,7 +660,7 @@ class Bruhat(Benchmark):
         self.entropy_weight = entropy_weight
         self.sinkhorn_iters = sinkhorn_iters
         self.loss = loss
-        self.make_images = make_images
+        self._make_images = make_images
 
         self.B = nn.Parameter(torch.zeros(self.b, self.n, self.n).contiguous())
         self.B_prime = nn.Parameter(torch.zeros(self.b, self.n, self.n).contiguous())
@@ -691,7 +697,7 @@ class Bruhat(Benchmark):
         entropy = -torch.sum(w_ds * torch.log(w_ds + 1e-10))
         entropy_loss = self.entropy_weight * entropy
 
-        if self.make_images:
+        if self._make_images:
             self.log('image reconstruction', recon, False, to_uint8=True)
             self.log('image B', B, False, to_uint8=True)
             self.log('image B prime', B_prime, False, to_uint8=True)
@@ -722,7 +728,7 @@ class InterpolativeDecomposition(Benchmark):
         self.lambda_reg = lambda_reg
         self.b, self.m, self.n = self.A.shape
         self.sinkhorn_iters = sinkhorn_iters
-        self.make_images = make_images
+        self._make_images = make_images
         self.loss = loss
 
         # Logits for selecting k columns (k distributions over n columns)
@@ -759,7 +765,7 @@ class InterpolativeDecomposition(Benchmark):
 
         total_loss = reconstruction_loss + self.lambda_reg * diversity_loss
 
-        if self.make_images:
+        if self._make_images:
             self.log('image reconstruction', recon, False, to_uint8=True)
             self.log('image P logits', self.P_logits, False, to_uint8=True)
             self.log('image P', P, False, to_uint8=True)
@@ -771,29 +777,29 @@ class InterpolativeDecomposition(Benchmark):
         return total_loss
 
 # no progress with zeros, large values with ones but good with 0.01
-class MatrixSqrt(Benchmark):
+# class MatrixSqrt(Benchmark):
 
-    def __init__(self, A, loss = F.mse_loss, init = _full001, make_images=True):
-        super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_make_float_hwc_square_matrix(A).moveaxis(-1, 0).contiguous())
-        if self.A.shape[-1] != self.A.shape[-2]: raise ValueError(f'{self.A.shape = } - not a matrix!')
+#     def __init__(self, A, loss = F.mse_loss, init = _full001, make_images=True):
+#         super().__init__(log_projections = True, seed=0)
+#         self.A = nn.Buffer(_make_float_hwc_square_matrix(A).moveaxis(-1, 0).contiguous())
+#         if self.A.shape[-1] != self.A.shape[-2]: raise ValueError(f'{self.A.shape = } - not a matrix!')
 
-        self.B = nn.Parameter(init(self.A.shape, generator = self.rng.torch()).contiguous())
+#         self.B = nn.Parameter(init(self.A.shape, generator = self.rng.torch()).contiguous())
 
-        self.loss = loss
-        self.make_images = make_images
-        self.set_display_best("image BB")
-        if make_images:
-            self.add_reference_image('input', self.A)
+#         self.loss = loss
+#         self._make_images = make_images
+#         self.set_display_best("image BB")
+#         if make_images:
+#             self.add_reference_image('input', self.A)
 
-    def get_loss(self):
-        BB = self.B @ self.B
-        loss = self.loss(BB, self.A)
-        if self.make_images:
-            self.log('image BB', BB, False, to_uint8=True)
-            self.log('image B', self.B, False, to_uint8=True)
-            self.log_difference('image update B', self.B, to_uint8=True)
-        return loss
+#     def get_loss(self):
+#         BB = self.B @ self.B
+#         loss = self.loss(BB, self.A)
+#         if self._make_images:
+#             self.log('image BB', BB, False, to_uint8=True)
+#             self.log('image B', self.B, False, to_uint8=True)
+#             self.log_difference('image update B', self.B, to_uint8=True)
+#         return loss
 
 # better results with randn than zeros ones and full001 but maybe ones is better because it is harder
 class CanonicalPolyadicDecomposition(Benchmark):
@@ -814,7 +820,7 @@ class CanonicalPolyadicDecomposition(Benchmark):
         self.B = nn.Parameter(init((self.dims[1], rank), generator = self.rng.torch()) * init_std)
         self.C = nn.Parameter(init((self.dims[2], rank), generator = self.rng.torch()) * init_std)
 
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image('input', self.T)
             self.set_display_best("image reconstructed")
@@ -823,7 +829,7 @@ class CanonicalPolyadicDecomposition(Benchmark):
         reconstructed = torch.einsum('ir,jr,kr->ijk', self.A, self.B, self.C)
         loss = self.loss(reconstructed, self.T)
 
-        if self.make_images:
+        if self._make_images:
             self.log('image reconstructed', reconstructed, False, to_uint8=True)
 
         return loss
@@ -857,7 +863,7 @@ class PCA(Benchmark):
             X_2d = self.X.view(-1, self.X.shape[-1])
             self.W = nn.Parameter(init((X_2d.shape[1], output_dim), generator = self.rng.torch()))
 
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image('input', self.X)
             self.set_display_best("image reconstructed")
@@ -875,7 +881,7 @@ class PCA(Benchmark):
         X_recon = X_proj @ Q.transpose(-2, -1)  # (batch_size, input_dim)
         loss = self.loss(X, X_recon)
 
-        if self.make_images:
+        if self._make_images:
             self.log('image reconstructed', X_recon.view_as(self.X), False, to_uint8=True)
             self.log('image projected', X_proj, False, to_uint8=True)
             self.log('image W', self.W, False, to_uint8=True)
@@ -901,7 +907,7 @@ class TensorTrainDecomposition(Benchmark):
         self.ndim = len(self.shape)
         self.ranks = ranks
         self.loss = loss
-        self.make_images = make_images
+        self._make_images = make_images
 
         if len(ranks) != self.ndim - 1:
             raise ValueError(
@@ -945,7 +951,7 @@ class TensorTrainDecomposition(Benchmark):
         reconstructed = current.reshape(self.T.shape)
         loss = self.loss(reconstructed, self.T)
 
-        if self.make_images and self.is_image:
+        if self._make_images and self.is_image:
             self.log("image reconstructed", reconstructed, False, to_uint8=True)
 
         return loss
@@ -981,7 +987,7 @@ class MPS(Benchmark):
         ))
 
         self.is_image = False
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             if self.T.ndim == 2 or (self.T.ndim == 3 and (self.T.shape[0]<=3 or self.T.shape[2]<=3)):
                 self.is_image = True
@@ -1001,7 +1007,7 @@ class MPS(Benchmark):
         reconstructed = current.view(self.T.shape)
         loss = self.loss_fn(reconstructed, self.T)
 
-        if self.make_images and self.is_image:
+        if self._make_images and self.is_image:
             self.log("image reconstructed", reconstructed, False, to_uint8=True)
 
         return loss
@@ -1030,7 +1036,7 @@ class CompactHOSVD(Benchmark):
         nn.init.normal_(self.core, mean=0.0, std=0.02)
 
         self.is_image = False
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             if self.T.ndim == 2 or (self.T.ndim == 3 and (self.T.shape[0]<=3 or self.T.shape[2]<=3)):
                 self.is_image = True
@@ -1055,7 +1061,7 @@ class CompactHOSVD(Benchmark):
         # Total loss combining both terms
         total_loss = reconstruction_loss + self.ortho_weight * ortho_loss
 
-        if self.make_images and self.is_image:
+        if self._make_images and self.is_image:
             self.log("image reconstructed", current_core, False, to_uint8=True)
 
         return total_loss
@@ -1069,7 +1075,7 @@ class MatrixLogarithm(Benchmark):
         self.log_M = nn.Parameter(init(self.M.shape, generator = self.rng.torch()))
         self.loss = loss
 
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image("target", self.M, to_uint8=True)
             self.set_display_best("image reconstructed")
@@ -1088,7 +1094,7 @@ class MatrixLogarithm(Benchmark):
         exp_log_M = torch.linalg.matrix_exp(self.log_M)
         loss = self.loss(exp_log_M, self.M)
 
-        if self.make_images:
+        if self._make_images:
             self.log("image reconstructed", exp_log_M, False, to_uint8=True)
             self.log("image log(M)", self.log_M, False, to_uint8=True)
             self.log_difference("image update log(M)", self.log_M, to_uint8=True)
@@ -1109,7 +1115,7 @@ class JordanForm(Benchmark):
         self.loss = loss
         self.eps=eps
 
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image("input", self.M, to_uint8=True)
 
@@ -1118,14 +1124,17 @@ class JordanForm(Benchmark):
 
 
     def get_loss(self):
+        loss = 0
         P = self.P + self.eye
         try: P_inv, _ = torch.linalg.inv_ex(P)
-        except Exception: P_inv = torch.linalg.pinv(P)
+        except torch.linalg.LinAlgError:
+            loss = 1
+            P_inv = torch.linalg.pinv(P)
 
         J = P_inv @ self.M @ self.P
 
         # encourage diagonal
-        loss = self.loss(J, torch.diag_embed(torch.diagonal(J, dim1=-2, dim2=-1)))
+        loss = loss + self.loss(J, torch.diag_embed(torch.diagonal(J, dim1=-2, dim2=-1)))
 
         # encourage upper triangular
         lower_tri = torch.tril(J, diagonal=-1)
@@ -1137,7 +1146,7 @@ class JordanForm(Benchmark):
 
         total_loss = loss + lower_loss + self.lambda_det * det_loss
 
-        if self.make_images:
+        if self._make_images:
             self.log("image Jordan Norm", J, False, to_uint8=True)
             self.log('image P', self.P, False, to_uint8=True)
             self.log_difference('image P update', self.P, to_uint8=True)
@@ -1156,7 +1165,7 @@ class MatrixRoot(Benchmark):
         self.n = n
         self.loss = loss
 
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image("target", self.M, to_uint8=True)
             self.set_display_best("image A^n")
@@ -1175,7 +1184,7 @@ class MatrixRoot(Benchmark):
         An = torch.linalg.matrix_power(self.A, n = self.n)
         loss = self.loss(An, self.M)
 
-        if self.make_images:
+        if self._make_images:
             self.log("image A^n", An, False, to_uint8=True)
             self.log("image A", self.A, False, to_uint8=True)
             self.log_difference("image update A", self.A, to_uint8=True)
@@ -1205,7 +1214,7 @@ class MatrixSign(Benchmark):
         # Initialize learnable parameter S
         self.S = nn.Parameter(S_init.clone().contiguous())
 
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image("input", self.M, to_uint8=True)
 
@@ -1217,9 +1226,44 @@ class MatrixSign(Benchmark):
         # loss to drive residual to zero
         loss = self.loss(S, S_next)
 
-        if self.make_images:
+        if self._make_images:
             self.log("image S next", S_next, False, to_uint8=True)
             self.log("image S", S, False, to_uint8=True)
             self.log_difference("image update S", S, to_uint8=True)
 
+        return loss
+
+def _check_square(M):
+    if M.ndim != 2: raise ValueError(M.shape)
+    if M.size(0) != M.size(1): raise ValueError(M.shape)
+
+class QEP(Benchmark):
+    """Quadratic eigenvalue problem M C and K must be square matrices of same shape
+    and there is no visualization and structured matrices e.g. imags with a lot of white background seem much better for this."""
+    def __init__(self, M, C, K):
+        super().__init__(log_projections=True)
+        self.M = nn.Buffer(_make_float_tensor(M).squeeze())
+        self.C = nn.Buffer(_make_float_tensor(C).squeeze())
+        self.K = nn.Buffer(_make_float_tensor(K).squeeze())
+        _check_square(self.M)
+        _check_square(self.C)
+        _check_square(self.K)
+
+        n = self.M.size(0)
+        self.lambda_param = nn.Parameter(torch.randn(1))
+        self.x = nn.Parameter(torch.randn(n))
+
+    def get_loss(self):
+        # norm penalty
+        x_norm = torch.linalg.vector_norm(self.x) + 1e-8 # pylint:disable=not-callable
+        x_normalized = self.x / x_norm
+        norm_penalty = (1 - x_norm).pow(2)
+
+        lambda_sq = self.lambda_param ** 2
+        term1 = lambda_sq * (self.M @ x_normalized)
+        term2 = self.lambda_param * (self.C @ x_normalized)
+        term3 = self.K @ x_normalized
+
+        residual = term1 + term2 + term3 + norm_penalty
+        loss = torch.mean(residual ** 2)
         return loss

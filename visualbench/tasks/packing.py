@@ -147,7 +147,7 @@ class BoxPacking(Benchmark):
 
         # generate colors for boxes
         self.colors = _make_colors(len(box_sizes), colors_seed)
-        self.make_images = make_images
+        self._make_images = make_images
 
         # slightly randomize params so that no params overlap which gives them exactly the same gradients
         # so they never detach from each other
@@ -190,7 +190,7 @@ class BoxPacking(Benchmark):
         if len(overflows) > 0:
             penalty = torch.stack([i.abs().mean() for i in overflows]).sum() * self.penalty
             penalty = penalty + torch.stack([i.pow(2).mean() for i in overflows]).sum() * self.sq_penalty
-            if not torch.isfinite(penalty): penalty = torch.tensor(0, device = self.params.device)
+            if not torch.isfinite(penalty): penalty = torch.tensor(torch.inf, device = self.params.device)
         else: penalty = torch.tensor(0, device = self.params.device)
 
         # create boxes from parameters
@@ -244,7 +244,7 @@ class BoxPacking(Benchmark):
         #             if self.square: overlap = overlap ** 2
         #             loss = loss + overlap / self.size
 
-        if self.make_images: self.log("image", self._make_solution_image(), False, to_uint8=False)
+        if self._make_images: self.log("image", self._make_solution_image(), False, to_uint8=False)
         return penalized_loss
 
 
@@ -278,7 +278,7 @@ class RotatingBoxPacking(Benchmark):
         self.positions = torch.nn.Parameter(torch.stack([x, y, theta], dim=1))
 
         self.register_buffer('colors', torch.tensor(_make_colors(len(box_sizes), 0), dtype=torch.float32) / 255)
-        self.make_images = make_images
+        self._make_images = make_images
         self.set_display_best('image')
 
     def get_loss(self):
@@ -311,7 +311,7 @@ class RotatingBoxPacking(Benchmark):
         loss = total_overlap + self.wall_penalty * boundary_loss
 
         # Visualization
-        if self.make_images:
+        if self._make_images:
             self.log('image', self._render_frame(x, y, theta).to(torch.uint8), False, to_uint8=False)
 
         return loss
@@ -357,7 +357,7 @@ class SpherePacking(Benchmark):
     grid: torch.nn.Buffer
     def __init__(self, radii: Sequence[float] | np.ndarray | torch.Tensor = RADII1, make_images = True):
         super().__init__(log_projections = True)
-        self.make_images = make_images
+        self._make_images = make_images
         self.N = len(radii)
         self.register_buffer('radii', totensor(radii, dtype=torch.float32))
 
@@ -415,7 +415,7 @@ class SpherePacking(Benchmark):
         total_loss = (overlaps**2).sum() + self.spread_coeff * (pos**2).sum()
 
         # Visualization
-        if self.make_images:
+        if self._make_images:
             with torch.no_grad():
                 # Scale to fit spheres in view
                 combined = torch.cat([pos - radii.unsqueeze(-1),

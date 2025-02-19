@@ -23,7 +23,7 @@ class Sorting(Benchmark):
         super().__init__(log_projections=True)
 
         self.sinkhorn_iters = sinkhorn_iters
-        self.make_images = make_images
+        self._make_images = make_images
         self.binary_weight = binary_weight # TODO cycle this from 0 to 1
         self.ortho_weight = ortho_weight
         self.p = p
@@ -54,7 +54,7 @@ class Sorting(Benchmark):
         PPt = P @ P.transpose(-2, -1)
         ortho_loss = torch.norm(PPt - self.identity, p='fro')
 
-        if self.make_images:
+        if self._make_images:
             self.log('image logits', self.P_logits, False, to_uint8=True)
             self.log('image permutation', P, False, to_uint8=True)
 

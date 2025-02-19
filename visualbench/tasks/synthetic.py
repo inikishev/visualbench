@@ -23,7 +23,7 @@ class Sphere(Benchmark):
     """
     def __init__(self, target: Any, init=None, criterion = torch.nn.functional.mse_loss, make_images = True,):
         super().__init__(log_params=False, log_projections=True)
-        self.make_images = make_images
+        self._make_images = make_images
 
         # target tensor
         if isinstance(target, int): target = torch.randn(target, dtype=torch.float32, generator=self.rng.torch())
@@ -42,7 +42,7 @@ class Sphere(Benchmark):
 
     def get_loss(self):
         # log current recreated image if target is an image
-        if self.make_images and len(self.reference_images) != 0:
+        if self._make_images and len(self.reference_images) != 0:
             self.log('image preds', self.x, False, to_uint8=True)
             self.log_difference('image update', self.x, to_uint8=True)
 
@@ -103,7 +103,7 @@ class Rosenbrock(Benchmark):
 
 
 class NonlinearMatrixFactorization(Benchmark):
-    """matrix factorization with some extra things to make it harder, no visualization"""
+    """matrix factorization with some extra things to make it harder, no visualization,"""
     def __init__(self, latent_dim=64, n=1000, seed=0):
         super().__init__(seed=seed, log_projections=True)
         g = self.rng.torch()
@@ -194,7 +194,7 @@ class SelfRecurrent(Benchmark):
         self.graft_ord = graft_ord
         self.act = act
 
-        self.make_images = make_images
+        self._make_images = make_images
         if make_images:
             self.add_reference_image("target", self.M, to_uint8=True)
             self.set_display_best("image A^n")
@@ -220,7 +220,7 @@ class SelfRecurrent(Benchmark):
             powers.append(A)
             if self.act is not None and p!= self.n: A = self.act(A)
 
-        if self.make_images:
+        if self._make_images:
             self.log_difference("image update A", self.A, to_uint8=True)
             self.log("image A", self.A, False, to_uint8=True)
             for i, p in enumerate(powers):

@@ -82,7 +82,7 @@ class RectangleReconstructor(Benchmark):
         )
         self.register_buffer('x_grid', x_grid)
         self.register_buffer('y_grid', y_grid)
-        self.make_images = make_images
+        self._make_images = make_images
         self.set_display_best('image reconstructed')
 
     def get_loss(self):
@@ -143,7 +143,7 @@ class RectangleReconstructor(Benchmark):
         reconstructed = bg_contrib + total_rect_contrib
         loss = self.loss_fn(reconstructed, self.target_image)
 
-        if self.make_images:
+        if self._make_images:
             img = reconstructed.detach().clamp(0, 1).permute(1, 2, 0)*255
             self.log(
                 'image reconstructed',
