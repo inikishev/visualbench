@@ -44,8 +44,8 @@ class StopCondition(Exception): pass
 class Benchmark(torch.nn.Module, ABC):
     def __init__(
         self,
-        dltrain: Sequence[Any] | None = None,
-        dltest: Sequence[Any] | None = None,
+        dltrain: Iterable[Any] | None = None,
+        dltest: Iterable[Any] | None = None,
         log_params = False,
         log_projections = False,
         seed: int | None = 0,
@@ -55,13 +55,13 @@ class Benchmark(torch.nn.Module, ABC):
         self.display_best_keys: list[str] = []
         """list of keys to logger images that will be shown twice - best value and last value"""
 
-        self._dltrain: Sequence[Any] | None = dltrain
-        self._dltest: Sequence[Any] | None = dltest
+        self._dltrain: Iterable[Any] | None = dltrain
+        self._dltest: Iterable[Any] | None = dltest
         self._log_params: bool = log_params
         self._log_projections: bool = log_projections
         self._seed: int | None = seed
         self._print_progress = True
-        self._make_images = False
+        self._make_images = True
         self._initial_state_dict = None
         self._reset()
 
@@ -307,8 +307,12 @@ class Benchmark(torch.nn.Module, ABC):
             for _ in range(max_epochs) if max_epochs is not None else itertools.count():
                 self.one_epoch(optimizer, self._dltrain)
 
-        except StopCondition: pass
-        finally:
+        except StopCondition:# pass
+        # finally:
+            if self._dltest is not None: self.one_epoch(None, self._dltest)
+            if self._print_progress: _print_final_report(self)
+
+        else:
             if self._dltest is not None: self.one_epoch(None, self._dltest)
             if self._print_progress: _print_final_report(self)
 

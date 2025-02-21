@@ -1,6 +1,6 @@
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal, Unpack
+from typing import TYPE_CHECKING, Any, Literal, Unpack, overload
 
 import numpy as np
 import torch
@@ -29,15 +29,16 @@ def __tensor_from_ints(x):
 
 def _make_float_hw3_tensor(x: Any) -> torch.Tensor:
     if isinstance(x, int):
-        return torch.randn((x, x, 3), generator=torch.Generator().manual_seed(0))
+        return torch.randn((x, x, 3), generator=torch.Generator().manual_seed(0)).contiguous()
     if isinstance(x, tuple) and len(x) == 2 and all(isinstance(i, int) for i in x):
-        return torch.randn(tuple(list(x) + [3]), generator=torch.Generator().manual_seed(0))
+        return torch.randn(tuple(list(x) + [3]), generator=torch.Generator().manual_seed(0)).contiguous()
     if isinstance(x, tuple) and len(x) == 3 and all(isinstance(i, int) for i in x):
         if x[0] < x[2]: x = (x[1], x[2], 3)
         else: x = (x[0], x[1], 3)
-        return torch.randn(x, generator=torch.Generator().manual_seed(0))
+        return torch.randn(x, generator=torch.Generator().manual_seed(0)).contiguous()
     return force_hw3(_make_float_tensor(x))
 
+def _make_float_3hw_tensor(x: Any) -> torch.Tensor: return _make_float_hw3_tensor(x).moveaxis(-1,0).contiguous()
 
 def test_make_float_hw3_tensor():
     assert _make_float_hw3_tensor(4).shape == (4,4,3), _make_float_hw3_tensor(4).shape
@@ -47,25 +48,29 @@ def test_make_float_hw3_tensor():
 
 def _make_float_hwc_tensor(x: Any) -> torch.Tensor:
     if isinstance(x, int):
-        return torch.randn((x, x, 1), generator=torch.Generator().manual_seed(0))
+        return torch.randn((x, x, 1), generator=torch.Generator().manual_seed(0)).contiguous()
     if isinstance(x, tuple) and len(x) == 2 and all(isinstance(i, int) for i in x):
-        return torch.randn(tuple(list(x) + [1]), generator=torch.Generator().manual_seed(0))
+        return torch.randn(tuple(list(x) + [1]), generator=torch.Generator().manual_seed(0)).contiguous()
     if isinstance(x, tuple) and len(x) == 3 and all(isinstance(i, int) for i in x):
         if x[0] < x[2]: x = (x[1], x[2], x[0])
-        return torch.randn(x, generator=torch.Generator().manual_seed(0))
-    return force_hwc(_make_float_tensor(x))
+        return torch.randn(x, generator=torch.Generator().manual_seed(0)).contiguous()
+    return force_hwc(_make_float_tensor(x)).contiguous()
 
+def _make_float_chw_tensor(x: Any) -> torch.Tensor: return _make_float_hwc_tensor(x).moveaxis(-1,0).contiguous()
 
 def _make_float_hwc_square_matrix(x: Any) -> torch.Tensor:
     x = _make_float_hwc_tensor(x)
     if x.shape[1] == x.shape[0]: return x
     if x.shape[0] > x.shape[1]:
         print(f"got matrix of shape {x.shape} where it needs to be square so trimming down to {x.shape[1], x.shape[1], x.shape[2]}")
-        return x[:x.shape[1]]
+        return x[:x.shape[1]].contiguous()
     if x.shape[0] < x.shape[1]:
         print(f"got matrix of shape {x.shape} where it needs to be square so trimming down to {x.shape[0], x.shape[0], x.shape[2]}")
-        return x[:, :x.shape[0]]
+        return x[:, :x.shape[0]].contiguous()
     raise RuntimeError(f"wtf {x.shape}")
+
+def _make_float_chw_square_matrix(x: Any) -> torch.Tensor: return _make_float_hwc_square_matrix(x).moveaxis(-1,0).contiguous()
+
 
 def test_make_float_hwc_tensor():
     assert _make_float_hwc_tensor(4).shape == (4,4,1), _make_float_hw3_tensor(4).shape
@@ -92,12 +97,15 @@ def sinkhorn(logits, num_iters=10):
         log_alpha = log_alpha - torch.logsumexp(log_alpha, dim=-2, keepdim=True)
     return torch.exp(log_alpha)
 
-
+@overload
+def _normalize_to_uint8(x:np.ndarray) -> np.ndarray: ...
+@overload
+def _normalize_to_uint8(x:torch.Tensor | torch.nn.Buffer) -> torch.Tensor: ...
 @torch.no_grad
-def _normalize_to_uint8(x:torch.Tensor | np.ndarray | torch.nn.Buffer) -> np.ndarray:
-    """normalizes to 0-255 range and converts to numpy uint8 array"""
+def _normalize_to_uint8(x:torch.Tensor | np.ndarray | torch.nn.Buffer) -> torch.Tensor | np.ndarray:
+    """normalizes to 0-255 range and converts to uint8"""
     if isinstance(x, np.ndarray): return normalize(np.nan_to_num(x), 0, 255).astype(np.uint8)
-    return normalize(x.nan_to_num().detach(), 0, 255).cpu().numpy().astype(np.uint8)
+    return normalize(x.nan_to_num().detach(), 0, 255).to(torch.uint8).cpu()
 
 def _round_significant(x: float, nsignificant: int):
     if x > 1: return round(x, nsignificant)
@@ -219,7 +227,9 @@ def _print_final_report(bench: "Benchmark"):
     text = f'finished in {bench._time_passed:.1f}s., reached'
     if 'test loss' in bench.logger:
         text = f'{text} train loss = {_round_significant(bench.logger.min("train loss"), 3)}, train test = {_round_significant(bench.logger.min("test loss"), 3)}'
-    else:
+    elif 'train loss' in bench.logger:
         text = f'{text} loss = {_round_significant(bench.logger.min("train loss"), 3)}'
+    else:
+        text = f'finished in {bench._time_passed:.1f}s., made 0 steps, something is wrong'
     print(f'{text}                                      ')
 

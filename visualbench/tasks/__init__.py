@@ -1,28 +1,7 @@
+from .decision_boundary import DecisionBoundary
+from .function_descent import FunctionDescent
 from .image_rectanges import RectangleReconstructor
-from .linalg import (
-    LU,
-    MPS,
-    PCA,
-    QEP,
-    QR,
-    SVD,
-    Bruhat,
-    CanonicalPolyadicDecomposition,
-    Cholesky,
-    CompactHOSVD,
-    EigenDecomposition,
-    InterpolativeDecomposition,
-    Inverse,
-    JordanForm,
-    LUPivot,
-    MatrixLogarithm,
-    MatrixRoot,
-    MatrixSign,
-    # MatrixSqrt,
-    MoorePenrose,
-    TensorTrainDecomposition,
-    Whitening,
-)
+from .linalg import *
 from .operations import Sorting
 from .packing import BoxPacking, RotatingBoxPacking, SpherePacking
 from .synthetic import (

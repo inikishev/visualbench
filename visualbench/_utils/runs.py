@@ -224,8 +224,10 @@ def _search(
 
     # make optimizer directory
     opt_path = os.path.join(info.path, opt_name)
-    if os.path.exists(opt_path): raise FileExistsError(f"{opt_path} already exists")
-    os.mkdir(opt_path)
+    # if not os.path.exists(opt_path): raise FileExistsError(f"{opt_path} already exists")
+    # os.mkdir(opt_path)
+    if not os.path.exists(opt_path): os.mkdir(opt_path)
+
 
     # stage 1: test all lrs
     metric = list(target_metrics.keys())[0]

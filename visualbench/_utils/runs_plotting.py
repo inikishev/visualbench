@@ -104,7 +104,8 @@ def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Se
     ymax = info.metrics[metric].max_value if maximize else info.metrics[metric].first
     assert ymax is not None
     d = (ymax - ymin)*0.1
-    ymin = ymin-d; ymax = ymax + d
+    ymax = ymax + d
+    if not log_scale: ymin = ymin-d
     fig.ylim(ymin, ymax)
 
     fig.xscale('log').preset(xlabel = 'lr', ylabel = metric, legend=True)

@@ -1,11 +1,12 @@
 """synthetic funcs"""
-from typing import Any
+from typing import Any, Literal
+from collections.abc import Callable
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
-from .._utils import _normalize_to_uint8, _make_float_tensor, _make_float_hwc_square_matrix
+from .._utils import _normalize_to_uint8, _make_float_tensor, _make_float_hwc_square_matrix, _make_float_chw_tensor
 from ..benchmark import Benchmark
 
 
@@ -184,11 +185,24 @@ def _full01(size, generator):
 
 class SelfRecurrent(Benchmark):
     """finds A such that all of A^i for i in (2, n) is n, but normalizes each previous A to M's norm"""
-    def __init__(self, M, n: int, loss = F.mse_loss, init = _full01, graft_ord:int|None=2, act=None, make_images=True):
+    def __init__(
+        self,
+        M,
+        n: int,
+        loss=F.mse_loss,
+        init: Callable | Literal["copy"] = "copy", # or full01 is a bit more challenging
+        graft_ord: int | None = 2,
+        act=None,
+        make_images=True,
+    ):
         super().__init__()
         self.M = nn.Buffer(_make_float_hwc_square_matrix(M).moveaxis(-1, 0))
         if self.M.shape[-1] != self.M.shape[-2]: raise ValueError(f'{self.M.shape = } - not a matrix!')
-        self.A = nn.Parameter(init(self.M.shape, generator = self.rng.torch()))
+
+        if callable(init): self.A = nn.Parameter(init(self.M.shape, generator = self.rng.torch()))
+        elif init == 'copy': self.A = nn.Parameter(self.M.clone().contiguous())
+        else: raise ValueError(init)
+
         self.n = n
         self.loss = loss
         self.graft_ord = graft_ord
