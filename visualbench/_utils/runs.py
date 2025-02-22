@@ -17,7 +17,7 @@ from .utils import _ensure_float, _round_significant
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
 
-REFERENCE_OPTS = ("SGD", "Adam", "Kron", "Muon", "PrecondSchedulePaLMSOAP", "MARS-AdamW")
+REFERENCE_OPTS = ("SGD", "Adam", "PSGDKron", "Muon", "PrecondSchedulePaLMSOAP", "MARS-AdamW")
 
 _DEFAULT_DICT = lambda: {
     "min": {"value": float('inf'),  "run": '',},

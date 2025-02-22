@@ -53,27 +53,27 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True):
     # ------------------------------------ QEP ----------------------------------- #
     # for testing if optimizer is good at exploiting curvature
     bench = QEP(qrcode, qrcode.flip(-1), qrcode.flip(-2))
-    _search(bench, 'QEP qrcode-96', _trainloss, max_passes=2000, max_seconds=20, log_scale=True)
+    _search(bench, 'QEP qrcode-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ------------------------------ MatrixLogarithm ----------------------------- #
     # every good optimizer is 2x better here
     bench = SelfRecurrent(ATTNGRAD96, n = 5, init = _full01)
-    _search(bench, 'SelfRecurrent attngrad-96', _trainloss, max_passes=2000, max_seconds=20, log_scale=True)
+    _search(bench, 'SelfRecurrent attngrad-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ---------------------------------- LUPivot --------------------------------- #
     # crazy kron and soap lead
     bench = LUPivot(qrcode)
-    _search(bench, 'LUPivot qrcode-96', _trainloss, max_passes=2000, max_seconds=20, log_scale=True)
+    _search(bench, 'LUPivot qrcode-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ----------------------------------- Eigen ---------------------------------- #
     # crazy kron and muon lead
     bench = Eigen(TEST96)
-    _search(bench, 'Eigen test-96', _trainloss, max_passes=2000, max_seconds=20, log_scale=True)
+    _search(bench, 'Eigen test-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ------------------------------ INVERSEINVERSE ------------------------------ #
     # crazy kron and muon and soap lead
     bench = InverseInverse(_get_randn())
-    _search(bench, 'InverseInverse randn-64', _trainloss, max_passes=2000, max_seconds=20, log_scale=True)
+    _search(bench, 'InverseInverse randn-64', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # -------------------------------- LSTMArgsort ------------------------------- #
     # all good optimizers are at the top + its mini-batch
