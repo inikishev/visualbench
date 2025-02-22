@@ -52,32 +52,32 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True):
 
     # ------------------------------------ QEP ----------------------------------- #
     # for testing if optimizer is good at exploiting curvature
-    bench = QEP(qrcode, qrcode.flip(-1), qrcode.flip(-2))
+    bench = QEP(qrcode, qrcode.flip(-1), qrcode.flip(-2)).cuda()
     _search(bench, 'QEP qrcode-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ------------------------------ MatrixLogarithm ----------------------------- #
     # every good optimizer is 2x better here
-    bench = SelfRecurrent(ATTNGRAD96, n = 5, init = _full01)
+    bench = SelfRecurrent(ATTNGRAD96, n = 5, init = _full01).cuda()
     _search(bench, 'SelfRecurrent attngrad-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ---------------------------------- LUPivot --------------------------------- #
     # crazy kron and soap lead
-    bench = LUPivot(qrcode)
+    bench = LUPivot(qrcode).cuda()
     _search(bench, 'LUPivot qrcode-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ----------------------------------- Eigen ---------------------------------- #
     # crazy kron and muon lead
-    bench = Eigen(TEST96)
+    bench = Eigen(TEST96).cuda()
     _search(bench, 'Eigen test-96', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # ------------------------------ INVERSEINVERSE ------------------------------ #
     # crazy kron and muon and soap lead
-    bench = InverseInverse(_get_randn())
+    bench = InverseInverse(_get_randn()).cuda()
     _search(bench, 'InverseInverse randn-64', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # -------------------------------- LSTMArgsort ------------------------------- #
     # all good optimizers are at the top + its mini-batch
-    bench = LSTMArgsort()
+    bench = LSTMArgsort().cuda()
     _search(bench, 'LSTMArgsort', _trainloss, max_passes=2000, max_seconds=30, log_scale=False)
 
 
