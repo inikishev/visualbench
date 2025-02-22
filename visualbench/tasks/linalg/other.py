@@ -319,9 +319,10 @@ class UnbalancedProcrustes(Benchmark):
         self.B = nn.Buffer(_make_float_chw_tensor(B))
 
         b, m, l = self.A.shape
-        b, m_b, n = self.B.shape
-        assert m == m_b, "A and B must have the same number of rows."
-        assert m >= l >= n, "Dimensions must satisfy m >= l >= n."
+        b2, m_b, n = self.B.shape
+        assert m == m_b, f"A and B must have the same number of rows, {self.A.shape = }, {self.B.shape = }."
+        assert m >= l >= n, f"Dimensions must satisfy m >= l >= n, {self.A.shape = }, {self.B.shape = }."
+        assert b == b2, f"A and B must have the same number of channels, {self.A.shape = }, {self.B.shape = }."
 
         self.U = nn.Parameter(torch.randn(b, l, n))
 

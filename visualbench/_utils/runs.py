@@ -1,21 +1,23 @@
 import os
+import shutil
 from collections import UserDict
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import torch
+from glio.jupyter_tools import clean_mem
 from myai.loaders.yaml import yamlread, yamlwrite
 from myai.logger import DictLogger
+from myai.plt_tools import Fig
 from myai.python_tools import split_path
-from glio.jupyter_tools import clean_mem
 
 from .utils import _ensure_float, _round_significant
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
 
-REFERENCE_OPTS = ("SGD", "Adam")
+REFERENCE_OPTS = ("SGD", "Adam", "Kron", "Muon", "PrecondSchedulePaLMSOAP", "MARS-AdamW")
 
 _DEFAULT_DICT = lambda: {
     "min": {"value": float('inf'),  "run": '',},
@@ -246,8 +248,8 @@ def _search(
             bench.run(optimizer=optimizer,**kwargs)
             _filter_logger_(bench.logger) # filter logger before reporting and saving
             logger = bench.logger
-        info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
-        bench.logger.save(os.path.join(opt_path, f'{lr}'))
+            info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
+            bench.logger.save(os.path.join(opt_path, f'{lr}'))
 
         if maximize: evaluated_lrs10_by_value.append((lr10, -logger.max(metric))) # always minimize
         else: evaluated_lrs10_by_value.append((lr10, logger.min(metric))) # always minimize
@@ -305,3 +307,12 @@ def _search(
 
     # update info yaml if necessary
     if info._needs_yaml_update: yamlwrite(info.metrics, info.yaml_path)
+
+    # clean empty failed runs
+    for dir in os.listdir(info.path):
+        if dir == 'info.yaml': continue
+        opt_path = os.path.join(info.path, dir)
+        if len(os.listdir(opt_path)) == 0:
+            shutil.rmtree(opt_path)
+
+

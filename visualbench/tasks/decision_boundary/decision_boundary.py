@@ -23,9 +23,9 @@ class DecisionBoundary(Benchmark):
         norm_x=False,
         norm_y=False,
         resolution=256,
-        save_preds=True,
         device=CUDA_IF_AVAILABLE,
         dtype=torch.float32,
+        make_images = True,
         seed=0,
     ):
         x = totensor(x, device=device, dtype=dtype).squeeze()
@@ -52,9 +52,10 @@ class DecisionBoundary(Benchmark):
         if batch_size is not None: data = TensorDataLoader((x, y), batch_size=batch_size, shuffle = True, seed = seed)
         else: data = [(x, y), ]
 
-        super().__init__(dltrain=data, seed = seed)
+        super().__init__(dltrain=data, seed = seed, log_projections=True)
         self.model = model
         self.loss_fn = loss_fn
+        self._make_images = make_images
 
         domain = totensor([
             [x[:, 0].min().detach().cpu().item() - 1, x[:, 1].min().detach().cpu().item() - 1],
@@ -81,7 +82,7 @@ class DecisionBoundary(Benchmark):
         self.register_buffer('mask', mask)
         self.register_buffer('data', data)
         self.resolution = resolution
-        self.save_preds = save_preds
+        self.set_display_best('image')
 
         self.to(device) #necessary for this one because dataset is on the device
 
@@ -91,17 +92,16 @@ class DecisionBoundary(Benchmark):
         outputs = self.model(x)
         loss = self.loss_fn(outputs, y)
 
-        if not self.save_preds:
-            return loss
+        if self._make_images:
+            self.model.eval()
+            with torch.inference_mode():
+                Z: torch.Tensor = (torch.sigmoid(self.model(self.grid_points)) * 255).reshape(self.resolution, self.resolution).unsqueeze(0).repeat((3,1,1))
+                Z[0] = 255 - Z[0] # 0 is red, 1 is green
+                Z[2] = 0
+                Z = torch.where(self.mask, self.data, Z)
+                self.log("image", Z.clamp_(0, 255).to(torch.uint8), log_test=False, to_uint8=False)
 
-        self.model.eval()
-        with torch.inference_mode():
-            Z: torch.Tensor = (torch.sigmoid(self.model(self.grid_points)) * 255).reshape(self.resolution, self.resolution).unsqueeze(0).repeat((3,1,1))
-            Z[0] = 255 - Z[0] # 0 is red, 1 is green
-            Z[2] = 0
-            Z = torch.where(self.mask, self.data, Z)
-
-        return loss, {"image": Z.clamp(0, 255).to(torch.uint8)}
+        return loss
 
 
 
@@ -175,12 +175,12 @@ def _make_moons(*args, **kwargs):
     from sklearn.datasets import make_moons
     return make_moons(*args, **kwargs)
 
-HeavyRegMoons2D = lambda width=2, depth=32, norm=True, n_samples=2048, noise=0.2, resolution = 192, device=CUDA_IF_AVAILABLE, save_preds=True: DecisionBoundary(
+HeavyRegMoons2D = lambda width=2, depth=32, norm=True, n_samples=2048, noise=0.2, resolution = 192, device=CUDA_IF_AVAILABLE, make_images=True: DecisionBoundary(
     *_make_moons(n_samples=n_samples, noise=noise, random_state=0),
     model=MLP(2, 1, width, depth, norm=norm),
     loss_fn=torch.nn.BCEWithLogitsLoss(),
     resolution=resolution,
     device = device,
-    save_preds=save_preds,
+    make_images=make_images,
 )
 """benchmark from https://github.com/ClashLuke/HeavyBall/blob/main/benchmark/loss_contour.py"""

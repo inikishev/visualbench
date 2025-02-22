@@ -647,15 +647,15 @@ class CUR(Benchmark):
 
         if self._make_images:
             self.log('image reconstruction', recon, False, to_uint8=True)
-            self.log('image S logits', self.S_logits, False, to_uint8=True)
-            self.log('image cols', C, False, to_uint8=True)
-            self.log('image T logits', self.T_logits, False, to_uint8=True)
-            self.log('image T', self.T, False, to_uint8=True)
-            self.log('image rows', R, False, to_uint8=True)
+            # self.log('image S logits', self.S_logits, False, to_uint8=True)
+            # self.log('image cols', C, False, to_uint8=True)
+            # self.log('image T logits', self.T_logits, False, to_uint8=True)
+            # self.log('image T', T, False, to_uint8=True)
+            # self.log('image rows', R, False, to_uint8=True)
             self.log('image W', W, False, to_uint8=True)
             self.log('image U', U, False, to_uint8=True)
-            self.log_difference('image update S logits', self.S_logits, to_uint8=True)
-            self.log_difference('image update T logits', self.T_logits, to_uint8=True)
+            # self.log_difference('image update S logits', self.S_logits, to_uint8=True)
+            # self.log_difference('image update T logits', self.T_logits, to_uint8=True)
 
         return loss
 
@@ -665,7 +665,7 @@ class NMF(Benchmark):
     def __init__(self, A, rank, loss = F.mse_loss, init = _zeros, make_images = True):
         super().__init__()
         A = _make_float_chw_tensor(A)
-        A = A + A.min()
+        if A.min() < 0: A = A + A.min()
         self.A = nn.Buffer(A)
         self.input_shape = self.A.shape
         self.rank = rank
@@ -685,11 +685,11 @@ class NMF(Benchmark):
         W = torch.exp(self.W_raw)
         H = torch.exp(self.H_raw)
         WH = W @ H
-        loss = self.loss(self.A, WH)
+        loss = self.loss(WH, self.A)
 
         if self._make_images:
             self.log("image WH", WH, False, to_uint8=True)
-            self.log("image W", W, False, to_uint8=True)
-            self.log("image H", H, False, to_uint8=True)
+            # self.log("image W", W, False, to_uint8=True)
+            # self.log("image H", H, False, to_uint8=True)
 
         return loss

@@ -31,10 +31,12 @@ def _print_best(task_name, root = 'runs', metric = None):
         loggers = [DictLogger.from_file(os.path.join(opt_path, f)) for f in os.listdir(opt_path)]
         if maximize:
             y = [logger.max(metric) for logger in loggers]
-            best = np.max(y)
+            if len(y) > 0: best = np.nanmax(y)
+            else: best = -float('inf')
         else:
             y = [logger.min(metric) for logger in loggers]
-            best = np.min(y)
+            if len(y) > 0: best = np.nanmin(y)
+            else: best = float('inf')
         opts[opt] = best
 
     opts_sorted = sorted(list(opts.items()), key = lambda x: x[1], reverse=maximize)
@@ -64,7 +66,7 @@ def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Se
     plotted = set()
 
     # plot func
-    def _plot_opt(opt_name, display_name, lw):
+    def _plot_opt(opt_name, display_name, lw, is_main):
         if opt_name in plotted: return
         plotted.add(opt_name)
 
@@ -82,19 +84,20 @@ def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Se
 
         kw = {}
         if lw is not None: kw['lw'] = lw
-        fig.linechart(x=x, y=y, label=f'{display_name} - {_round_significant(best, 3)}', **kw)
+        if is_main: kw['color'] = 'blue'
+        if len(x) > 1: fig.linechart(x=x, y=y, label=f'{display_name} - {_round_significant(best, 3)}', **kw)
 
     # plot opts
     if opts is not None:
-        for opt in opts: _plot_opt(opt, opt, lw = None)
+        for opt in opts: _plot_opt(opt, opt, lw = None, is_main=True)
 
     # plot reference opts
     if ref is not None:
-        for ref_opt in ref: _plot_opt(ref_opt, ref_opt, 1)
+        for ref_opt in ref: _plot_opt(ref_opt, ref_opt, 1, is_main=False)
 
     # plot best opt for reference
     best = info.best_opt(metric)
-    _plot_opt(best, f"best: {best}", 1)
+    _plot_opt(best, f"best: {best}", 1, is_main=False)
 
     # actual plotting
     if log_scale: fig.yscale('symlog', linthresh = 1e-8)
@@ -149,8 +152,9 @@ def plot_metric(task_name, opts, root='runs', metric = None, opts_all_lrs = True
                 kw['lw'] = 0.5
             if not is_main:
                 if opts is not None:
-                    kw['linestyle'] = 'dashed'
-                    kw['lw'] = 0.75
+                    if opts_all_lrs:
+                        kw['linestyle'] = 'dashed'
+                        kw['lw'] = 0.75
             else:
                 kw['color'] = 'blue'
             fig.linechart(x=x, y=y, label=f'{display_name} {_round_significant(float(lr), 3)} - {_round_significant(best, 3)}', **kw)

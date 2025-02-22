@@ -71,7 +71,7 @@ class InverseInverse(Benchmark):
 
 class SinkhornInverse(Benchmark):
     """the goal is to find a matrix, which, after applying sinkhorn iteration, produces A"""
-    def __init__(self, A, sinkhorn_iters:int = 4, loss = F.mse_loss, make_images = True):
+    def __init__(self, A, sinkhorn_iters:int = 2, loss = F.mse_loss, make_images = True):
         super().__init__(log_projections=True)
         self.loss = loss
         self._make_images = make_images
@@ -109,7 +109,7 @@ def zeropower_via_newtonschulz5(G: torch.Tensor, steps: int) -> torch.Tensor:
     """
     assert G.ndim >= 2 # batched Muon implementation by @scottjmaddox, and put into practice in the record by @YouJiacheng
     a, b, c = (3.4445, -4.7750,  2.0315)
-    X = G.bfloat16()
+    X = G#.bfloat16()
     # if G.size(-2) > G.size(-1):
     #     X = X.mT
 
@@ -128,7 +128,7 @@ def zeropower_via_newtonschulz5(G: torch.Tensor, steps: int) -> torch.Tensor:
 class NewtonSchulzInverse(Benchmark):
     """the goal is to find a matrix which after applying Newton-Schulz produces A,
     and Muon's one is perfect because it requires very few iterations"""
-    def __init__(self, A, newtonschulz_iters:int = 5, loss = F.mse_loss, make_images = True):
+    def __init__(self, A, newtonschulz_iters:int = 2, loss = F.mse_loss, make_images = True):
         super().__init__(log_projections=True)
         self.loss = loss
         self._make_images = make_images
