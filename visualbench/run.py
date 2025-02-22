@@ -68,7 +68,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True):
     # ----------------------------------- Eigen ---------------------------------- #
     # crazy kron and muon lead
     bench = Eigen(TEST96)
-    _search(bench, 'LUPivot test-96', _trainloss, max_passes=2000, max_seconds=20, log_scale=True)
+    _search(bench, 'Eigen test-96', _trainloss, max_passes=2000, max_seconds=20, log_scale=True)
 
     # ------------------------------ INVERSEINVERSE ------------------------------ #
     # crazy kron and muon and soap lead
