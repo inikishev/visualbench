@@ -10,7 +10,7 @@ from .benchmark import Benchmark
 from .data import ATTNGRAD96, QRCODE96, SANIC96, TEST96
 from .tasks import QEP, Eigen, LSTMArgsort, LUPivot, MatrixLogarithm, SelfRecurrent, InverseInverse
 from .tasks.linalg._linalg_utils import _full01
-
+from ._utils.runs import REFERENCE_OPTS
 
 def _get_qrcode():
     qrcode = imreadtensor(QRCODE96).float().mean(0)
@@ -20,7 +20,12 @@ def _get_randn():
     return torch.randn(64,64, generator = torch.Generator('cpu').manual_seed(0))
 
 _trainloss = {"train loss": False}
-def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True):
+def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequence[str]|str|None =(), has_lr=True):
+    if extra is None: extra = []
+    elif isinstance(extra, str): extra = [extra]
+    else: extra = list(extra)
+    ref = list(REFERENCE_OPTS) + extra
+
     qrcode = _get_qrcode()
     fig = Fig()
 
@@ -31,10 +36,12 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True):
         max_passes: int,
         max_seconds: float,
         log_scale: bool,
-        lr_binary_search_steps: int = 5,
+        lr_binary_search_steps: int = 7,
         test_every_forwards: int | None = None,
     ):
         clean_mem()
+        kw = {}
+        if not has_lr: kw['lrs10'] = None
         bench.search(
             task_name=name,
             opt_name=opt_name,
@@ -43,10 +50,11 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True):
             max_passes=max_passes,
             max_seconds=max_seconds,
             test_every_forwards=test_every_forwards, lr_binary_search_steps=lr_binary_search_steps,
+            **kw,
         )
-        (plot_metric(task_name=name, opts = opt_name, log_scale=log_scale, fig = fig.add(f'{name} losses'), show = False, opts_all_lrs=False)
+        (plot_metric(task_name=name, opts = opt_name, log_scale=log_scale, fig = fig.add(f'{name} losses'), show = False, opts_all_lrs=False, ref=ref)
          .legend(size=12))
-        (plot_lr_search_curve(task_name=name, opts = opt_name, log_scale=log_scale, fig = fig.add(f'{name} lrs'), show = False)
+        (plot_lr_search_curve(task_name=name, opts = opt_name, log_scale=log_scale, fig = fig.add(f'{name} lrs'), show = False, ref = ref)
          .legend(size=12))
 
 

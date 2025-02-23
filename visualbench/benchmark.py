@@ -392,8 +392,8 @@ class Benchmark(torch.nn.Module, ABC):
         print_achievements = True,
 
         # lr tuning kwargs
-        lr_binary_search_steps = 2, # binary search steps
-        max_lr_expansions = 5, # separate count for when best lr is on the edge
+        lr_binary_search_steps = 7, # binary search steps
+        max_lr_expansions = 7, # separate count for when best lr is on the edge
         plot=False,
     ):
         # performance settings

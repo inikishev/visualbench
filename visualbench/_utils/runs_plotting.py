@@ -85,7 +85,7 @@ def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Se
         kw = {}
         if lw is not None: kw['lw'] = lw
         if is_main: kw['color'] = 'blue'
-        if len(x) > 1: fig.linechart(x=x, y=y, label=f'{display_name} - {_round_significant(best, 3)}', **kw)
+        if len(x) > 1: fig.linechart(x=x, y=y, label=f'{display_name} - {_round_significant(best, 3)}', marker = '.', **kw)
 
     # plot opts
     if opts is not None:

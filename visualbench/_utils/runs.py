@@ -3,7 +3,7 @@ import shutil
 from collections import UserDict
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal
-
+import optuna
 import numpy as np
 import torch
 from glio.jupyter_tools import clean_mem
@@ -17,7 +17,7 @@ from .utils import _ensure_float, _round_significant
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
 
-REFERENCE_OPTS = ("SGD", "Adam", "PSGDKron", "Muon", "PrecondSchedulePaLMSOAP", "MARS-AdamW")
+REFERENCE_OPTS = ("SGD", "AdamW", "PSGDKron", "Muon", "PrecondSchedulePaLMSOAP", "MARS-AdamW")
 
 _DEFAULT_DICT = lambda: {
     "min": {"value": float('inf'),  "run": '',},
@@ -195,6 +195,10 @@ def _filter_logger_(logger: DictLogger):
         first = logger.first(k)
         if isinstance(first, (np.ndarray, torch.Tensor)) and _numel(first) > 1: del logger[k]
 
+def _rremove_(l, value):
+    ind = len(l) - 1 - l[::-1].index(value)
+    del l[ind]
+
 def _search(
     task_name: str,
     opt_name: str,
@@ -216,8 +220,8 @@ def _search(
     print_achievements = True,
 
     # lr tuning kwargs
-    lr_binary_search_steps = 2, # binary search steps
-    max_lr_expansions = 5, # separate count for when best lr is on the edge
+    lr_binary_search_steps = 7, # binary search steps
+    max_lr_expansions = 7, # separate count for when best lr is on the edge
 ):
     if lrs10 is None: lrs10 = (0, ) # optimizers with no lrs
 
@@ -251,59 +255,83 @@ def _search(
             info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
             bench.logger.save(os.path.join(opt_path, f'{lr}'))
 
-        if maximize: evaluated_lrs10_by_value.append((lr10, -logger.max(metric))) # always minimize
-        else: evaluated_lrs10_by_value.append((lr10, logger.min(metric))) # always minimize
+        if maximize: value = -logger.max(metric) # always minimize
+        else: value = logger.min(metric)
+
+        evaluated_lrs10_by_value.append((lr10, value))
+        return value
 
     for lr10 in lrs10: _test_lr10(lr10)
 
-    # stage2 - futher binary search
+    # stage2 - binary search
+    shift = 0
     while True:
-        if lr_binary_search_steps == 0 or max_lr_expansions == 0 or len(lrs10) == 1: break
+        if len(lrs10) == 1: break
 
-        evaluated_lrs10_by_value.sort(key = lambda x: x[1]) # 1st is best
-        evaluated_lrs10_by_lr = list(sorted(evaluated_lrs10_by_value, key = lambda x: x[0]))
-        rounded_lrs10 = [_round_significant(i, 3) for i,_ in evaluated_lrs10_by_lr]
-        next_lr10 = rounded_lrs10[0]
+        evaluated_lrs10_by_value.sort(key = lambda x: x[1])
+        evaluated_lrs10_by_lr = sorted(evaluated_lrs10_by_value, key = lambda x: x[0])
 
-        idx = 0
-        action = None
-        stop = False
+        # pick two best lrs
+        if 2+shift > len(evaluated_lrs10_by_value): break
+        best_lrs10 = evaluated_lrs10_by_value[shift:2+shift]
 
-        # pick lr that has not been evaluated
-        while _round_significant(next_lr10, 3) in rounded_lrs10:
+        lrs10_to_eval = []
+        # determine next lrs via either binary search or expansions
 
-            # pick lowest value
-            best_lr10 = evaluated_lrs10_by_value[idx][0]
-
-            # if it is on the edge, expand
-            if best_lr10 == evaluated_lrs10_by_lr[0][0]:
-                next_lr10 = evaluated_lrs10_by_lr[0][0] - 1 # smallest
-                action = 'expand'
-            elif best_lr10 == evaluated_lrs10_by_lr[-1][0]:
-                next_lr10 = evaluated_lrs10_by_lr[-1][0] + 1
-                action = 'expand'
-
-            # else perform binary search between best lr and best neigbour
-            else:
-                best_idx = evaluated_lrs10_by_lr.index(evaluated_lrs10_by_value[idx])
-                if evaluated_lrs10_by_lr[best_idx-1][1] < evaluated_lrs10_by_lr[best_idx+1][1]: lr2 = evaluated_lrs10_by_lr[best_idx-1][0]
-                else: lr2 = evaluated_lrs10_by_lr[best_idx+1][0]
-                next_lr10 = best_lr10 + (lr2 - best_lr10) / 2
-                action = 'search'
-
-            idx += 1
-            if idx == len(evaluated_lrs10_by_value):
-                stop = True
+        for lr10,val in best_lrs10:
+            # check if on edge, if yes break to skip evaluating other lr
+            if lr10 == evaluated_lrs10_by_lr[0][0]:
+                lrs10_to_eval.append(evaluated_lrs10_by_lr[0][0] - 1)
+                break
+            elif lr10 == evaluated_lrs10_by_lr[-1][0]:
+                lrs10_to_eval.append(evaluated_lrs10_by_lr[-1][0] + 1)
                 break
 
-        if stop: break
-        if action == 'expand': max_lr_expansions -= 1
-        elif action == 'search': lr_binary_search_steps -= 1
-        else: raise RuntimeError(action)
+            # else binary search, add both sides
+            else:
+                left_lr10 = evaluated_lrs10_by_lr[evaluated_lrs10_by_lr.index((lr10, val)) - 1][0]
+                lrs10_to_eval.append(lr10 + (left_lr10 - lr10) / 2)
 
-        # test new lr
-        bench.reset()
-        _test_lr10(next_lr10)
+                right_lr10 = evaluated_lrs10_by_lr[evaluated_lrs10_by_lr.index((lr10, val)) + 1][0]
+                lrs10_to_eval.append(lr10 + (right_lr10 - lr10) / 2)
+
+        # print()
+        # print('lrs', evaluated_lrs10_by_value)
+        # print('suggested1', lrs10_to_eval)
+
+        # remove lrs that are too similar within list
+        rounded_lrs10_to_eval = [_round_significant(lr10, 1) for lr10 in lrs10_to_eval]
+        for lr10 in lrs10_to_eval.copy():
+            if rounded_lrs10_to_eval.count(_round_significant(lr10, 1)) > 1:
+                _rremove_(lrs10_to_eval, lr10)
+                rounded_lrs10_to_eval.remove(_round_significant(lr10, 1))
+                assert _round_significant(lr10, 1) in rounded_lrs10_to_eval
+
+        # remove lrs that are too similar to evaluated ones
+        rounded_lrs10 = [_round_significant(lr10, 1) for lr10,v in evaluated_lrs10_by_lr]
+        for lr10 in lrs10_to_eval.copy():
+            if _round_significant(lr10,1) in rounded_lrs10:
+                _rremove_(lrs10_to_eval, lr10)
+
+        if len(lrs10_to_eval) == 0:
+            shift += 1
+
+        # print('suggested2', lrs10_to_eval)
+        # print()
+
+        # evaluate new lrs
+        terminate = False
+        for lr10 in lrs10_to_eval:
+            shift = 0
+            if lr10 < evaluated_lrs10_by_lr[0][0] or lr10 > evaluated_lrs10_by_lr[-1][0]: max_lr_expansions -= 1
+            else: lr_binary_search_steps -= 1
+
+            _test_lr10(lr10)
+            if max_lr_expansions == 0 or lr_binary_search_steps == 0:
+                terminate = True
+                break
+
+        if terminate: break
 
     # update info yaml if necessary
     if info._needs_yaml_update: yamlwrite(info.metrics, info.yaml_path)
