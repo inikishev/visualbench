@@ -28,3 +28,7 @@ class LSTMArgsort(Benchmark):
         scores = self.fc(lstm_out)  # (batch_size, seq_len, seq_len)
         loss = F.cross_entropy(scores.transpose(1, 2), targets)
         return loss
+
+    def reset(self):
+        super().reset()
+        self.lstm.flatten_parameters()
