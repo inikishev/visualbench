@@ -7,26 +7,23 @@ from myai.plt_tools import Fig
 
 from ._utils.runs_plotting import plot_lr_search_curve, plot_metric, _print_best
 from .benchmark import Benchmark
-from .data import ATTNGRAD96, QRCODE96, SANIC96, TEST96
-from .tasks import QEP, Eigen, LSTMArgsort, LUPivot, MatrixLogarithm, SelfRecurrent, InverseInverse
+from .data import ATTNGRAD96, QRCODE96, SANIC96, TEST96, get_qrcode, get_randn
+from .tasks import QEP, Eigen, LSTMArgsort, LUPivot, SelfRecurrent, InverseInverse, CaliforniaHousing, Mnist1d
+from .tasks import models
 from .tasks.linalg._linalg_utils import _full01
 from ._utils.runs import REFERENCE_OPTS
 
-def _get_qrcode():
-    qrcode = imreadtensor(QRCODE96).float().mean(0)
-    return torch.where(qrcode > 128, 1, 0).float().contiguous()
-
-def _get_randn():
-    return torch.randn(64,64, generator = torch.Generator('cpu').manual_seed(0))
 
 _trainloss = {"train loss": False}
+_train_test_loss = {"train loss": False, "test loss": False}
+
 def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequence[str]|str|None =(), has_lr=True):
     if extra is None: extra = []
     elif isinstance(extra, str): extra = [extra]
     else: extra = list(extra)
     ref = list(REFERENCE_OPTS) + extra
 
-    qrcode = _get_qrcode()
+    qrcode = get_qrcode()
     fig = Fig()
 
     def _search(
@@ -80,7 +77,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
 
     # ------------------------------ INVERSEINVERSE ------------------------------ #
     # crazy kron and muon and soap lead
-    bench = InverseInverse(_get_randn()).cuda()
+    bench = InverseInverse(get_randn()).cuda()
     _search(bench, 'InverseInverse randn-64', _trainloss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # -------------------------------- LSTMArgsort ------------------------------- #
@@ -88,6 +85,25 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     bench = LSTMArgsort().cuda()
     _search(bench, 'LSTMArgsort', _trainloss, max_passes=2000, max_seconds=30, log_scale=False)
 
+    # --------------------- CaliforniaHousing MLP16-16-16-16 --------------------- #
+    # soap-kron-muon, not big advantage tho
+    bench = CaliforniaHousing(models.MLP([16,16,16,16]))
+    _search(bench, 'CaliforniaHousing MLP16-16-16-16', _train_test_loss, max_passes=2000, max_seconds=60, log_scale=True)
+
+    # ------------------------- Mnist1d RecurrentMLP40-7 ------------------------- #
+    # kron leads in train, SOAP in test, mayb be good for testing generalization
+    bench = Mnist1d(models.RecurrentMLP(40, 7))
+    _search(bench, 'Mnist1d RecurrentMLP40-7', _train_test_loss, max_passes=2000, max_seconds=60, log_scale=False)
+
+    # --------------------- Mnist1d ConvNet32-64-128-256 bs32 -------------------- #
+    # kron soap train, muon test
+    bench = Mnist1d(models.Mnist1dConvNet(), batch_size=32)
+    _search(bench, 'Mnist1d ConvNet32-64-128-256 bs32', _train_test_loss, max_passes=2000, max_seconds=60, test_every_forwards=10, log_scale=False)
+
+    # -------------------------- Mnist1d LSTM40-2 bs128 -------------------------- #
+    # huge kron and soap lead + muon and mars next
+    bench = Mnist1d(models.Mnist1dConvNet(), batch_size=128)
+    _search(bench, 'Mnist1d LSTM40-2 bs128', _train_test_loss, max_passes=2000, max_seconds=60, test_every_forwards=10, log_scale=False)
 
     # --------------------------------- PLOTTING --------------------------------- #
     if show: fig.show(axsize = (12, 6), dpi=300, ncols = 2)

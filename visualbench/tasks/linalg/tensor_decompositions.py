@@ -19,7 +19,7 @@ from ._linalg_utils import _expand_channels, _square, _zeros, _full01, _full001,
 
 # better results with randn than zeros ones and full001 but maybe ones is better because it is harder
 class CanonicalPolyadic(Benchmark):
-    """Canonical polyadic decomposition (this is for 3D tensors which RGB image is)"""
+    """Canonical polyadic decomposition (this is for 3D tensors which RGB image is btw)"""
     def __init__(self, T, rank, loss = F.mse_loss, init = torch.randn, init_std=0.1, make_images = True):
         super().__init__(log_projections = True, seed=0)
         self.rank = rank

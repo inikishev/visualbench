@@ -1,4 +1,3 @@
-from .decision_boundary import DecisionBoundary, MoonsODE
 from .function_descent import FunctionDescent
 from .image_rectanges import RectangleReconstructor
 from .linalg import *
@@ -14,3 +13,4 @@ from .synthetic import (
 )
 from .style_transfer import StyleTransfer
 from .lstm import LSTMArgsort
+from .datasets import *

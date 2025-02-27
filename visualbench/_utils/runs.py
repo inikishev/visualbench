@@ -287,6 +287,10 @@ def _search(
                 lrs10_to_eval.append(evaluated_lrs10_by_lr[-1][0] + 1)
                 break
 
+            # make sure other isn't on edge
+            if any(l == evaluated_lrs10_by_lr[0][0] for l,v in best_lrs10): continue
+            if any(l == evaluated_lrs10_by_lr[-1][0] for l,v in best_lrs10): continue
+
             # else binary search, add both sides
             else:
                 left_lr10 = evaluated_lrs10_by_lr[evaluated_lrs10_by_lr.index((lr10, val)) - 1][0]

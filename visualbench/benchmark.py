@@ -258,7 +258,6 @@ class Benchmark(torch.nn.Module, ABC):
             for batch in dl: self.one_step(optimizer, batch)
 
         if self.training: self._num_epochs += 1
-        else: _aggregate_test_metrics_(self)
 
     @torch.inference_mode()
     def _test_epoch(self):
@@ -271,6 +270,8 @@ class Benchmark(torch.nn.Module, ABC):
         self._last_test_time = time.time()
         self.batch = batch_backup
         self.train()
+        _aggregate_test_metrics_(self) # this needs to be called after .train because log checks if training
+
 
 
     def run(
@@ -309,11 +310,11 @@ class Benchmark(torch.nn.Module, ABC):
 
         except StopCondition:# pass
         # finally:
-            if self._dltest is not None: self.one_epoch(None, self._dltest)
+            if self._dltest is not None: self._test_epoch()
             if self._print_progress: _print_final_report(self)
 
         else:
-            if self._dltest is not None: self.one_epoch(None, self._dltest)
+            if self._dltest is not None: self._test_epoch()
             if self._print_progress: _print_final_report(self)
 
         return self
