@@ -163,10 +163,10 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
 
     # --------------------- Mnist1d ConvNet32-64-128-256 bs32 -------------------- #
     # kron soap train, muon test
-    bench = Mnist1d(models.Mnist1dConvNet(), batch_size=32).cuda()
+    bench = Mnist1d(models.Mnist1dConvNet([32,64,128]), batch_size=32).cuda()
     _search(
         bench,
-        "Mnist1d ConvNet32-64-128-256 bs32",
+        "Mnist1d ConvNet32-64-128 bs32",
         _train_test_loss,
         max_passes=2000,
         max_seconds=60,
@@ -177,7 +177,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     )
     _search(
         bench,
-        "Mnist1d ConvNet32-64-128-256 bs32",
+        "Mnist1d ConvNet32-64-128 bs32",
         _test_train_loss,
         max_passes=2000,
         max_seconds=60,
