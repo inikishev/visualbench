@@ -63,29 +63,29 @@ def RecurrentMLP(width, n_passes, merge: bool = True, act: Callable | None = F.l
     return partial(_RecurrentMLP, width=width, n_passes=n_passes, merge=merge, act=act, dropout=dropout, bn = bn, cls=cls)
 
 
-class _Mnist1dLSTM(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden_size, num_layers):
+class _Mnist1dRNN(nn.Module):
+    def __init__(self, in_channels, out_channels, hidden_size, num_layers, rnn: Callable[..., nn.Module]=nn.LSTM):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.lstm = nn.LSTM(1, hidden_size, num_layers, batch_first=True)
+        self.rnn = rnn(1, hidden_size, num_layers, batch_first=True)
         self.fc = nn.Linear(hidden_size, out_channels)
 
     def forward(self, x):
         x = x.unsqueeze(2) # from (batch_size, 40) to (batch_size, 40, 1) otherwise known as (batch_size, seq_length, input_size)
-
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)# hidden state
-        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device) # cell state
-
-        # LSTM forward pass
-        out, _ = self.lstm(x, (h0, c0)) # out: (batch_size, seq_length, hidden_size)
+        out, _ = self.rnn(x) # out: (batch_size, seq_length, hidden_size)
         out = out[:, -1, :] # last timestep's output (batch_size, hidden_size)
         out = self.fc(out) # (batch_size, num_classes)
         return out
 
-def Mnist1dLSTM(hidden_size, num_layers):
-    return partial(_Mnist1dLSTM, hidden_size=hidden_size, num_layers=num_layers)
+def Mnist1dRNN(hidden_size, num_layers, rnn: Callable[..., nn.Module] = nn.LSTM):
+    return partial(_Mnist1dRNN, hidden_size=hidden_size, num_layers=num_layers, rnn = rnn)
 
+_DEPTH_TO_OUT_SIZE = {
+    4: 2,
+    5: 1,
+    3: 5,
+}
 class _Mnist1dConvNet(torch.nn.Module):
     def __init__(self, in_channels, out_channels, hidden = (32, 64, 128, 256), act = 'relu', norm = 'fixedbn', dropout=None):
         super().__init__()
@@ -95,7 +95,7 @@ class _Mnist1dConvNet(torch.nn.Module):
         self.enc = torch.nn.Sequential(
             *[mynn.ConvBlock(i, o, 2, 2, act=act, norm=norm, ndim=1, dropout=dropout) for i, o in zip(channels[:-1], channels[1:])]
         )
-        self.head = mynn.LinearBlock(channels[-1]*2, out_channels, flatten=True)
+        self.head = mynn.LinearBlock(channels[-1]*_DEPTH_TO_OUT_SIZE[len(hidden)], out_channels, flatten=True)
 
     def forward(self, x):
         if x.ndim == 2: x = x.unsqueeze(1)

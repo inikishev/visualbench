@@ -116,7 +116,7 @@ def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Se
     return fig
 
 
-def plot_metric(task_name, opts, root='runs', metric = None, opts_all_lrs = True, ref:str|Sequence[str]|None|Literal['all']=REFERENCE_OPTS, log_scale = False, fig=None, show = True):
+def plot_metric(task_name, opts, root='runs', metric = None, opts_all_lrs = True, ref:str|Sequence[str]|None|Literal['all']=REFERENCE_OPTS, log_scale = False, smooth=None, fig=None, show = True):
     """plots opts, reference opts and best opts"""
     if isinstance(opts, str): opts = (opts, )
     ref = _get_reference_opts(ref, root, task_name)
@@ -157,7 +157,7 @@ def plot_metric(task_name, opts, root='runs', metric = None, opts_all_lrs = True
                         kw['lw'] = 0.75
             else:
                 kw['color'] = 'blue'
-            fig.linechart(x=x, y=y, label=f'{display_name} {_round_significant(float(lr), 3)} - {_round_significant(best, 3)}', **kw)
+            fig.linechart(x=x, y=y, label=f'{display_name} {_round_significant(float(lr), 3)} - {_round_significant(best, 3)}', smooth=smooth, **kw)
 
 
     # plot opts

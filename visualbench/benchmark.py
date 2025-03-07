@@ -393,6 +393,8 @@ class Benchmark(torch.nn.Module, ABC):
         print_achievements = True,
 
         # lr tuning kwargs
+        existing_files_count_towards_steps = True,
+        max_files = 17,
         lr_binary_search_steps = 7, # binary search steps
         max_lr_expansions = 7, # separate count for when best lr is on the edge
         plot=False,

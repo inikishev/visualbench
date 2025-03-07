@@ -1,9 +1,10 @@
+import math
 import os
 import shutil
 from collections import UserDict
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal
-import optuna
+
 import numpy as np
 import torch
 from glio.jupyter_tools import clean_mem
@@ -199,6 +200,15 @@ def _rremove_(l, value):
     ind = len(l) - 1 - l[::-1].index(value)
     del l[ind]
 
+def _clean_empty(path):
+    for dir in os.listdir(path):
+        if dir == 'info.yaml': continue
+        opt_path = os.path.join(path, dir)
+        if len(os.listdir(opt_path)) == 0:
+            shutil.rmtree(opt_path)
+
+
+
 def _search(
     task_name: str,
     opt_name: str,
@@ -220,6 +230,8 @@ def _search(
     print_achievements = True,
 
     # lr tuning kwargs
+    existing_files_count_towards_steps = True,
+    max_files: int | None = 17,
     lr_binary_search_steps = 7, # binary search steps
     max_lr_expansions = 7, # separate count for when best lr is on the edge
 ):
@@ -230,10 +242,15 @@ def _search(
 
     # make optimizer directory
     opt_path = os.path.join(info.path, opt_name)
+
     # if not os.path.exists(opt_path): raise FileExistsError(f"{opt_path} already exists")
     # os.mkdir(opt_path)
     if not os.path.exists(opt_path): os.mkdir(opt_path)
 
+    # this for when restarting with existing_files_count_towards_steps = False
+    if max_files is not None and len(os.listdir(opt_path)) >= max_files:
+        _clean_empty(info.path)
+        return
 
     # stage 1: test all lrs
     metric = list(target_metrics.keys())[0]
@@ -264,9 +281,33 @@ def _search(
     for lr10 in lrs10: _test_lr10(lr10)
 
     # stage2 - binary search
+    # load any existing lrs that have been evaluated
+    # this is so that we can continue binary search with a different metric (e.g. test loss after searching on train loss)
+    # and we will skip lrs that are too close to ones that have already been evaluated during previous metric search.
+    # lrs are sorted as distance from zero, that way max_lr_expansions decays correctly.
+    for file in sorted(os.listdir(opt_path), key = lambda x: abs(float(x.replace('.npz', '')))):
+        lr = float(file.replace('.npz', ''))
+        lr10 = math.log10(lr)
+
+        # check if rounded lr is in evaluated lrs so far (rounded to avoid precision errors)
+        if _round_significant(lr10, 2) not in [_round_significant(i[0], 2) for i in evaluated_lrs10_by_value]:
+            logger = DictLogger.from_file(os.path.join(opt_path, file))
+            if maximize: value = -logger.max(metric) # always minimize
+            else: value = logger.min(metric)
+
+            evaluated_lrs10_by_value.append((lr10, value))
+            evaluated_lrs10_by_lr = sorted(evaluated_lrs10_by_value, key = lambda x: x[0])
+
+            # reduce max steps to avoid making extra steps
+            # but this should be off when continuing binary search with a different metric
+            if existing_files_count_towards_steps:
+                if lr10 < evaluated_lrs10_by_lr[0][0] or lr10 > evaluated_lrs10_by_lr[-1][0]: max_lr_expansions -= 1
+                else: lr_binary_search_steps -= 1
+
     shift = 0
     while True:
         if len(lrs10) == 1: break
+        if max_lr_expansions <= 0 or lr_binary_search_steps <= 0: break
 
         evaluated_lrs10_by_value.sort(key = lambda x: x[1])
         evaluated_lrs10_by_lr = sorted(evaluated_lrs10_by_value, key = lambda x: x[0])
@@ -299,10 +340,6 @@ def _search(
                 right_lr10 = evaluated_lrs10_by_lr[evaluated_lrs10_by_lr.index((lr10, val)) + 1][0]
                 lrs10_to_eval.append(lr10 + (right_lr10 - lr10) / 2)
 
-        # print()
-        # print('lrs', evaluated_lrs10_by_value)
-        # print('suggested1', lrs10_to_eval)
-
         # remove lrs that are too similar within list
         rounded_lrs10_to_eval = [_round_significant(lr10, 1) for lr10 in lrs10_to_eval]
         for lr10 in lrs10_to_eval.copy():
@@ -331,7 +368,7 @@ def _search(
             else: lr_binary_search_steps -= 1
 
             _test_lr10(lr10)
-            if max_lr_expansions == 0 or lr_binary_search_steps == 0:
+            if max_lr_expansions <= 0 or lr_binary_search_steps <= 0:
                 terminate = True
                 break
 
@@ -340,11 +377,5 @@ def _search(
     # update info yaml if necessary
     if info._needs_yaml_update: yamlwrite(info.metrics, info.yaml_path)
 
-    # clean empty failed runs
-    for dir in os.listdir(info.path):
-        if dir == 'info.yaml': continue
-        opt_path = os.path.join(info.path, dir)
-        if len(os.listdir(opt_path)) == 0:
-            shutil.rmtree(opt_path)
-
-
+     # clean empty failed runs
+    _clean_empty(info.path)
