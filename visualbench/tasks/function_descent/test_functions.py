@@ -57,6 +57,7 @@ cone = PowSum(1, 1, [1, -2]).register('cone')
 sphere = PowSum(2, 1, [1, -2]).register('sphere')
 convex3 = PowSum(3, 1, [1, -2]).register('convex3')
 convex32 = PowSum((3, 2), 1, [1, -2]).register('convex32')
+convex43 = PowSum((4, 3), 1, [1, -2]).register('convex43')
 conepow2 = PowSum(1, 1, [1, -2], post_pow=2).register('conepow2', 'cone2')
 crosspow2 = PowSum(0.5, 1, [1, -2], post_pow=2).register('crosspow2', 'cross2')
 spherepow2 = PowSum(1, 1, [1, -2], post_pow=2).register('spherepow2', 'sphere2')
@@ -321,7 +322,7 @@ class Eggholder(TestFunction):
     def objective(self, X):
         x1, x2 = X
         return (-(x2 + 47) * torch.sin((x2 + x1/2 + 47).abs().sqrt()) - x1 * torch.sin((x1 - (x2 + 47)).abs().sqrt())) + 959.6407
-    def x0(self): return (-500, -400)
+    def x0(self): return (0, 0)
     def domain(self): return (-512, 512), (-512, 512)
     def minima(self): return (512, 404.2319)
 eggholder = Eggholder().register('eggholder')

@@ -86,6 +86,7 @@ class Mnist1d(DatasetBenchmark):
         model: ModelClass = Mnist1dConvNet(),
         criterion=F.cross_entropy,
         batch_size: int | None = None,
+        test_batch_size: int | None = None,
     ):
         (x,y), (x_test, y_test) = get_mnist1d()
         super().__init__(
@@ -96,6 +97,7 @@ class Mnist1d(DatasetBenchmark):
             model = model(40, 10),
             criterion=criterion,
             batch_size=batch_size,
+            test_batch_size =test_batch_size,
             y_dtype = torch.int64
         )
 

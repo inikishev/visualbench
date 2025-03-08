@@ -209,7 +209,7 @@ def _clean_empty(path):
 
 
 
-def _search(
+def _search_legacy(
     task_name: str,
     opt_name: str,
     bench: "Benchmark",
@@ -234,7 +234,14 @@ def _search(
     max_files: int | None = 17,
     lr_binary_search_steps = 7, # binary search steps
     max_lr_expansions = 7, # separate count for when best lr is on the edge
+
+    debug=False,
 ):
+    def _debug(*args,**kwargs):
+        if debug: print(*args, **kwargs)
+    _debug()
+    _debug(f'--- testing {task_name} {opt_name} ---')
+
     if lrs10 is None: lrs10 = (0, ) # optimizers with no lrs
 
     info = TaskInfo(root=root, task_name=task_name, target_metrics=target_metrics)
@@ -253,9 +260,9 @@ def _search(
         return
 
     # stage 1: test all lrs
-    metric = list(target_metrics.keys())[0]
-    maximize = target_metrics[metric]
-    evaluated_lrs10_by_value: list[tuple[float,float]] = []
+    # metric = list(target_metrics.keys())[0]
+    # maximize = target_metrics[metric]
+    evaluated_lrs10_by_value: list[tuple[float,dict]] = []
 
     def _test_lr10(lr10):
         lr = 10 ** lr10
@@ -272,49 +279,74 @@ def _search(
             info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
             bench.logger.save(os.path.join(opt_path, f'{lr}'))
 
-        if maximize: value = -logger.max(metric) # always minimize
-        else: value = logger.min(metric)
+        values = {}
+        for metric, maximize in target_metrics.items():
+            if maximize: value = -logger.max(metric) # always minimize
+            else: value = logger.min(metric)
+            values[metric] = value
 
-        evaluated_lrs10_by_value.append((lr10, value))
-        return value
+        evaluated_lrs10_by_value.append((lr10, values))
+        # return value
 
     for lr10 in lrs10: _test_lr10(lr10)
 
-    # stage2 - binary search
-    # load any existing lrs that have been evaluated
-    # this is so that we can continue binary search with a different metric (e.g. test loss after searching on train loss)
-    # and we will skip lrs that are too close to ones that have already been evaluated during previous metric search.
-    # lrs are sorted as distance from zero, that way max_lr_expansions decays correctly.
-    for file in sorted(os.listdir(opt_path), key = lambda x: abs(float(x.replace('.npz', '')))):
-        lr = float(file.replace('.npz', ''))
-        lr10 = math.log10(lr)
+    # # stage2 - binary search
+    # # load any existing lrs that have been evaluated
+    # # this is so that we can continue binary search with a different metric (e.g. test loss after searching on train loss)
+    # # and we will skip lrs that are too close to ones that have already been evaluated during previous metric search.
+    # # lrs are sorted as distance from zero, that way max_lr_expansions decays correctly.
+    # for file in sorted(os.listdir(opt_path), key = lambda x: abs(float(x.replace('.npz', '')))):
+    #     lr = float(file.replace('.npz', ''))
+    #     lr10 = math.log10(lr)
 
-        # check if rounded lr is in evaluated lrs so far (rounded to avoid precision errors)
-        if _round_significant(lr10, 2) not in [_round_significant(i[0], 2) for i in evaluated_lrs10_by_value]:
-            logger = DictLogger.from_file(os.path.join(opt_path, file))
-            if maximize: value = -logger.max(metric) # always minimize
-            else: value = logger.min(metric)
+    #     # check if rounded lr is in evaluated lrs so far (rounded to avoid precision errors)
+    #     if _round_significant(lr10, 2) not in [_round_significant(i[0], 2) for i in evaluated_lrs10_by_value]:
+    #         logger = DictLogger.from_file(os.path.join(opt_path, file))
+    #         if maximize: value = -logger.max(metric) # always minimize
+    #         else: value = logger.min(metric)
 
-            evaluated_lrs10_by_value.append((lr10, value))
-            evaluated_lrs10_by_lr = sorted(evaluated_lrs10_by_value, key = lambda x: x[0])
+    #         evaluated_lrs10_by_value.append((lr10, value))
+    #         evaluated_lrs10_by_lr = sorted(evaluated_lrs10_by_value, key = lambda x: x[0])
 
-            # reduce max steps to avoid making extra steps
-            # but this should be off when continuing binary search with a different metric
-            if existing_files_count_towards_steps:
-                if lr10 < evaluated_lrs10_by_lr[0][0] or lr10 > evaluated_lrs10_by_lr[-1][0]: max_lr_expansions -= 1
-                else: lr_binary_search_steps -= 1
+    #         # reduce max steps to avoid making extra steps
+    #         # but this should be off when continuing binary search with a different metric
+    #         if existing_files_count_towards_steps:
+    #             if lr10 < evaluated_lrs10_by_lr[0][0] or lr10 > evaluated_lrs10_by_lr[-1][0]: max_lr_expansions -= 1
+    #             else: lr_binary_search_steps -= 1
 
     shift = 0
+    shift_on_overflow = False
+    metrics = list(target_metrics.keys())
+    current_metric_idx = 0
+
     while True:
         if len(lrs10) == 1: break
         if max_lr_expansions <= 0 or lr_binary_search_steps <= 0: break
 
-        evaluated_lrs10_by_value.sort(key = lambda x: x[1])
-        evaluated_lrs10_by_lr = sorted(evaluated_lrs10_by_value, key = lambda x: x[0])
+        if current_metric_idx >= len(metrics):
+            current_metric_idx = 0
+            if shift_on_overflow:
+                shift += 1
+                shift_on_overflow = False
+
+        _debug('--')
+        _debug(f'{metrics = }; {current_metric_idx = }; {shift = }; {shift_on_overflow = };')
+        _debug(f'{max_lr_expansions = }; {lr_binary_search_steps = }.')
+
+
+        current_metric = metrics[current_metric_idx]
+        current_values = [(k,v[current_metric]) for k,v in evaluated_lrs10_by_value]
+        evaluated_lrs10_by_value_current = sorted(current_values, key = lambda x: x[1])
+        evaluated_lrs10_by_lr = sorted(current_values, key = lambda x: x[0])
+
+        _debug(f'{evaluated_lrs10_by_lr = }')
+        _debug(f'{evaluated_lrs10_by_value_current = }')
 
         # pick two best lrs
         if 2+shift > len(evaluated_lrs10_by_value): break
-        best_lrs10 = evaluated_lrs10_by_value[shift:2+shift]
+        best_lrs10 = evaluated_lrs10_by_value_current[shift:2+shift]
+
+        _debug(f'{best_lrs10 = }')
 
         lrs10_to_eval = []
         # determine next lrs via either binary search or expansions
@@ -354,16 +386,17 @@ def _search(
             if _round_significant(lr10,1) in rounded_lrs10:
                 _rremove_(lrs10_to_eval, lr10)
 
-        if len(lrs10_to_eval) == 0:
-            shift += 1
+        shift_on_overflow = len(lrs10_to_eval) == 0
 
         # print('suggested2', lrs10_to_eval)
         # print()
 
         # evaluate new lrs
         terminate = False
+        _debug(f'{lrs10_to_eval = }')
         for lr10 in lrs10_to_eval:
             shift = 0
+            shift_on_overflow = False
             if lr10 < evaluated_lrs10_by_lr[0][0] or lr10 > evaluated_lrs10_by_lr[-1][0]: max_lr_expansions -= 1
             else: lr_binary_search_steps -= 1
 
@@ -373,6 +406,7 @@ def _search(
                 break
 
         if terminate: break
+        current_metric_idx += 1
 
     # update info yaml if necessary
     if info._needs_yaml_update: yamlwrite(info.metrics, info.yaml_path)

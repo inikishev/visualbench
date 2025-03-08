@@ -112,7 +112,7 @@ class _Mnist1dRecurrentConvNet(torch.nn.Module):
         super().__init__()
         self.first = mynn.ConvBlock(1, width, 2, 2, act=act, norm=norm, ndim = 1)
         self.rec = mynn.ConvBlock(width, width, 2, 2, act=act, norm=norm, ndim = 1)
-        self.head = mynn.LinearBlock(width, out_channels, flatten=True)
+        self.head = mynn.LinearBlock(width*_DEPTH_TO_OUT_SIZE[num+1], out_channels, flatten=True)
         self.num = num
 
     def forward(self, x):
@@ -121,6 +121,6 @@ class _Mnist1dRecurrentConvNet(torch.nn.Module):
         for _ in range(self.num): x = self.rec(x)
         return self.head(x)
 
-def Mnist1dRecurrentConvNet(width = 64, act = 'relu', norm = 'fixedbn'):
-    return partial(_Mnist1dRecurrentConvNet, width = width, act = act, norm = norm)
+def Mnist1dRecurrentConvNet(width = 64, num = 4, act = 'relu', norm = 'fixedbn'):
+    return partial(_Mnist1dRecurrentConvNet, width = width, num = num, act = act, norm = norm)
 

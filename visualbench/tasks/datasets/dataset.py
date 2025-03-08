@@ -18,6 +18,7 @@ class DatasetBenchmark(Benchmark):
         model,
         criterion,
         batch_size: int | None = None,
+        test_batch_size: int | None = None,
         x_test=None,
         y_test=None,
         test_split: int | float | None = None,
@@ -48,6 +49,7 @@ class DatasetBenchmark(Benchmark):
             data_device (_type_, optional): _description_. Defaults to CUDA_IF_AVAILABLE.
             seed (int, optional): _description_. Defaults to 0.
         """
+        if batch_size is None and test_batch_size is not None: raise NotImplementedError('batch_size is None, but test_batch size is not None')
         x = totensor(x, dtype=x_dtype, device=data_device)
         y = totensor(y, dtype=y_dtype, device=data_device)
 
@@ -115,7 +117,10 @@ class DatasetBenchmark(Benchmark):
             if x_test is not None:
                 assert y_test is not None
                 x_test = x_test.to(data_device); y_test = y_test.to(data_device)
-                dltest = TensorDataLoader((x_test, y_test), batch_size=batch_size, shuffle=False, seed = seed)
+                if test_batch_size is None:
+                    dltest = [(x_test, y_test)]
+                else:
+                    dltest = TensorDataLoader((x_test, y_test), batch_size=batch_size, shuffle=False, seed = seed)
             else:
                 dltest = None
 

@@ -106,16 +106,17 @@ class FunctionDescent(Benchmark):
         if self.ndim != 2: raise NotImplementedError(self.ndim)
         if fig is None: fig = Fig()
 
-        params = self.logger.numpy('params')
-        losses = self.logger.numpy('train loss')
-
         bounds = self._get_domain()
-        params = np.clip(params, *bounds.T) # type:ignore
 
         if not self.unpack: f = _UnpackCall(self.func)
         else: f = self.func
         fig.funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, lib=torch) # type:ignore
-        if len(params) > 0: fig.path(*params.T, c = losses, cmap=marker_cmap, s = marker_size, marker_alpha = marker_alpha, line_alpha=line_alpha, linewidth = linewidth, front='marker', linecolor=linecolor)
+
+        if 'params' in self.logger:
+            params = self.logger.numpy('params')
+            params = np.clip(params, *bounds.T) # type:ignore
+            losses = self.logger.numpy('train loss')
+            if len(params) > 0: fig.path(*params.T, c = losses, cmap=marker_cmap, s = marker_size, marker_alpha = marker_alpha, line_alpha=line_alpha, linewidth = linewidth, front='marker', linecolor=linecolor)
 
         if show: fig.show()
         return fig

@@ -387,17 +387,19 @@ class Benchmark(torch.nn.Module, ABC):
         test_every_batches: int | None = None,
         test_every_epochs: int | None = None,
         test_every_seconds: float | None = None,
-        lrs10: Sequence[float] | None = (1, 0, -1, -2, -3, -4, -5),
+        log10_lrs: Sequence[float] | None = (1, 0, -1, -2, -3, -4, -5),
         progress: Literal['full', 'reduced', 'none'] = 'reduced',
         root = 'runs',
         print_achievements = True,
 
+        plot=False,
+
         # lr tuning kwargs
-        existing_files_count_towards_steps = True,
-        max_files = 17,
+        # existing_files_count_towards_steps = True,
+        # max_files = 17,
         lr_binary_search_steps = 7, # binary search steps
         max_lr_expansions = 7, # separate count for when best lr is on the edge
-        plot=False,
+        debug=False,
     ):
         # performance settings
         self._log_params = False

@@ -47,8 +47,8 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
         lr_binary_search_steps: int = 7,
         test_every_forwards: int | None = None,
         smooth: int | None | dict[str, int|None] = None,
-        existing_files_count_towards_steps=True,
-        max_files = 17, # 7 base lr10s + 5 and 5 binary search lrs
+        # existing_files_count_towards_steps=True,
+        # max_files = 17, # 7 base lr10s + 5 and 5 binary search lrs
         plot=True,
         print_time = print_time,
     ):
@@ -64,8 +64,8 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
                 max_passes=max_passes,
                 max_seconds=max_seconds,
                 test_every_forwards=test_every_forwards, lr_binary_search_steps=lr_binary_search_steps,
-                existing_files_count_towards_steps=existing_files_count_towards_steps,
-                max_files = max_files,
+                # existing_files_count_towards_steps=existing_files_count_towards_steps,
+                # max_files = max_files,
                 **kw,
             )
         if plot:

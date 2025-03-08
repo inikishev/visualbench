@@ -5,7 +5,8 @@ from .plotting import (
     _render_video,
     _repeat_to_largest,
 )
-from .runs import _search, rebuild_all_yamls_
+from .runs import rebuild_all_yamls_
+from .search import _search, _search_for_visualization
 from .runs_plotting import plot_lr_search_curve, plot_metric
 from .utils import (
     CUDA_IF_AVAILABLE,
