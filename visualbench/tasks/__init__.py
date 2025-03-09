@@ -12,5 +12,5 @@ from .synthetic import (
     Sphere,
 )
 from .style_transfer import StyleTransfer
-from .lstm import LSTMArgsort
+from .lstm import RNNArgsort
 from .datasets import *

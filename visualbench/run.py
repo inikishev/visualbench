@@ -16,10 +16,11 @@ from .tasks import (
     CaliforniaHousing,
     Eigen,
     InverseInverse,
-    LSTMArgsort,
+    RNNArgsort,
     LUPivot,
     Mnist1d,
     SelfRecurrent,
+    Inverse,
     models,
 )
 from .tasks.linalg._linalg_utils import _full01
@@ -102,14 +103,19 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     bench = Eigen(TEST96).cuda()
     _search(bench, 'Eigen test-96', _train_loss, max_passes=2000, max_seconds=30, log_scale=True)
 
-    # ------------------------------ INVERSEINVERSE ------------------------------ #
+    # ---------------------------------- Inverse --------------------------------- #
+    # L1 inverse favors rprop, for some different results
+    bench = Inverse(SANIC96, torch.nn.functional.l1_loss, make_images=False).cuda()
+    _search(bench, 'Inverse L1 sanic-96', _train_loss, max_passes=2000, max_seconds=30, log_scale=True)
+
+    # ------------------------------ InverseInverse ------------------------------ #
     # crazy kron and muon and soap lead
     bench = InverseInverse(get_randn()).cuda()
     _search(bench, 'InverseInverse randn-64', _train_loss, max_passes=2000, max_seconds=30, log_scale=True)
 
     # -------------------------------- LSTMArgsort ------------------------------- #
     # all good optimizers are at the top + its mini-batch
-    bench = LSTMArgsort().cuda()
+    bench = RNNArgsort().cuda()
     _search(bench, 'LSTMArgsort', _train_loss, max_passes=2000, max_seconds=30, smooth = 2, log_scale=False)
 
     # --------------------- CaliforniaHousing MLP16-16-16-16 --------------------- #
