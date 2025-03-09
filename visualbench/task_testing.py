@@ -23,7 +23,7 @@ OPTS = {
     "NAG": lambda p,lr: torch.optim.SGD(p, lr, momentum = 0.9, nesterov=True),
     "SGD": torch.optim.SGD,
     "PrecondSchedulePaLMSOAP": PrecondSchedulePaLMForeachSOAP,
-    "Kron": lambda p,lr: CachedPSGDKron(p, lr, store_triu_as_line=False),
+    "Kron": lambda p,lr: CachedPSGDKron(p, lr, store_triu_as_line=False, memory_save_mode='smart_one_diag'),
     "Muon": Muon,
     "MARS-AdamW": MARS,
     "L-BFGS": lambda p, lr: torch.optim.LBFGS(p,lr,line_search_fn='strong_wolfe'),
@@ -57,8 +57,8 @@ def test_benchmark(
     progress: Literal['full', 'reduced', 'none'] = 'reduced',
     print_achievements = True,
     debug=False,
+    root = 'bench tests',
 ):
-    start_time = time.perf_counter()
 
     if skip_opt is None: skip_opt = ()
     if isinstance(skip_opt, str): skip_opt = (skip_opt, )
@@ -66,6 +66,7 @@ def test_benchmark(
     # test all matrices
     mats = MATRICES if pass_mats else {None:None}
     for m_name, m in mats.items():
+        start_time = time.perf_counter()
         if pass_mats: b = bench_fn(m)
         else: b = bench_fn()
 
@@ -88,7 +89,7 @@ def test_benchmark(
                 max_seconds = max_seconds,
                 test_every_batches = test_every_batches,
                 lr_binary_search_steps = lr_binary_search_steps,
-                root = 'bench tests',
+                root = root,
                 debug = debug,
                 progress = progress,
                 print_achievements = print_achievements,
@@ -101,11 +102,11 @@ def test_benchmark(
         # print/plot results
         print()
         print('RESULTS:')
-        _print_best(bench_name, root = 'bench tests')
+        _print_best(bench_name, root = root)
 
         fig = Fig()
         for m in target_metrics:
-            plot_metric(bench_name, None, log_scale=log_scale, metric=m, show=False, ref='all', fig = fig.add(m), root = 'bench tests')
-            plot_lr_search_curve(bench_name, None, log_scale=log_scale, metric=m, show=False, ref='all', fig = fig.add(m), root = 'bench tests')
+            plot_metric(bench_name, None, log_scale=log_scale, metric=m, show=False, ref='all', fig = fig.add(m), root = root)
+            plot_lr_search_curve(bench_name, None, log_scale=log_scale, metric=m, show=False, ref='all', fig = fig.add(m), root = root)
 
         fig.figtitle(bench_name).savefig(f'{bench_name} - {sec:.2f}s..jpg', axsize = (12, 6), dpi=300, ncols=2).close()

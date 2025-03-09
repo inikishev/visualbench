@@ -82,6 +82,8 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
                 (plot_lr_search_curve(task_name=name, metric=metric, opts = opt_name, log_scale=log_scale, fig = fig.add(f'{name} {metric} lrs'), show = False, ref = ref)
                 .legend(size=12))
 
+    # note that some benchmarks are a bit faster on CPU
+    # however optimizer logic like newton schulz in muon is way slower so in the end CUDA is faster
 
     # ------------------------------------ QEP ----------------------------------- #
     # for testing if optimizer is good at exploiting curvature
