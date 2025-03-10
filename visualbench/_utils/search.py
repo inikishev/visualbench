@@ -3,11 +3,13 @@ from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
+import bottleneck as bn
 import numpy as np
 from glio.jupyter_tools import clean_mem
 from myai.loaders.yaml import yamlwrite
 from myai.logger import DictLogger
 
+from scipy.ndimage import gaussian_filter1d
 from .runs import TaskInfo, _clean_empty, _filter_logger_
 from .utils import _round_significant
 
@@ -185,6 +187,16 @@ class _BinarySearch:
                 if self.binary_search_steps >= self.max_binary_search_steps: return
 
 
+def _only_first_batch_metric(batched_metric, num_batches):
+    """
+    train loss and num batches are from logger, this takes only 1st train loss from each batch,
+    so `L-BFGS` and alike minimizing each batch doesn't give them an advantage.
+    """
+    is_increase = np.concatenate(([True], num_batches[1:] > num_batches[:-1]))
+    modified_values = np.where(is_increase, batched_metric, np.nan)
+
+    filled_series = bn.push(modified_values)
+    return filled_series
 
 def _search(
     task_name: str,
@@ -201,6 +213,8 @@ def _search(
     test_every_batches: int | None = None,
     test_every_epochs: int | None = None,
     test_every_seconds: float | None = None,
+    batched: dict[str, bool] | None = None,
+    smoothing: dict[str, int | None] | None = None,
     log10_lrs: Sequence[float] | None = (1, 0, -1, -2, -3, -4, -5),
     progress: Literal['full', 'reduced', 'none'] = 'reduced',
     root = 'runs',
@@ -212,10 +226,43 @@ def _search(
 
     debug=False,
 ):
+    """_summary_
+
+    Args:
+        task_name (str): name of the task
+        opt_name (str): name of the optimizer
+        bench (Benchmark): a benchmark object.
+        target_metrics (dict[str, bool]): dictionary `{"metric_name": maximimize}`
+        max_passes (int | None, optional): max passes. Defaults to None.
+        max_forwards (int | None, optional): max forwards (recommended). Defaults to None.
+        max_batches (int | None, optional): max batches. Defaults to None.
+        max_epochs (int | None, optional): max epochs. Defaults to None.
+        max_seconds (float | None, optional): max seconds. Defaults to None.
+        test_every_forwards (int | None, optional): test every forwards. Defaults to None.
+        test_every_batches (int | None, optional): test every batches (recommended). Defaults to None.
+        test_every_epochs (int | None, optional): test every epochs. Defaults to None.
+        test_every_seconds (float | None, optional): test every seconds. Defaults to None.
+        batched (dict[str, bool] | None, optional):
+            `{"metric_name": batched}`. If metric is batched, takes only first loss from each batch,
+            which prevents L-BFGS advantage on minimizing train loss because it minimizes a batch. Defaults to None.
+        smoothing (dict[str, int] | None, optional):
+            `{"metric_name": smoothing}`. Smoothes the values with gaussian kernel to make batched train metrics
+            more accurate. Defaults to None.
+        log10_lrs (Sequence[float] | None, optional): list of log10(lr). Defaults to (1, 0, -1, -2, -3, -4, -5).
+        progress (str, optional): what to print. Defaults to 'reduced'.
+        root (str, optional): runs root. Defaults to 'runs'.
+        print_achievements (bool, optional): whether to print when an optimizer set a new record. Defaults to True.
+        lr_binary_search_steps (int, optional): max binary search steps. Defaults to 7.
+    """
     def _debug(*args,**kwargs):
         if debug: print(*args, **kwargs)
 
     _debug(f'--- testing {task_name = }; {opt_name = } ---')
+
+    # performance
+    bench._make_images = False
+    bench._log_params = False
+    bench._log_projections = False
 
     if log10_lrs is None: log10_lrs = (0, ) # optimizers with no lrs
 
@@ -257,6 +304,26 @@ def _search(
             _filter_logger_(bench.logger) # filter logger before reporting and saving
             logger = bench.logger
             info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
+
+            # postprocess the metric
+            for metric, maximize in target_metrics.items():
+                vals = None
+
+                # take only 1st value from each batch
+                if (batched is not None) and (metric in batched) and batched[metric]:
+                    if vals is None: vals = logger.numpy(metric)
+                    vals = _only_first_batch_metric(vals, logger.numpy('num batches'))
+
+                # smooth
+                if (smoothing is not None) and (metric in smoothing) and (smoothing[metric] is not None):
+                    if vals is None: vals = logger.numpy(metric)
+                    vals = gaussian_filter1d(vals, smoothing[metric], mode = 'nearest')
+
+                # update metric if necessary
+                if vals is not None:
+                    bench.logger[f'_ {metric} orig'] = bench.logger[metric]
+                    bench.logger.set_array(metric, bench.logger.get_metric_steps(metric), vals)
+
             bench.logger.save(os.path.join(opt_path, f'{lr}'))
 
         # create values dictionary
@@ -284,7 +351,6 @@ def _search(
 
     # update info yaml if necessary
     if info._needs_yaml_update: yamlwrite(info.metrics, info.yaml_path)
-
 
      # clean empty failed runs
     _clean_empty(info.path)
@@ -314,6 +380,10 @@ def _search_for_visualization(
     debug=False,
 
 ):
+    # performance
+    bench._make_images = False
+    bench._log_params = False
+    bench._log_projections = False
 
     # kwargs for calling `bench.run(**kwargs)`
     kwargs: dict[str, Any] = dict(

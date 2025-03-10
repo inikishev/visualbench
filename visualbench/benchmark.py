@@ -216,6 +216,7 @@ class Benchmark(torch.nn.Module, ABC):
 
             self.log("time", self._time_passed, log_test=False)
             self.log("num passes", self._num_passes, log_test=False)
+            self.log("num batches", self._num_batches, log_test=False)
 
             # this runs before first num forwards is incremented
             # so it usually on 1st step as 0%x = 0
@@ -387,6 +388,8 @@ class Benchmark(torch.nn.Module, ABC):
         test_every_batches: int | None = None,
         test_every_epochs: int | None = None,
         test_every_seconds: float | None = None,
+        batched: dict[str, bool] | None = None,
+        smoothing: dict[str, int | None] | None = None,
         log10_lrs: Sequence[float] | None = (1, 0, -1, -2, -3, -4, -5),
         progress: Literal['full', 'reduced', 'none'] = 'reduced',
         root = 'runs',
@@ -401,6 +404,7 @@ class Benchmark(torch.nn.Module, ABC):
         max_lr_expansions = 7, # separate count for when best lr is on the edge
         debug=False,
     ):
+        """go to definition and see _search for kwargs"""
         # performance settings
         self._log_params = False
         self._log_projections = False

@@ -14,3 +14,5 @@ from .synthetic import (
 from .style_transfer import StyleTransfer
 from .lstm import RNNArgsort
 from .datasets import *
+
+from .gnn import GraphNN

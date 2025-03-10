@@ -1,13 +1,16 @@
-from typing import Literal, Any
-from collections.abc import Sequence
 import os
+from collections.abc import Sequence
+from typing import Any, Literal
 
+import bottleneck as bn
 import numpy as np
 from myai.logger import DictLogger
 from myai.plt_tools import Fig
+from scipy.ndimage import gaussian_filter1d
 
 from .runs import REFERENCE_OPTS, TaskInfo
 from .utils import _round_significant
+
 
 def _get_lr_to_logger(task_name, opt, root) -> dict[str,DictLogger]:
     """returns list of (lr, logger) tuples sorted such that best value is 1st"""
@@ -52,7 +55,16 @@ def _get_reference_opts(ref, root, task_name):
             ref = (ref, )
     return ref
 
-def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Sequence[str]|None|Literal['all']=REFERENCE_OPTS, log_scale = False, fig=None, show = True):
+def plot_lr_search_curve(
+    task_name,
+    opts,
+    root="runs",
+    metric=None,
+    ref: str | Sequence[str] | None | Literal["all"] = REFERENCE_OPTS,
+    log_scale=False,
+    fig=None,
+    show=True,
+):
     """plots opts, reference opts and best opts"""
     if isinstance(opts, str): opts = (opts, )
     ref = _get_reference_opts(ref, root, task_name)
@@ -75,11 +87,13 @@ def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Se
         lr_logger.sort(key = lambda x: float(x[0]))
 
         x = [float(lr) for lr, logger in lr_logger]
+        vals = [logger.numpy(metric) for lr, logger in lr_logger]
+
         if maximize:
-            y = [logger.max(metric) for lr, logger in lr_logger]
+            y = [v.max() for v in vals]
             best = np.max(y)
         else:
-            y = [logger.min(metric) for lr, logger in lr_logger]
+            y = [v.min() for v in vals]
             best = np.min(y)
 
         kw = {}
@@ -115,8 +129,28 @@ def plot_lr_search_curve(task_name, opts, root='runs', metric = None, ref:str|Se
     if show: fig.show()
     return fig
 
+def _only_first_batch_metric(batched_metric, num_batches):
+    """
+    train loss and num batches are from logger, this takes only 1st train loss from each batch,
+    so `L-BFGS` and alike minimizing each batch doesn't give them an advantage.
+    """
+    is_increase = np.concatenate(([True], num_batches[1:] > num_batches[:-1]))
+    modified_values = np.where(is_increase, batched_metric, np.nan)
 
-def plot_metric(task_name, opts, root='runs', metric = None, opts_all_lrs = True, ref:str|Sequence[str]|None|Literal['all']=REFERENCE_OPTS, log_scale = False, smooth=None, fig=None, show = True):
+    filled_series = bn.push(modified_values)
+    return filled_series
+
+def plot_metric(
+    task_name,
+    opts,
+    root="runs",
+    metric=None,
+    opts_all_lrs=True,
+    ref: str | Sequence[str] | None | Literal["all"] = REFERENCE_OPTS,
+    log_scale=False,
+    fig=None,
+    show=True,
+):
     """plots opts, reference opts and best opts"""
     if isinstance(opts, str): opts = (opts, )
     ref = _get_reference_opts(ref, root, task_name)
@@ -157,7 +191,8 @@ def plot_metric(task_name, opts, root='runs', metric = None, opts_all_lrs = True
                         kw['lw'] = 0.75
             else:
                 kw['color'] = 'blue'
-            fig.linechart(x=x, y=y, label=f'{display_name} {_round_significant(float(lr), 3)} - {_round_significant(best, 3)}', smooth=smooth, **kw)
+
+            fig.linechart(x=x, y=y, label=f'{display_name} {_round_significant(float(lr), 3)} - {_round_significant(best, 3)}', **kw)
 
 
     # plot opts

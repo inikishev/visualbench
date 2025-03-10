@@ -70,7 +70,7 @@ def _update_metrics_(metrics: dict[str, Metric], logger: DictLogger, run_path: s
     needs_update = False
 
     for metric in logger.keys():
-        if metric in ('time', 'num passes'): continue
+        if metric in ('time', 'num passes', 'num batches'): continue
         if metric not in metrics: metrics[metric] = Metric(_DEFAULT_DICT())
         m: Metric = metrics[metric]
 
@@ -121,7 +121,7 @@ class TaskInfo:
         self.path = os.path.join(root, task_name)
         if not os.path.exists(self.path): os.mkdir(self.path)
 
-        self.yaml_path = os.path.join(self.path, 'info.yaml')
+        self.yaml_path: str = os.path.join(self.path, 'info.yaml')
         self._needs_yaml_update = False
 
         if not os.path.exists(self.yaml_path):
@@ -181,7 +181,9 @@ class TaskInfo:
 
 def rebuild_all_yamls_(root = 'runs'):
     for task_name in os.listdir(root):
-        TaskInfo(root=root, task_name=task_name).rebuild_yaml()
+        info = yamlread(os.path.join(root, 'yaml.info'))
+        target_metrics = {k:v['maximize'] for k,v in info.items()}
+        TaskInfo(root=root, task_name=task_name, target_metrics=target_metrics).rebuild_yaml()
 
 def _numel(x):
     if isinstance(x, np.ndarray): return x.size
@@ -207,209 +209,3 @@ def _clean_empty(path):
         if len(os.listdir(opt_path)) == 0:
             shutil.rmtree(opt_path)
 
-
-
-def _search_legacy(
-    task_name: str,
-    opt_name: str,
-    bench: "Benchmark",
-    target_metrics: dict[str, bool], # {metric: maximize}; first target metric is targeted by binary search
-    optimizer_fn: Callable,
-    max_passes: int | None = None,
-    max_forwards: int | None = None,
-    max_batches: int | None = None,
-    max_epochs: int | None = None,
-    max_seconds: float | None = None,
-    test_every_forwards: int | None = None,
-    test_every_batches: int | None = None,
-    test_every_epochs: int | None = None,
-    test_every_seconds: float | None = None,
-    lrs10: Sequence[float] | None = (1, 0, -1, -2, -3, -4, -5),
-    progress: Literal['full', 'reduced', 'none'] = 'reduced',
-    root = 'runs',
-    print_achievements = True,
-
-    # lr tuning kwargs
-    existing_files_count_towards_steps = True,
-    max_files: int | None = 17,
-    lr_binary_search_steps = 7, # binary search steps
-    max_lr_expansions = 7, # separate count for when best lr is on the edge
-
-    debug=False,
-):
-    def _debug(*args,**kwargs):
-        if debug: print(*args, **kwargs)
-    _debug()
-    _debug(f'--- testing {task_name} {opt_name} ---')
-
-    if lrs10 is None: lrs10 = (0, ) # optimizers with no lrs
-
-    info = TaskInfo(root=root, task_name=task_name, target_metrics=target_metrics)
-    kwargs: dict[str,Any] = dict(max_passes=max_passes,max_forwards=max_forwards,max_batches=max_batches,max_epochs=max_epochs,max_seconds=max_seconds,test_every_forwards=test_every_forwards,test_every_batches=test_every_batches,test_every_epochs=test_every_epochs,test_every_seconds=test_every_seconds,progress=progress=='full')
-
-    # make optimizer directory
-    opt_path = os.path.join(info.path, opt_name)
-
-    # if not os.path.exists(opt_path): raise FileExistsError(f"{opt_path} already exists")
-    # os.mkdir(opt_path)
-    if not os.path.exists(opt_path): os.mkdir(opt_path)
-
-    # this for when restarting with existing_files_count_towards_steps = False
-    if max_files is not None and len(os.listdir(opt_path)) >= max_files:
-        _clean_empty(info.path)
-        return
-
-    # stage 1: test all lrs
-    # metric = list(target_metrics.keys())[0]
-    # maximize = target_metrics[metric]
-    evaluated_lrs10_by_value: list[tuple[float,dict]] = []
-
-    def _test_lr10(lr10):
-        lr = 10 ** lr10
-        if os.path.exists(os.path.join(opt_path, f'{lr}.npz')):
-            logger = DictLogger.from_file(os.path.join(opt_path, f'{lr}.npz'))
-        else:
-            if progress == 'reduced': print(f'{task_name}: testing {opt_name} {_round_significant(lr, 3)}', end = '                 \r')
-            clean_mem()
-            bench.reset()
-            optimizer = optimizer_fn(bench.parameters(), lr)
-            bench.run(optimizer=optimizer,**kwargs)
-            _filter_logger_(bench.logger) # filter logger before reporting and saving
-            logger = bench.logger
-            info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
-            bench.logger.save(os.path.join(opt_path, f'{lr}'))
-
-        values = {}
-        for metric, maximize in target_metrics.items():
-            if maximize: value = -logger.max(metric) # always minimize
-            else: value = logger.min(metric)
-            values[metric] = value
-
-        evaluated_lrs10_by_value.append((lr10, values))
-        # return value
-
-    for lr10 in lrs10: _test_lr10(lr10)
-
-    # # stage2 - binary search
-    # # load any existing lrs that have been evaluated
-    # # this is so that we can continue binary search with a different metric (e.g. test loss after searching on train loss)
-    # # and we will skip lrs that are too close to ones that have already been evaluated during previous metric search.
-    # # lrs are sorted as distance from zero, that way max_lr_expansions decays correctly.
-    # for file in sorted(os.listdir(opt_path), key = lambda x: abs(float(x.replace('.npz', '')))):
-    #     lr = float(file.replace('.npz', ''))
-    #     lr10 = math.log10(lr)
-
-    #     # check if rounded lr is in evaluated lrs so far (rounded to avoid precision errors)
-    #     if _round_significant(lr10, 2) not in [_round_significant(i[0], 2) for i in evaluated_lrs10_by_value]:
-    #         logger = DictLogger.from_file(os.path.join(opt_path, file))
-    #         if maximize: value = -logger.max(metric) # always minimize
-    #         else: value = logger.min(metric)
-
-    #         evaluated_lrs10_by_value.append((lr10, value))
-    #         evaluated_lrs10_by_lr = sorted(evaluated_lrs10_by_value, key = lambda x: x[0])
-
-    #         # reduce max steps to avoid making extra steps
-    #         # but this should be off when continuing binary search with a different metric
-    #         if existing_files_count_towards_steps:
-    #             if lr10 < evaluated_lrs10_by_lr[0][0] or lr10 > evaluated_lrs10_by_lr[-1][0]: max_lr_expansions -= 1
-    #             else: lr_binary_search_steps -= 1
-
-    shift = 0
-    shift_on_overflow = False
-    metrics = list(target_metrics.keys())
-    current_metric_idx = 0
-
-    while True:
-        if len(lrs10) == 1: break
-        if max_lr_expansions <= 0 or lr_binary_search_steps <= 0: break
-
-        if current_metric_idx >= len(metrics):
-            current_metric_idx = 0
-            if shift_on_overflow:
-                shift += 1
-                shift_on_overflow = False
-
-        _debug('--')
-        _debug(f'{metrics = }; {current_metric_idx = }; {shift = }; {shift_on_overflow = };')
-        _debug(f'{max_lr_expansions = }; {lr_binary_search_steps = }.')
-
-
-        current_metric = metrics[current_metric_idx]
-        current_values = [(k,v[current_metric]) for k,v in evaluated_lrs10_by_value]
-        evaluated_lrs10_by_value_current = sorted(current_values, key = lambda x: x[1])
-        evaluated_lrs10_by_lr = sorted(current_values, key = lambda x: x[0])
-
-        _debug(f'{evaluated_lrs10_by_lr = }')
-        _debug(f'{evaluated_lrs10_by_value_current = }')
-
-        # pick two best lrs
-        if 2+shift > len(evaluated_lrs10_by_value): break
-        best_lrs10 = evaluated_lrs10_by_value_current[shift:2+shift]
-
-        _debug(f'{best_lrs10 = }')
-
-        lrs10_to_eval = []
-        # determine next lrs via either binary search or expansions
-
-        for lr10,val in best_lrs10:
-            # check if on edge, if yes break to skip evaluating other lr
-            if lr10 == evaluated_lrs10_by_lr[0][0]:
-                lrs10_to_eval.append(evaluated_lrs10_by_lr[0][0] - 1)
-                break
-            elif lr10 == evaluated_lrs10_by_lr[-1][0]:
-                lrs10_to_eval.append(evaluated_lrs10_by_lr[-1][0] + 1)
-                break
-
-            # make sure other isn't on edge
-            if any(l == evaluated_lrs10_by_lr[0][0] for l,v in best_lrs10): continue
-            if any(l == evaluated_lrs10_by_lr[-1][0] for l,v in best_lrs10): continue
-
-            # else binary search, add both sides
-            else:
-                left_lr10 = evaluated_lrs10_by_lr[evaluated_lrs10_by_lr.index((lr10, val)) - 1][0]
-                lrs10_to_eval.append(lr10 + (left_lr10 - lr10) / 2)
-
-                right_lr10 = evaluated_lrs10_by_lr[evaluated_lrs10_by_lr.index((lr10, val)) + 1][0]
-                lrs10_to_eval.append(lr10 + (right_lr10 - lr10) / 2)
-
-        # remove lrs that are too similar within list
-        rounded_lrs10_to_eval = [_round_significant(lr10, 1) for lr10 in lrs10_to_eval]
-        for lr10 in lrs10_to_eval.copy():
-            if rounded_lrs10_to_eval.count(_round_significant(lr10, 1)) > 1:
-                _rremove_(lrs10_to_eval, lr10)
-                rounded_lrs10_to_eval.remove(_round_significant(lr10, 1))
-                assert _round_significant(lr10, 1) in rounded_lrs10_to_eval
-
-        # remove lrs that are too similar to evaluated ones
-        rounded_lrs10 = [_round_significant(lr10, 1) for lr10,v in evaluated_lrs10_by_lr]
-        for lr10 in lrs10_to_eval.copy():
-            if _round_significant(lr10,1) in rounded_lrs10:
-                _rremove_(lrs10_to_eval, lr10)
-
-        shift_on_overflow = len(lrs10_to_eval) == 0
-
-        # print('suggested2', lrs10_to_eval)
-        # print()
-
-        # evaluate new lrs
-        terminate = False
-        _debug(f'{lrs10_to_eval = }')
-        for lr10 in lrs10_to_eval:
-            shift = 0
-            shift_on_overflow = False
-            if lr10 < evaluated_lrs10_by_lr[0][0] or lr10 > evaluated_lrs10_by_lr[-1][0]: max_lr_expansions -= 1
-            else: lr_binary_search_steps -= 1
-
-            _test_lr10(lr10)
-            if max_lr_expansions <= 0 or lr_binary_search_steps <= 0:
-                terminate = True
-                break
-
-        if terminate: break
-        current_metric_idx += 1
-
-    # update info yaml if necessary
-    if info._needs_yaml_update: yamlwrite(info.metrics, info.yaml_path)
-
-     # clean empty failed runs
-    _clean_empty(info.path)
