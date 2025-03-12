@@ -63,6 +63,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._print_progress = True
         self._make_images = True
         self._initial_state_dict = None
+        self._print_timeout = False
         self._reset()
 
     def _store_initial_state_dict(self):

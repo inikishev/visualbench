@@ -73,7 +73,7 @@ class Rosenbrock(TestFunction):
         x,y = X
         return (self.a - x) ** 2 + self.b * (y - x ** 2) ** 2
 
-    def x0(self): return (-1.5, 1)
+    def x0(self): return (-1.1, 2.5)
     def domain(self): return (-2, 2), (-1, 3)
     def minima(self): return (1, 1)
 
@@ -138,7 +138,7 @@ class Booth(TestFunction):
 
 booth = Booth().register('booth')
 
-class GoldsteinPrince(TestFunction):
+class GoldsteinPrice(TestFunction):
     def objective(self, X):
         x, y = X
         return (1 + (x + y + 1) ** 2 * (19 - 14 * x + 3 * x ** 2 - 14 * y + 6 * x * y + 3 * y ** 2)) * (
@@ -148,7 +148,7 @@ class GoldsteinPrince(TestFunction):
     def domain(self): return (-3, 3), (-3, 3)
     def minima(self): return (0, -1)
 
-golstein_prince = GoldsteinPrince().register('goldstein_prince')
+golstein_price = GoldsteinPrice().register('goldstein_price')
 
 
 class NonConvex(TestFunction):
@@ -494,3 +494,48 @@ class ArmError(TestFunction):
     def domain(self): return (-torch.pi, torch.pi), (-torch.pi, torch.pi)
     def minima(self): return None
 arm_error = ArmError().register('arm_error')
+
+
+
+class Spiral(TestFunction):
+    """outward spiral"""
+    def __init__(self, length=30.0, center_intensity=1.0, max_spiral_intensity=0.9, r_stop=0.9, blend_start_ratio=0.9):
+        super().__init__()
+        self.length = length
+        self.center_intensity = center_intensity
+        self.max_spiral_intensity = max_spiral_intensity
+        self.r_stop = r_stop
+        self.blend_start_ratio = blend_start_ratio
+
+    def objective(self, X):
+        x,y = X
+        r = torch.sqrt(x**2 + y**2)
+        theta = torch.atan2(y, x)
+        spiral_angle = theta - r * self.length
+
+        blend_start_radius = self.r_stop * self.blend_start_ratio
+
+        condition_increase = r <= blend_start_radius
+        condition_blend = (r > blend_start_radius) & (r <= self.r_stop)
+        condition_stop = r > self.r_stop
+
+        radial_intensity_increase = self.max_spiral_intensity * (r / (blend_start_radius))
+        radial_intensity_blend = self.max_spiral_intensity * (1 - (r - blend_start_radius) / (self.r_stop - blend_start_radius))
+        radial_intensity_stop = torch.zeros_like(r)
+
+        spiral_radial_intensity = torch.where(condition_stop, radial_intensity_stop,
+                                        torch.where(condition_blend, radial_intensity_blend,
+                                                    torch.where(condition_increase, radial_intensity_increase, torch.zeros_like(r))))
+
+        spiral_intensity = spiral_radial_intensity * (0.5 * torch.cos(spiral_angle) + 0.5)
+        intensity = self.center_intensity - spiral_intensity
+
+        return intensity
+
+    def x0(self): return (0.05, 0.)
+    def domain(self): return (-1, 1), (-1, 1)
+    def minima(self): return None
+
+spiral = Spiral().register('spiral')
+spiral_short = Spiral(10).register('spiral_short')
+spiral_long = Spiral(100).register('spiral_long')

@@ -1,4 +1,4 @@
-from .function_descent import FunctionDescent
+from .function_descent import FunctionDescent, test_functions
 from .image_rectanges import RectangleReconstructor
 from .linalg import *
 from .operations import Sorting

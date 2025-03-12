@@ -18,7 +18,7 @@ from .utils import _ensure_float, _round_significant
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
 
-REFERENCE_OPTS = ("SGD", "AdamW", "PSGDKron", "Muon", "PrecondSchedulePaLMSOAP", "MARS-AdamW")
+REFERENCE_OPTS = ("SGD", "AdamW", "pytorch_optimizer.MARS", "Muon", "heavyball.PSGDKron", "heavyball.PrecondSchedulePaLMSOAP")
 
 _DEFAULT_DICT = lambda: {
     "min": {"value": float('inf'),  "run": '',},
@@ -71,11 +71,13 @@ def _update_metrics_(metrics: dict[str, Metric], logger: DictLogger, run_path: s
 
     for metric in logger.keys():
         if metric in ('time', 'num passes', 'num batches'): continue
+        if metric.startswith('_'): continue
         if metric not in metrics: metrics[metric] = Metric(_DEFAULT_DICT())
         m: Metric = metrics[metric]
 
         if m.first is None:
-            m.first = logger.first(metric)
+            if f'_ {metric} orig' in logger: m.first = logger.first(f'_ {metric} orig')
+            else: m.first = logger.first(metric)
             needs_update = True
 
         # compare with current min and max values
@@ -175,13 +177,17 @@ class TaskInfo:
 
                 _update_metrics_(metrics=metrics, logger=logger, run_path=run_path, print_achievements=False)
 
+        for m, v in metrics.items():
+            if m in self.metrics:
+                v.maximize = self.metrics[m].maximize # type:ignore
+
         self.metrics = metrics
         yamlwrite(self.metrics, self.yaml_path)
         self._needs_yaml_update = False
 
 def rebuild_all_yamls_(root = 'runs'):
     for task_name in os.listdir(root):
-        info = yamlread(os.path.join(root, 'yaml.info'))
+        info = yamlread(os.path.join(root, task_name, 'info.yaml'))
         target_metrics = {k:v['maximize'] for k,v in info.items()}
         TaskInfo(root=root, task_name=task_name, target_metrics=target_metrics).rebuild_yaml()
 

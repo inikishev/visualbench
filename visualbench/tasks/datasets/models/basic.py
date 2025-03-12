@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Literal
+from typing import Literal, Any
 from collections.abc import Callable
 
 import torch
@@ -124,3 +124,36 @@ class _Mnist1dRecurrentConvNet(torch.nn.Module):
 def Mnist1dRecurrentConvNet(width = 64, num = 4, act = 'relu', norm = 'fixedbn'):
     return partial(_Mnist1dRecurrentConvNet, width = width, num = num, act = act, norm = norm)
 
+class _Mnist1dConvNetAutoencoder(nn.Module):
+    def __init__(self, in_channels, out_channels, hidden = (32, 64, 128, 256), act = 'relu', norm = 'fixedbn', dropout=None):
+        super().__init__()
+        if isinstance(hidden, int): hidden = [hidden]
+        channels = [1] + list(hidden) # in_channels is always 1 cos conv net
+
+        self.enc = nn.Sequential(
+            *[mynn.ConvBlock(i, o, 2, 2, act=act, norm=norm, ndim=1, dropout=dropout) for i, o in zip(channels[:-1], channels[1:])]
+        )
+
+        rev = list(reversed(channels))
+        self.dec = nn.Sequential(
+            *[mynn.ConvTransposeBlock(i, o, 3, 2, act=act, norm=norm, ndim=1, dropout=dropout) for i, o in zip(rev[:-2], rev[1:-1])]
+        )
+
+        self.head = nn.Sequential(
+            mynn.ConvTransposeBlock(rev[-2], rev[-2], 2, 2, act = act, norm = norm, dropout = dropout, ndim = 1),
+            mynn.ConvBlock(rev[-2], rev[-1], 2, ndim = 1)
+        )
+
+    def forward(self, x):
+        if x.ndim == 2: x = x.unsqueeze(1)
+        x = self.enc(x)
+        x = self.dec(x)
+        return self.head(x)[:,0,:40]
+
+def Mnis1dConvNetAutoencoder(hidden = (32, 64, 128, 256), act: Any = 'relu', norm: Any = 'fixedbn', dropout = None):
+    return partial(_Mnist1dConvNetAutoencoder, hidden = hidden, act = act, norm = norm, dropout = dropout)
+
+
+def Unet1d(channels = (32, 64, 128, 256), skip_mode:Any='cat'):
+    from myai.nn.nets.unet import UNet
+    return partial(UNet, ndim = 1, channels = channels[1:], first_out_channels=channels[0], skip_mode=skip_mode)

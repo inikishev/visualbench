@@ -21,16 +21,14 @@ class CaliforniaHousing(DatasetBenchmark):
     ):
         x,y = fetch_california_housing(return_X_y=True)
         super().__init__(
-            x=x,
-            y=y[...,None], # type:ignore
+            data_train = (x, y[...,None]), # type:ignore
             model = model(8, 1),
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
             test_split=test_split,
             shuffle_split=True,
-            normalize_x=normalize_x,
-            normalize_y=normalize_y,
+            normalize=(normalize_x, normalize_y),
         )
 
 
@@ -47,16 +45,14 @@ class Moons(DatasetBenchmark):
     ):
         x,y = make_moons(n_samples = 1024, noise = 0.2, random_state=0)
         super().__init__(
-            x=x,
-            y=y[...,None],
+            data_train = (x, y[...,None]), # type:ignore
             model = model(2, 1),
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
             test_split=test_split,
             shuffle_split=shuffle_split,
-            normalize_x=normalize_x,
-            normalize_y=False,
+            normalize=(normalize_x, False),
             decision_boundary=True,
             boundary_act=F.sigmoid,
         )

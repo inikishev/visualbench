@@ -3,7 +3,7 @@ from typing import Any, Literal
 
 import torch
 from light_dataloader import TensorDataLoader
-from myai.transforms import normalize, totensor
+from myai.transforms import normalize as _normalize, totensor
 from torch import nn
 
 from ..._utils import CUDA_IF_AVAILABLE
@@ -13,114 +13,119 @@ from ...benchmark import Benchmark
 class DatasetBenchmark(Benchmark):
     def __init__(
         self,
-        x,
-        y,
-        model,
-        criterion,
+        data_train,
+        # x,
+        # y,
+        model: torch.nn.Module,
+        criterion: Callable,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        x_test=None,
-        y_test=None,
+        data_test=None,
         test_split: int | float | None = None,
         shuffle_split=False,
-        normalize_x = False,
-        normalize_y = False,
-        x_dtype = torch.float32,
-        y_dtype = torch.float32,
-        data_device=CUDA_IF_AVAILABLE,
+        normalize: bool | Sequence[bool] = False,
+        dtypes: torch.dtype | Sequence[torch.dtype] = torch.float32,
+        data_device: torch.types.Device = CUDA_IF_AVAILABLE,
         decision_boundary = False,
         resolution = 192,
         boundary_act = None,
         seed = 0
     ):
-        """_summary_
+        """dataset benchmark
 
         Args:
-            x (_type_): inputs
-            y (_type_): targets
-            model (_type_): model
-            criterion (_type_): loss MUST HAVE "REDUCTION" PARAMETER
-            batch_size (int | None, optional): _description_. Defaults to None.
-            x_test (_type_, optional): _description_. Defaults to None.
-            y_test (_type_, optional): _description_. Defaults to None.
-            test_split (int | float | None, optional): _description_. Defaults to None.
-            shuffle_split (bool, optional): _description_. Defaults to False.
-            dtype (_type_, optional): _description_. Defaults to torch.float32.
-            data_device (_type_, optional): _description_. Defaults to CUDA_IF_AVAILABLE.
-            seed (int, optional): _description_. Defaults to 0.
+            data_train (Any): sequence of things to collate, e.g. (X, y)
+            model (torch.nn.Module): model.
+            criterion (Callable): loss function.
+            batch_size (int | None, optional): batch size, None for fullbatch. Defaults to None.
+            test_batch_size (int | None, optional): test batch size, None for fullbatch. Defaults to None.
+            data_test (_type_, optional): sequence of things to collate, e.g. (X, y)
+            test_split (int | float | None, optional):
+                splits data_train into train and test, can be int or float. Defaults to None.
+            shuffle_split (bool, optional):
+                whether to shuffle before splitting data_train into train and test sets. Defaults to False.
+            normalize (bool | Sequence[bool], optional):
+                whether to normalize each element of data_train and data_test along first dim. Defaults to False.
+            dtypes (torch.dtype | Sequence[torch.dtype], optional):
+                dtypes for each element of data_train and data_test. Defaults to torch.float32.
+            data_device (torch.types.Device, optional): device for data_train and data_test. Defaults to CUDA_IF_AVAILABLE.
+            decision_boundary (bool, optional):
+                if True, dataset needs to be 2d, will make decision boundary animation. Defaults to False.
+            resolution (int, optional):
+                resolution for decision boundary. Defaults to 192.
+            boundary_act (_type_, optional):
+                activation for decision boundary for example when you use BCE with logits you can put torch.sigmoid. Defaults to None.
+            seed (int, optional): seed. Defaults to 0.
         """
         if batch_size is None and test_batch_size is not None: raise NotImplementedError('batch_size is None, but test_batch size is not None')
-        x = totensor(x, dtype=x_dtype, device=data_device)
-        y = totensor(y, dtype=y_dtype, device=data_device)
 
-        if x_test is not None:
-            x_test = totensor(x_test, dtype=x_dtype, device=data_device)
-            y_test = totensor(y_test, dtype=y_dtype, device=data_device)
+        data_train = [totensor(i) for i in data_train]
 
-        # split x y into train and test based on test_split
+        if len(set(len(i) for i in data_train)) != 1:
+            raise ValueError(f"Got different number of elements in data_train: {[len(i) for i in data_train]}")
+
+        n_samples = len(data_train[0])
+
+        # create test dataset from data_test
+        if data_test is not None:
+            data_test = [totensor(i) for i in data_test]
+            if len(set(len(i) for i in data_test)) != 1:
+                raise ValueError(f"Got different number of elements in data_test: {[len(i) for i in data_test]}")
+
+        # if data_test is None and test_split is not None, split data into train and test based on test_split
         elif test_split is not None:
             if isinstance(test_split, float):
-                test_split = int(test_split * len(x))
+                test_split = int(test_split * n_samples)
 
+            # shuffle data before splitting to train/test
             if shuffle_split:
-                indices = torch.randperm(len(x), generator=torch.Generator(x.device).manual_seed(seed), device=x.device)
-                x = torch.index_select(x, 0, indices)
-                y = torch.index_select(y, 0, indices)
+                indices = torch.randperm(n_samples, generator=torch.Generator(data_train[0].device).manual_seed(seed), device=data_train[0].device)
+                data_train = [torch.index_select(i, 0, indices) for i in data_train]
 
-            # clone and delete so that we dont store unnecessary full data
-            x_test = x[test_split:].clone(); xx = x[:test_split].clone(); del x; x = xx
-            y_test = y[test_split:].clone(); yy = y[:test_split].clone(); del y; y = yy
+            # split
+            data_test = [i[test_split:] for i in data_train] # needs to be 1st
+            data_train = [i[:test_split] for i in data_train]
 
-        # ensure shapes
-        if x.ndim > 2: raise ValueError(x.shape)
-        if y.ndim > 2: raise ValueError(y.shape)
-        # if y.ndim == 1: y = y.unsqueeze(1)
+        # normalize along 1st dim
+        if isinstance(normalize, bool): normalize = [normalize] * len(data_train)
 
-        if x_test is not None:
-            assert y_test is not None
-            if x_test.ndim > 2: raise ValueError(x_test.shape)
-            if y_test.ndim > 2: raise ValueError(y_test.shape)
-            # if y_test.ndim == 1: y_test = y_test.unsqueeze(1)
-
-        # normalize
-        if normalize_x:
+        def _norm(x: torch.Tensor, normalize):
+            if not normalize: return x
             mean = x.mean(0, keepdim=True); std = x.std(0, keepdim=True)
             x = (x - mean) / std
-            if x_test is not None: x_test = (x_test - mean) / std
-        if normalize_y:
-            mean = y.mean(0, keepdim=True); std = y.std(0, keepdim=True)
-            y = (y - mean) / std
-            if y_test is not None: y_test = (y_test - mean) / std
+            return x
 
+        data_train = [_norm(i, n) for i,n in zip(data_train, normalize)]
+        if data_test is not None: data_test = [_norm(i, n) for i,n in zip(data_test, normalize)]
+
+        if not isinstance(dtypes, Sequence): dtypes = [dtypes] * len(data_train)
 
         # if batch size is None we pass train and test data at once for ultra speed
         if batch_size is None:
+
             # stack train and test data
-            if x_test is None:
-                X = x.to(data_device)
-                Y = y.to(data_device)
+            if data_test is None:
+                data_train = [i.to(device = data_device, dtype = dt) for i, dt in zip(data_train, dtypes)]
                 self.test_start_idx = None
             else:
-                assert y_test is not None
-                X = torch.cat([x, x_test]).to(data_device)
-                Y = torch.cat([y, y_test]).to(data_device)
-                self.test_start_idx = len(x)
+                self.test_start_idx = len(data_train[0])
+                data_train = [torch.cat([tr,te]).to(data_device, dtype = dt) for tr,te, dt in zip(data_train, data_test, dtypes)]
 
-            dltrain = ((X, Y), )
+            dltrain = (data_train, )
             dltest = None
 
         # otherwise make dataloaders
         else:
             self.test_start_idx = None
-            x = x.to(data_device); y = y.to(data_device)
-            dltrain = TensorDataLoader((x, y), batch_size=batch_size, shuffle=True, seed = seed)
-            if x_test is not None:
-                assert y_test is not None
-                x_test = x_test.to(data_device); y_test = y_test.to(data_device)
+            data_train = [i.to(device = data_device, dtype = dt) for i, dt in zip(data_train, dtypes)]
+            dltrain = TensorDataLoader(data_train, batch_size=batch_size, shuffle=True, seed = seed)
+
+            if data_test is not None:
+                data_test = [i.to(device = data_device, dtype = dt) for i, dt in zip(data_test, dtypes)]
                 if test_batch_size is None:
-                    dltest = [(x_test, y_test)]
+                    dltest = (data_test, )
                 else:
-                    dltest = TensorDataLoader((x_test, y_test), batch_size=batch_size, shuffle=False, seed = seed)
+                    dltest = TensorDataLoader(data_test, batch_size=test_batch_size, shuffle=False, seed = seed)
             else:
                 dltest = None
 
@@ -131,6 +136,10 @@ class DatasetBenchmark(Benchmark):
 
         self._make_images = decision_boundary
         if decision_boundary:
+            if len(data_train) != 2: raise ValueError(f'{len(data_train) = }, needs to be 2 for decision boundary')
+            x,y = data_train
+            x_dtype, y_dtype = dtypes
+
             assert len(x[0]) == 2, x.shape
             assert y.ndim == 1 or len(y[0]) in (1,2), y.shape
             if y.ndim == 1: y = y.unsqueeze(1)
@@ -154,7 +163,7 @@ class DatasetBenchmark(Benchmark):
             # mask to quickly display dataset points on the image
             mask = torch.zeros((resolution, resolution), dtype = torch.bool, device = data_device)
             data = torch.zeros((resolution, resolution), dtype = torch.float32, device = data_device)
-            data[*X_train_grid.T.flip(0)] = normalize(y.squeeze(), 0, 255)
+            data[*X_train_grid.T.flip(0)] = _normalize(y.squeeze(), 0, 255)
             mask[*X_train_grid.T.flip(0)] = True
 
             self.grid_points = nn.Buffer(grid_points)
@@ -165,16 +174,16 @@ class DatasetBenchmark(Benchmark):
             self.set_display_best('image')
             self.boundary_act = boundary_act
 
-
-
     def penalty(self, preds):
         return 0
 
     def get_loss(self):
-        self.model.train()
-        x, y = self.batch
         device = self.device
-        x = x.to(device); y = y.to(device)
+        self.model.train()
+
+        if len(self.batch) == 1: x = y = self.batch[0].to(device)
+        else: x, y = [i.to(device) for i in self.batch]
+
         y_hat = self.model(x)
         penalty = self.penalty(y_hat)
 

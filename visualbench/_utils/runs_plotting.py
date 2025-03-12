@@ -6,7 +6,6 @@ import bottleneck as bn
 import numpy as np
 from myai.logger import DictLogger
 from myai.plt_tools import Fig
-from scipy.ndimage import gaussian_filter1d
 
 from .runs import REFERENCE_OPTS, TaskInfo
 from .utils import _round_significant
@@ -90,10 +89,10 @@ def plot_lr_search_curve(
         vals = [logger.numpy(metric) for lr, logger in lr_logger]
 
         if maximize:
-            y = [v.max() for v in vals]
+            y = [np.nanmax(v) for v in vals]
             best = np.max(y)
         else:
-            y = [v.min() for v in vals]
+            y = [np.nanmin(v) for v in vals]
             best = np.min(y)
 
         kw = {}
@@ -129,16 +128,6 @@ def plot_lr_search_curve(
     if show: fig.show()
     return fig
 
-def _only_first_batch_metric(batched_metric, num_batches):
-    """
-    train loss and num batches are from logger, this takes only 1st train loss from each batch,
-    so `L-BFGS` and alike minimizing each batch doesn't give them an advantage.
-    """
-    is_increase = np.concatenate(([True], num_batches[1:] > num_batches[:-1]))
-    modified_values = np.where(is_increase, batched_metric, np.nan)
-
-    filled_series = bn.push(modified_values)
-    return filled_series
 
 def plot_metric(
     task_name,

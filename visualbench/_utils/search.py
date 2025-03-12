@@ -303,7 +303,6 @@ def _search(
             bench.run(optimizer=optimizer,**kwargs)
             _filter_logger_(bench.logger) # filter logger before reporting and saving
             logger = bench.logger
-            info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
 
             # postprocess the metric
             for metric, maximize in target_metrics.items():
@@ -317,13 +316,14 @@ def _search(
                 # smooth
                 if (smoothing is not None) and (metric in smoothing) and (smoothing[metric] is not None):
                     if vals is None: vals = logger.numpy(metric)
-                    vals = gaussian_filter1d(vals, smoothing[metric], mode = 'nearest')
+                    vals = gaussian_filter1d(vals, smoothing[metric], mode = 'mirror')
 
                 # update metric if necessary
                 if vals is not None:
                     bench.logger[f'_ {metric} orig'] = bench.logger[metric]
                     bench.logger.set_array(metric, bench.logger.get_metric_steps(metric), vals)
 
+            info.report(opt_name = opt_name, lr=lr, logger=logger, print_achievements=print_achievements)
             bench.logger.save(os.path.join(opt_path, f'{lr}'))
 
         # create values dictionary
@@ -347,7 +347,7 @@ def _search(
     )
 
     searcher.evaluate_base_lrs()
-    searcher.binary_search()
+    if len(log10_lrs) > 1: searcher.binary_search()
 
     # update info yaml if necessary
     if info._needs_yaml_update: yamlwrite(info.metrics, info.yaml_path)
@@ -371,19 +371,19 @@ def _search_for_visualization(
     test_every_batches: int | None = None,
     test_every_epochs: int | None = None,
     test_every_seconds: float | None = None,
-    log10_lrs: Sequence[float] = (2, 1, 0, -1, -2, -3, -4, -5),
+    log10_lrs: Sequence[float] = (5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5),
 
     # lr tuning kwargs
-    lr_binary_search_steps = 10, # binary search steps
-    max_lr_expansions = 10, # separate count for when best lr is on the edge
+    lr_binary_search_steps = 11, # binary search steps
+    max_lr_expansions = 11, # separate count for when best lr is on the edge
 
     debug=False,
 
 ):
     # performance
-    bench._make_images = False
-    bench._log_params = False
-    bench._log_projections = False
+    # bench._make_images = False
+    # bench._log_params = False
+    # bench._log_projections = False
 
     # kwargs for calling `bench.run(**kwargs)`
     kwargs: dict[str, Any] = dict(
@@ -409,10 +409,14 @@ def _search_for_visualization(
         arr = np.nan_to_num(bench.logger.numpy(target_metric), copy=False)
         if maximize: arr = - arr
 
-        #loss = np.mean(arr) + np.mean(np.minimum.accumulate(arr)) + np.min(arr)
         argmin = np.argmin(arr)
         min = arr[argmin]
-        loss = np.sum(arr[:argmin]) + min * (arr.size - argmin)
+
+        # loss = (np.sum(arr[:argmin]) + min * (arr.size - argmin)) * (min**(1/3) + 1e-8)
+                # area under curve                                  # cubic root of loss
+
+        loss = min + 1e-8 * (np.sum(arr[:argmin]) + min * (arr.size - argmin)) # term for choosing better paths when loss is 0/same
+
         return {target_metric: loss}
 
     searcher = _BinarySearch(
@@ -426,7 +430,7 @@ def _search_for_visualization(
     )
 
     searcher.evaluate_base_lrs()
-    searcher.binary_search()
+    if len(log10_lrs) > 1: searcher.binary_search()
 
     best_lr = list(searcher.lr_to_value_by_value(target_metric).keys())[0]
     bench.reset()

@@ -172,7 +172,9 @@ def _check_stop_condition(bench: "Benchmark") -> str | None:
     if (bench._max_passes is not None) and (bench._num_passes >= bench._max_passes): return 'max passes reached'
     if (bench._max_epochs is not None) and (bench._num_epochs >= bench._max_epochs): return 'max epochs reached'
     if (bench._max_batches is not None) and (bench._num_batches >= bench._max_batches): return 'max batches reached'
-    if (bench._max_seconds is not None) and bench._time_passed >= bench._max_seconds: return "max time reached"
+    if (bench._max_seconds is not None) and bench._time_passed >= bench._max_seconds:
+        if bench._print_timeout: print(f'timeout {bench._time_passed:.2f}s. / {bench._max_seconds}s.! Did {bench._num_passes}/{bench._max_passes} passes')
+        return "max time reached"
     return None
 
 def _ensure_stop_condition_exists_(bench: "Benchmark") -> None:
