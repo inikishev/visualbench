@@ -153,7 +153,6 @@ class _Mnist1dConvNetAutoencoder(nn.Module):
 def Mnis1dConvNetAutoencoder(hidden = (32, 64, 128, 256), act: Any = 'relu', norm: Any = 'fixedbn', dropout = None):
     return partial(_Mnist1dConvNetAutoencoder, hidden = hidden, act = act, norm = norm, dropout = dropout)
 
-
-def Unet1d(channels = (32, 64, 128, 256), skip_mode:Any='cat'):
-    from myai.nn.nets.unet import UNet
-    return partial(UNet, ndim = 1, channels = channels[1:], first_out_channels=channels[0], skip_mode=skip_mode)
+def MONAIUnet1d(features=(32, 32, 64, 128, 256, 32),act=('LeakyReLU', {'inplace': True, 'negative_slope': 0.1}), norm=('instance', {'affine': True}), bias=True, dropout=0.0, upsample='deconv'):
+    from monai.networks.nets.basic_unetplusplus import BasicUNetPlusPlus
+    return partial(BasicUNetPlusPlus, features=features,act=act,norm=norm,bias=bias,dropout=dropout,upsample=upsample)
