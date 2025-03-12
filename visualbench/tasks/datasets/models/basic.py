@@ -158,7 +158,7 @@ class _Mnist1dConvNetAutoencoder(nn.Module):
         if self.sparse_reg is not None: return res, features.abs().mean() * self.sparse_reg
         return res
 
-def Mnis1dConvNetAutoencoder(
+def Mnist1dConvNetAutoencoder(
     hidden=(32, 64, 128, 256),
     act: Any = "relu",
     norm: Any = "fixedbn",

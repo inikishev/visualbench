@@ -12,7 +12,7 @@ from torch.nn import functional as F
 
 from ..._utils import CUDA_IF_AVAILABLE
 from .dataset import DatasetBenchmark
-from .models import ModelClass, Mnist1dConvNet, Mnis1dConvNetAutoencoder
+from .models import ModelClass, Mnist1dConvNet, Mnist1dConvNetAutoencoder
 
 class ObjectView:
     """this is taken from mnist1d.utils (i added with)"""
@@ -102,7 +102,7 @@ class Mnist1d(DatasetBenchmark):
 class Mnist1dAutoencoder(DatasetBenchmark):
     def __init__(
         self,
-        model: ModelClass = Mnis1dConvNetAutoencoder(),
+        model: ModelClass = Mnist1dConvNetAutoencoder(),
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,

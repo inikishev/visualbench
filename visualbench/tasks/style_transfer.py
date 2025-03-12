@@ -16,18 +16,24 @@ from .._utils import _make_float_hw3_tensor
 
 # --- VGG19 Feature Extraction Model ---
 class VGG(nn.Module):
-    def __init__(self):
+    def __init__(self, content_layers, style_layers):
         super(VGG, self).__init__()
-        self.chosen_features = ['0', '5', '10', '19', '28'] # Content layer (layer 19), Style layers (layers 0, 5, 10, 28)
+        self.content_features = content_layers
+        self.style_features = style_layers
         self.vgg = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features[:29] # Up to layer 28 (index 28 is layer 29 actually) # type:ignore
 
     def forward(self, x):
-        features = []
+        # print(f'{x.device = }')
+        content = []
+        style = []
+
         for layer_num, layer in enumerate(self.vgg):
             x = layer(x)
-            if str(layer_num) in self.chosen_features:
-                features.append(x)
-        return features
+
+            if layer_num in self.content_features: content.append(x)
+            if layer_num in self.style_features: style.append(x)
+
+        return content, style
 
 def grams_style_loss(gen_features, style_features):
     batch_size, channel, height, width = gen_features.shape
@@ -48,8 +54,10 @@ class StyleTransfer(Benchmark):
         image_size = 128,
         content_loss = F.mse_loss,
         style_loss = grams_style_loss,
+        content_layers = (19,),
+        content_weights = (1.,),
+        style_layers = (0, 5, 10, 19, 28),
         style_weights = (200,200,200,200,200),
-        content_weight = 1.,
         make_images = True,
         use_vgg_norm = False,
     ):
@@ -69,17 +77,19 @@ class StyleTransfer(Benchmark):
 
         self.generated = torch.nn.Parameter(self.content.clone().requires_grad_(True).contiguous())
 
-        self._ignore_vgg = VGG() # parameters wont return it
+        self._ignore_vgg = VGG(content_layers=content_layers, style_layers=style_layers) # parameters wont return it
         for param in self._ignore_vgg.parameters(): param.requires_grad_(False)
 
-        self.content_features_orig = torch.nn.Buffer(self._ignore_vgg(self.content)[3]) # Content features from layer 19
-        style_features = self._ignore_vgg(self.style)
-        self.n_style_features = len(style_features)
-        # self.style_features_orig = torch.nn.Buffer(torch.nested.nested_tensor(style_features)) # nested can be buffer but cant be deepcopied
-        for i,sf in enumerate(style_features):
-            self.register_buffer(f'style_feature_{i}', sf)
+        content_features, _ = self._ignore_vgg(self.content) # Content features from layer 19
+        for i,f in enumerate(content_features):
+            self.register_buffer(f'content_features_{i}', f)
+
+        _, style_features = self._ignore_vgg(self.style)
+        for i,f in enumerate(style_features):
+            self.register_buffer(f'style_feature_{i}', f)
+
         self.style_weights = style_weights
-        self.content_weight = content_weight
+        self.content_weights = content_weights
 
         self._make_images = make_images
         if make_images:
@@ -87,19 +97,17 @@ class StyleTransfer(Benchmark):
             self.add_reference_image('content', content, to_uint8=True)
             self.add_reference_image('style', style, to_uint8=True)
 
-    def reset(self):
-        super().reset()
-        self.generated = torch.nn.Parameter(self.content.clone().requires_grad_(True).contiguous())
-
     def get_loss(self):
         self._ignore_vgg.eval()
-        gen_features = self._ignore_vgg(self.generated)
+        content, style = self._ignore_vgg(self.generated)
 
-        content_loss = self.content_loss(gen_features[3], self.content_features_orig) * self.content_weight # Layer 19
+        content_loss = 0
+        for i, (f, w) in enumerate(zip(content, self.content_weights)): # Layers 19
+            content_loss += self.content_loss(f, getattr(self, f'content_features_{i}')) * w
 
         style_loss = 0
-        for i in range(self.n_style_features): # Layers 0, 5, 10, 28
-            style_loss += self.style_loss(gen_features[i], getattr(self, f'style_feature_{i}')) * self.style_weights[i]
+        for i, (f, w) in enumerate(zip(style, self.style_weights)): # Layers 19
+            style_loss += self.style_loss(f, getattr(self, f'style_feature_{i}')) * w
 
         if self._make_images:
             self.log('image', self.generated, log_test=False, to_uint8=True)

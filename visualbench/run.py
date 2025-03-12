@@ -28,6 +28,7 @@ from .tasks import (
     Mnist1dAutoencoder,
     RNNArgsort,
     SelfRecurrent,
+    SynthSeg1d,
     Sorting,
     models,
 )
@@ -200,11 +201,11 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     )
 
     # ------------------- Mnist1dConvNetAutoencoder([32, 64, 128, 256]) bs128 ------------------ #
-    # huge kron and soap lead + muon and mars next
-    bench = Mnist1dAutoencoder(models.Mnis1dConvNetAutoencoder([64,96,128,256]), batch_size=128, test_batch_size=512).cuda()
+    #
+    bench = Mnist1dAutoencoder(models.Mnist1dConvNetAutoencoder([64,96,128,256]), batch_size=32, test_batch_size=512).cuda()
     _search(
         bench = bench,
-        name = 'Mnist1dConvNetAutoencoder([32,64,128,256]) bs128',
+        name = 'Mnist1dConvNetAutoencoder([32,64,128,256]) bs32',
         target_metrics = _test_train_loss,
         max_passes=2_000,
         max_seconds=120,
@@ -213,6 +214,26 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
         batched={'train loss': True},
         log_scale={'train loss': True, 'test loss': True},
     )
+
+
+    # -------------- SynthSeg1d ConvNetAutoencoder([64,96,128]) bs64 ------------- #
+    bench = SynthSeg1d(
+        model = models.Mnist1dConvNetAutoencoder([64,96,128], clip_length = 32, real_out=5),
+        batch_size=64,
+        test_batch_size=512,
+    ).cuda()
+    _search(
+        bench = bench,
+        name = 'SynthSeg1d ConvNetAutoencoder([64,96,128]) bs64',
+        target_metrics = _test_train_loss,
+        max_passes=4_000,
+        max_seconds=240,
+        test_every_forwards=20,
+        smoothing={'train loss': 8},
+        batched={'train loss': True},
+        log_scale={'train loss': False, 'test loss': False},
+    )
+
 
     # --------------------------------- PLOTTING --------------------------------- #
     # for fn in queue: fn()
