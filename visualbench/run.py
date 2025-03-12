@@ -8,6 +8,7 @@ from myai.plt_tools import Fig
 from myai.python_tools import performance_context
 from torch.nn import functional as F
 
+from ._utils import CUDA_IF_AVAILABLE
 from ._utils.runs import REFERENCE_OPTS
 from ._utils.runs_plotting import _print_best, plot_lr_search_curve, plot_metric
 from ._utils.search import _search_for_visualization
@@ -122,22 +123,22 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     # --------------------------- SYNTHETIC OBJECTIVES --------------------------- #
     # ---------------------------- Convex512  --------------------------- #
     # basic booth-like convex objective
-    bench = Convex().cuda()
+    bench = Convex().to(CUDA_IF_AVAILABLE)
     _search(bench, 'Convex', _train_loss, max_passes=2_000, max_seconds=30, log_scale={'train loss': True})
 
     # ---------------------------- Inverse L1 randn-64 --------------------------- #
     # L1 bench for a difference, favours  MARS
-    bench = Inverse(randn, F.l1_loss).cuda()
+    bench = Inverse(randn, F.l1_loss).to(CUDA_IF_AVAILABLE)
     _search(bench, 'Inverse L1 randn-64', _train_loss, max_passes=2_000, max_seconds=30, log_scale={'train loss': True})
 
     # ------------------------ InverseInverse randn-64 ------------------------ #
     # diabolical kron and muon and soap lead
-    bench = InverseInverse(randn).cuda()
+    bench = InverseInverse(randn).to(CUDA_IF_AVAILABLE)
     _search(bench, 'InverseInverse randn-64', _train_loss, max_passes=2_000, max_seconds=30, log_scale={'train loss': True},)
 
     # -------------------------- MatrixSign attngrad-96 -------------------------- #
     # L-BFGS insane lead but then SOAP, rprop, kron, muon so might be unique, good values range is quite thin
-    bench = MatrixSign(ATTNGRAD96).cuda()
+    bench = MatrixSign(ATTNGRAD96).to(CUDA_IF_AVAILABLE)
     _search(bench, 'MatrixSign attngrad-96', _train_loss, max_passes=2_000, max_seconds=30, log_scale={'train loss': True},)
 
     # ------------------------------- ML OBJECTIVES ------------------------------ #
@@ -145,7 +146,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
 
     # --------------------- Mnist1d MLP([40,40,40,40]) --------------------- #
     # soap-kron-muon (this is better/harder than california housing)
-    bench = Mnist1d(models.MLP([40,40,40,40])).cuda()
+    bench = Mnist1d(models.MLP([40,40,40,40])).to(CUDA_IF_AVAILABLE)
     _search(
         bench = bench,
         name = "Mnist1d MLP([40,40,40,40])",
@@ -158,7 +159,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     # ---------------------------- BATCHED OBJECTIVES ---------------------------- #
     # --------------------- Mnist1d MLP([64,96,128,256]) bs64 --------------------- #
     # soap-kron-muon again, now batched
-    bench = Mnist1d(models.MLP([64,96,128,256]), batch_size = 64).cuda()
+    bench = Mnist1d(models.MLP([64,96,128,256]), batch_size = 64).to(CUDA_IF_AVAILABLE)
     _search(
         bench = bench,
         name = "Mnist1d MLP([64,96,128,256]) bs64",
@@ -173,7 +174,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
 
     # ------------------------- Mnist1d RNN(40, 2) bs128 ------------------------- #
     # huge kron and soap lead + muon and mars next
-    bench = Mnist1d(models.Mnist1dRNN(40, 2, torch.nn.RNN), batch_size=128,).cuda()
+    bench = Mnist1d(models.Mnist1dRNN(40, 2, torch.nn.RNN), batch_size=128,).to(CUDA_IF_AVAILABLE)
     _search(
         bench = bench,
         name = "Mnist1d RNN(40, 2) bs128",
@@ -187,7 +188,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
 
     # ------------------- Mnist1d ConvNet([64,96,128,256]) bs32 ------------------ #
     # huge kron and soap lead + muon and mars next
-    bench = Mnist1d(models.Mnist1dConvNet([64,96,128,256]), batch_size=32, test_batch_size=512).cuda()
+    bench = Mnist1d(models.Mnist1dConvNet([64,96,128,256]), batch_size=32, test_batch_size=512).to(CUDA_IF_AVAILABLE)
     _search(
         bench = bench,
         name = 'Mnist1d ConvNet([64,96,128,256])) bs32',
@@ -202,7 +203,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
 
     # ------------------- Mnist1dConvNetAutoencoder([32, 64, 128, 256]) bs128 ------------------ #
     #
-    bench = Mnist1dAutoencoder(models.Mnist1dConvNetAutoencoder([64,96,128,256]), batch_size=32, test_batch_size=512).cuda()
+    bench = Mnist1dAutoencoder(models.Mnist1dConvNetAutoencoder([64,96,128,256]), batch_size=32, test_batch_size=512).to(CUDA_IF_AVAILABLE)
     _search(
         bench = bench,
         name = 'Mnist1dConvNetAutoencoder([64,96,128,256]) bs32',
@@ -221,7 +222,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
         model = models.Mnist1dConvNetAutoencoder([64,96,128], clip_length = 32, real_out=5),
         batch_size=64,
         test_batch_size=512,
-    ).cuda()
+    ).to(CUDA_IF_AVAILABLE)
     _search(
         bench = bench,
         name = 'SynthSeg1d ConvNetAutoencoder([64,96,128]) bs64',

@@ -356,7 +356,7 @@ def _search(
     _clean_empty(info.path)
     _debug()
 
-
+_maxv = np.nan_to_num(float('inf'))
 def _search_for_visualization(
     bench: "Benchmark",
     optimizer_fn: Callable,
@@ -406,7 +406,7 @@ def _search_for_visualization(
         bench.run(optimizer=optimizer,**kwargs)
 
         # loss area under loss curve up to minimum value, and then minimum value, to penalize erratic paths
-        arr = np.nan_to_num(bench.logger.numpy(target_metric), copy=False)
+        arr = np.nan_to_num(bench.logger.numpy(target_metric), copy=False, nan = _maxv, posinf = _maxv, neginf = _maxv)
         if maximize: arr = - arr
 
         argmin = np.argmin(arr)
