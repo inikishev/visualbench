@@ -1,9 +1,16 @@
+# pylint: disable = not-callable
 import numpy as np
 import torch
+import torch.nn.functional as F
+from monai.losses import DiceFocalLoss
 from torch.utils.data import Dataset
 
 from ..._utils import CUDA_IF_AVAILABLE
-class SyntheticSegmentation1D(Dataset):
+from .dataset import DatasetBenchmark
+from .models import ModelClass, MONAIUnet1d
+
+
+class _SyntheticSegmentation1D(Dataset):
     def __init__(self, num_samples=4_000, seq_length=32, num_classes=5, seed=0, device = CUDA_IF_AVAILABLE):
         super().__init__()
         self.num_samples = num_samples
@@ -23,7 +30,7 @@ class SyntheticSegmentation1D(Dataset):
             labels.append(torch.as_tensor(y, dtype = torch.int64))
 
         self.data = torch.stack(data).unsqueeze(1).to(self.device) # n_samples, 1, length
-        self.labels = torch.stack(labels).to(self.device) # n_samples, length
+        self.labels = F.one_hot(torch.stack(labels).to(self.device)).moveaxis(-1,-2) # n_samples, n_classes, length
 
     def _create_sample(self):
         # Randomly partition sequence into segments
@@ -105,9 +112,38 @@ class SyntheticSegmentation1D(Dataset):
         from light_dataloader import TensorDataLoader
         return TensorDataLoader((self.data, self.labels), batch_size=batch_size, shuffle = shuffle)
 
+class SynthSeg1d(DatasetBenchmark):
+    def __init__(
+        self,
+        model: ModelClass = MONAIUnet1d(),
+        criterion=DiceFocalLoss(softmax=True,),
+        batch_size: int | None = None,
+        test_batch_size: int | None = None,
+        test_split=0.8,
+        num_samples=4_000,
+        seq_length=32,
+        num_classes=5,
+        seed=0,
+        device=CUDA_IF_AVAILABLE,
+    ):
+        ds = _SyntheticSegmentation1D(num_samples = num_samples, seq_length=seq_length,num_classes=num_classes,seed=seed,device=device)
+        x, y = ds.data, ds.labels
+
+        super().__init__(
+            data_train = (x, y),
+            model = model(1, num_classes),
+            criterion=criterion,
+            batch_size=batch_size,
+            test_batch_size = test_batch_size,
+            test_split=test_split,
+            dtypes = (torch.float32, torch.uint64),
+            data_device = device,
+        )
+
+
 # Example usage
 if __name__ == "__main__":
-    dataset = SyntheticSegmentation1D(num_samples=1000)
+    dataset = _SyntheticSegmentation1D(num_samples=1000)
     print(f"Dataset size: {len(dataset)}")
     sample, label = dataset[0]
     print(f"Sample shape: {sample.shape}, Label shape: {label.shape}")

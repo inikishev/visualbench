@@ -1,6 +1,6 @@
-from functools import partial
-from typing import Literal, Any
 from collections.abc import Callable
+from functools import partial
+from typing import Any, Literal
 
 import torch
 from myai import nn as mynn
@@ -124,11 +124,12 @@ class _Mnist1dRecurrentConvNet(torch.nn.Module):
 def Mnist1dRecurrentConvNet(width = 64, num = 4, act = 'relu', norm = 'fixedbn'):
     return partial(_Mnist1dRecurrentConvNet, width = width, num = num, act = act, norm = norm)
 
+
 class _Mnist1dConvNetAutoencoder(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden = (32, 64, 128, 256), act = 'relu', norm = 'fixedbn', dropout=None):
+    def __init__(self, in_channels, out_channels, hidden = (32, 64, 128, 256), act = 'relu', norm = 'fixedbn', dropout=None, sparse_reg: float | None = None, clip_length = 40, real_in=1, real_out=None):
         super().__init__()
         if isinstance(hidden, int): hidden = [hidden]
-        channels = [1] + list(hidden) # in_channels is always 1 cos conv net
+        channels = [real_in] + list(hidden) # in_channels is always 1 cos conv net
 
         self.enc = nn.Sequential(
             *[mynn.ConvBlock(i, o, 2, 2, act=act, norm=norm, ndim=1, dropout=dropout) for i, o in zip(channels[:-1], channels[1:])]
@@ -141,18 +142,49 @@ class _Mnist1dConvNetAutoencoder(nn.Module):
 
         self.head = nn.Sequential(
             mynn.ConvTransposeBlock(rev[-2], rev[-2], 2, 2, act = act, norm = norm, dropout = dropout, ndim = 1),
-            mynn.ConvBlock(rev[-2], rev[-1], 2, ndim = 1)
+            mynn.ConvBlock(rev[-2], real_out if real_out is not None else 1, 2, ndim = 1)
         )
+
+        self.sparse_reg = sparse_reg
+        self.clip_length = clip_length
+        self.real_out = real_out
 
     def forward(self, x):
         if x.ndim == 2: x = x.unsqueeze(1)
-        x = self.enc(x)
-        x = self.dec(x)
-        return self.head(x)[:,0,:40]
+        features = self.enc(x)
+        x = self.dec(features)
+        res = self.head(x)[:,:,:self.clip_length]
+        if self.real_out is None: res = res[:,0]
+        if self.sparse_reg is not None: return res, features.abs().mean() * self.sparse_reg
+        return res
 
-def Mnis1dConvNetAutoencoder(hidden = (32, 64, 128, 256), act: Any = 'relu', norm: Any = 'fixedbn', dropout = None):
-    return partial(_Mnist1dConvNetAutoencoder, hidden = hidden, act = act, norm = norm, dropout = dropout)
+def Mnis1dConvNetAutoencoder(
+    hidden=(32, 64, 128, 256),
+    act: Any = "relu",
+    norm: Any = "fixedbn",
+    dropout=None,
+    sparse_reg=None,
+    clip_length=40,
+    real_in = 1,
+    real_out = 1,
+):
+    return partial(_Mnist1dConvNetAutoencoder, hidden = hidden, act = act, norm = norm, dropout = dropout, sparse_reg=sparse_reg, clip_length = clip_length, real_in = real_in, real_out = real_out)
 
-def MONAIUnet1d(features=(32, 32, 64, 128, 256, 32),act=('LeakyReLU', {'inplace': True, 'negative_slope': 0.1}), norm=('instance', {'affine': True}), bias=True, dropout=0.0, upsample='deconv'):
+def MONAIUnet1d(
+    features=(32, 32, 64, 128, 256, 32),
+    act=("LeakyReLU", {"inplace": True, "negative_slope": 0.1}),
+    norm=("instance", {"affine": True}),
+    bias=True,
+    dropout=0.0,
+    upsample="deconv",
+):
     from monai.networks.nets.basic_unetplusplus import BasicUNetPlusPlus
-    return partial(BasicUNetPlusPlus, features=features,act=act,norm=norm,bias=bias,dropout=dropout,upsample=upsample)
+    class First(torch.nn.Module):
+        """unet for some reason returns a list"""
+        def __init__(self, m):
+            super().__init__()
+            self.m = m
+        def forward(self,x): return self.m(x)[0]
+    return lambda i, o: First(
+        BasicUNetPlusPlus(1, i, o, features=features,act=act,norm=norm,bias=bias,dropout=dropout,upsample=upsample)
+    )

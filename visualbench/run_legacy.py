@@ -2,7 +2,7 @@ from collections.abc import Callable, Sequence
 from contextlib import nullcontext
 
 import torch
-from glio.jupyter_tools import clean_mem
+from myai.jupyter_tools import clean_mem
 from myai.loaders.image import imreadtensor
 from myai.plt_tools import Fig
 from myai.python_tools import performance_context

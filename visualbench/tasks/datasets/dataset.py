@@ -185,7 +185,9 @@ class DatasetBenchmark(Benchmark):
         else: x, y = [i.to(device) for i in self.batch]
 
         y_hat = self.model(x)
-        penalty = self.penalty(y_hat)
+        if isinstance(y_hat, tuple): y_hat, penalty = y_hat
+        else: penalty = 0
+        penalty = penalty + self.penalty(y_hat)
 
         if self.test_start_idx is not None:
             loss = self.criterion(y_hat, y, reduction='none')

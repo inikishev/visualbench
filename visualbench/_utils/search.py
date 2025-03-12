@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import bottleneck as bn
 import numpy as np
-from glio.jupyter_tools import clean_mem
+from myai.jupyter_tools import clean_mem
 from myai.loaders.yaml import yamlwrite
 from myai.logger import DictLogger
 

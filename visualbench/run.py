@@ -2,7 +2,7 @@ from collections.abc import Callable, Sequence
 from contextlib import nullcontext
 
 import torch
-from glio.jupyter_tools import clean_mem
+from myai.jupyter_tools import clean_mem
 from myai.loaders.image import imreadtensor
 from myai.plt_tools import Fig
 from myai.python_tools import performance_context
@@ -25,6 +25,7 @@ from .tasks import (
     LUPivot,
     MatrixSign,
     Mnist1d,
+    Mnist1dAutoencoder,
     RNNArgsort,
     SelfRecurrent,
     Sorting,
@@ -196,6 +197,21 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
         smoothing={'train loss': 8},
         batched={'train loss': True},
         log_scale={'train loss': True},
+    )
+
+    # ------------------- Mnist1dConvNetAutoencoder([32, 64, 128, 256]) bs128 ------------------ #
+    # huge kron and soap lead + muon and mars next
+    bench = Mnist1dAutoencoder(models.Mnis1dConvNetAutoencoder([64,96,128,256]), batch_size=128, test_batch_size=512).cuda()
+    _search(
+        bench = bench,
+        name = 'Mnist1dConvNetAutoencoder([32,64,128,256]) bs128',
+        target_metrics = _test_train_loss,
+        max_passes=2_000,
+        max_seconds=120,
+        test_every_forwards=20,
+        smoothing={'train loss': 8},
+        batched={'train loss': True},
+        log_scale={'train loss': True, 'test loss': True},
     )
 
     # --------------------------------- PLOTTING --------------------------------- #

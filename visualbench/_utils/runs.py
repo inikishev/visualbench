@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import torch
-from glio.jupyter_tools import clean_mem
+from myai.jupyter_tools import clean_mem
 from myai.loaders.yaml import yamlread, yamlwrite
 from myai.logger import DictLogger
 from myai.plt_tools import Fig
