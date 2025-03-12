@@ -105,19 +105,19 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     # ----------------------------------- PATHS ---------------------------------- #
     bench = FunctionDescent('booth')
     bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
-    bench.plot(fig=fig.add(f'Booth 200 passes lr={bench._info["lr"]}'), show=False) # type:ignore
+    bench.plot(fig=fig.add(f'Booth 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
     bench = FunctionDescent('rosen')
     bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
-    bench.plot(fig=fig.add(f'Rosenbrock 200 passes lr={bench._info["lr"]}'), show=False) # type:ignore
+    bench.plot(fig=fig.add(f'Rosenbrock 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
     bench = FunctionDescent('goldstein_price')
     bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
-    bench.plot(fig=fig.add(f'Goldstein-Price 200 passes lr={bench._info["lr"]}'), show=False) # type:ignore
+    bench.plot(fig=fig.add(f'Goldstein-Price 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
-    bench = FunctionDescent('spiral_short', x0 = (0.15, 0.07))
+    bench = FunctionDescent('spiral')
     bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
-    bench.plot(fig=fig.add(f'Spiral 200 passes lr={bench._info["lr"]}'), show=False) # type:ignore
+    bench.plot(fig=fig.add(f'Spiral 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
     # --------------------------- SYNTHETIC OBJECTIVES --------------------------- #
     # ---------------------------- Convex512  --------------------------- #
@@ -205,7 +205,7 @@ def run_bench(opt_name:str, opt_fn: Callable, show=True, save=True, extra:Sequen
     bench = Mnist1dAutoencoder(models.Mnist1dConvNetAutoencoder([64,96,128,256]), batch_size=32, test_batch_size=512).cuda()
     _search(
         bench = bench,
-        name = 'Mnist1dConvNetAutoencoder([32,64,128,256]) bs32',
+        name = 'Mnist1dConvNetAutoencoder([64,96,128,256]) bs32',
         target_metrics = _test_train_loss,
         max_passes=2_000,
         max_seconds=120,

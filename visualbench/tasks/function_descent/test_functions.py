@@ -499,7 +499,7 @@ arm_error = ArmError().register('arm_error')
 
 class Spiral(TestFunction):
     """outward spiral"""
-    def __init__(self, length=30.0, center_intensity=1.0, max_spiral_intensity=0.9, r_stop=0.9, blend_start_ratio=0.9):
+    def __init__(self, length=17.0, center_intensity=1.0, max_spiral_intensity=0.9, r_stop=0.9, blend_start_ratio=0.9):
         super().__init__()
         self.length = length
         self.center_intensity = center_intensity
@@ -532,10 +532,8 @@ class Spiral(TestFunction):
 
         return intensity
 
-    def x0(self): return (0.05, 0.)
+    def x0(self): return (0.09, 0.05)
     def domain(self): return (-1, 1), (-1, 1)
     def minima(self): return None
 
 spiral = Spiral().register('spiral')
-spiral_short = Spiral(10).register('spiral_short')
-spiral_long = Spiral(100).register('spiral_long')

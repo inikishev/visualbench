@@ -166,7 +166,7 @@ def Mnist1dConvNetAutoencoder(
     sparse_reg=None,
     clip_length=40,
     real_in = 1,
-    real_out = 1,
+    real_out: int | None = None,
 ):
     return partial(_Mnist1dConvNetAutoencoder, hidden = hidden, act = act, norm = norm, dropout = dropout, sparse_reg=sparse_reg, clip_length = clip_length, real_in = real_in, real_out = real_out)
 
