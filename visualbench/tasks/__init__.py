@@ -15,4 +15,4 @@ from .style_transfer import StyleTransfer
 from .lstm import RNNArgsort
 from .datasets import *
 
-from .gnn import GraphNN
+# from .gnn import GraphNN

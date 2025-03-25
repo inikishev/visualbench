@@ -372,6 +372,7 @@ def _search_for_visualization(
     test_every_epochs: int | None = None,
     test_every_seconds: float | None = None,
     log10_lrs: Sequence[float] = (5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5),
+    penalize_path = False,
 
     # lr tuning kwargs
     lr_binary_search_steps = 11, # binary search steps
@@ -412,10 +413,12 @@ def _search_for_visualization(
         argmin = np.argmin(arr)
         min = arr[argmin]
 
-        # loss = (np.sum(arr[:argmin]) + min * (arr.size - argmin)) * (min**(1/3) + 1e-8)
-                # area under curve                                  # cubic root of loss
+        if penalize_path:
+            loss = (np.sum(arr[:argmin]) + min * (arr.size - argmin))**2 * (min**(1/4) + 1e-8)
+                    # area under curve                                  # quartic root of loss
 
-        loss = min + 1e-8 * (np.sum(arr[:argmin]) + min * (arr.size - argmin)) # term for choosing better paths when loss is 0/same
+        else:
+            loss = min + 1e-8 * (np.sum(arr[:argmin]) + min * (arr.size - argmin)) # term for choosing better paths when loss is 0/same
 
         return {target_metric: loss}
 
