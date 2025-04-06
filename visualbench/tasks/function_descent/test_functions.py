@@ -163,7 +163,7 @@ class IllConditioned(TestFunction):
     def minima(self): return None
 
 ill_conditioned = IllConditioned().register('ill_conditioned', 'ill')
-extremely_ill_conditioned = IllConditioned(1e10).register('extremely_ill_conditioned', 'ill')
+extremely_ill_conditioned = IllConditioned(1e10).register('extremely_ill_conditioned', 'extremely_ill')
 
 class GoldsteinPrice(TestFunction):
     def objective(self, X):
