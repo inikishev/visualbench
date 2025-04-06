@@ -158,7 +158,7 @@ class IllConditioned(TestFunction):
         x,y = X
         return (x + self.a * y - 5) ** 2 + (2 * x + y - 2) ** 2
 
-    def x0(self): return (750, -8)
+    def x0(self): return (75 * self.a / 100, -8)
     def domain(self): return ((-self.a, self.a), (-10, 10))
     def minima(self): return None
 
