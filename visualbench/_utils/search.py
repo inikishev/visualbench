@@ -371,7 +371,7 @@ def _search_for_visualization(
     test_every_batches: int | None = None,
     test_every_epochs: int | None = None,
     test_every_seconds: float | None = None,
-    log10_lrs: Sequence[float] = (5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5),
+    log10_lrs: Sequence[float] | None = (5, 4, 3, 2, 1, 0, -1, -2, -3, -4, -5),
     penalize_path = False,
 
     # lr tuning kwargs
@@ -381,6 +381,7 @@ def _search_for_visualization(
     debug=False,
 
 ):
+    if log10_lrs is None: log10_lrs = (1, )
     # performance
     # bench._make_images = False
     # bench._log_params = False

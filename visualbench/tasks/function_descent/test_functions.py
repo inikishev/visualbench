@@ -2,6 +2,7 @@ import copy
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 
+
 import torch
 from myai.python_tools import RelaxedMultikeyDict
 from myai.transforms import totensor
@@ -33,6 +34,7 @@ class TestFunction(ABC):
             if isinstance(v, torch.Tensor): setattr(c, k, v.to(device = device, dtype = dtype))
         return c
 
+
 class PowSum(TestFunction):
     def __init__(self, pow, mul, add, abs=True, post_pow:float = 1):
         self.pow = totensor(pow)
@@ -44,7 +46,9 @@ class PowSum(TestFunction):
     def objective(self, x):
         if x.ndim > 1:
             x = x.movedim(0, -1) # needed for broadcasting
-        x = (x * self.mul + self.add) ** self.pow
+        x = x * self.mul + self.add
+        if (self.pow < 1).any(): x = x.abs()
+        x = x ** self.pow
         if self.abs: x = x.abs()
         return x.mean(-1) ** self.post_pow
 
@@ -80,11 +84,14 @@ class Rosenbrock(TestFunction):
 rosenbrock = Rosenbrock().register('rosen', 'rosenbrock')
 
 class Rastrigin(TestFunction):
-    def __init__(self, A=10.):
+    def __init__(self, A=10., shifts = (0,0)):
         self.A = A
+        self.shifts = shifts
 
     def objective(self, X):
         x,y = X
+        x = x + self.shifts[0]
+        y = y + self.shifts[1]
         return self.A * 2 + x ** 2 - self.A * torch.cos(2 * torch.pi * x) + y ** 2 - self.A * torch.cos(2 * torch.pi * y)
 
     def x0(self): return (-4.5, 4.3)
@@ -92,24 +99,30 @@ class Rastrigin(TestFunction):
     def minima(self): return (0, 0)
 
 rastrigin = Rastrigin().register('rastrigin')
+rastrigin_shifted = Rastrigin(shifts = (0.5, -1.33)).register('rastrigin_shifted')
 
 class Ackley(TestFunction):
-    def __init__(self, a=20., b=0.2, c=2 * torch.pi, domain=16):
+    def __init__(self, a=20., b=0.2, c=2 * torch.pi, domain=16, shifts = (0,0)):
         self.a = a
         self.b = b
         self.c = c
         self.domain_ = domain
+        self.shifts = shifts
+
 
     def objective(self, X:torch.Tensor):
         x,y = X
+        x = x + self.shifts[0]
+        y = y + self.shifts[1]
         return -self.a * torch.exp(-self.b * torch.sqrt((x ** 2 + y ** 2) / 2)) - torch.exp(
             (torch.cos(self.c * x) + torch.cos(self.c * y)) / 2) + self.a + torch.exp(torch.tensor(1, dtype=X.dtype, device=X.device))
 
     def x0(self): return (-self.domain_ + self.domain_ / 100, self.domain_ - self.domain_ / 95)
     def domain(self): return (-self.domain_, self.domain_), (-self.domain_, self.domain_)
-    def minima(self): return (0, 0)
+    def minima(self): return tuple(-i for i in self.shifts)
 
 ackley = Ackley().register('ackley')
+ackley_shifted = Ackley(shifts = (0.5, -1.33)).register('ackley_shifted')
 
 class Beale(TestFunction):
     def __init__(self, a=1.5, b=2.25, c=2.625):
@@ -137,6 +150,17 @@ class Booth(TestFunction):
     def minima(self): return (1, 3)
 
 booth = Booth().register('booth')
+
+class IllConditioned(TestFunction):
+    def objective(self, X:torch.Tensor):
+        x,y = X
+        return (x + 1000 * y - 5) ** 2 + (2 * x + y - 2) ** 2
+
+    def x0(self): return (750, -8)
+    def domain(self): return ((-1000, 1000), (-10, 10))
+    def minima(self): return None
+
+ill_conditioned = IllConditioned().register('ill_conditioned', 'ill')
 
 class GoldsteinPrice(TestFunction):
     def objective(self, X):
@@ -383,7 +407,7 @@ class DipoleField(TestFunction):
     def x0(self): return (0., 1.)
     def domain(self): return (-2, 2), (-2, 2)
     def minima(self): return None
-dipole_field = DipoleField().register('dipole_field')
+dipole_field = DipoleField().register('dipole_field', 'dipole')
 
 
 

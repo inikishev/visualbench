@@ -63,10 +63,13 @@ def run_bench(
     elif isinstance(extra, str): extra = [extra]
     if isinstance(blacklist, str): blacklist = [blacklist]
     else: extra = list(extra)
-    ref = list(REFERENCE_OPTS) + extra
+    ref = list(REFERENCE_OPTS) + list(extra)
 
     randn = get_randn()
     fig = Fig()
+
+    kw = {}
+    if not has_lr: kw['log10_lrs'] = None
 
     # queue = []
     def _search(
@@ -84,8 +87,6 @@ def run_bench(
         if max_dims is not None and count_learnable_params(bench) > max_dims: return
         if blacklist is not None and name in blacklist: return
         clean_mem()
-        kw = {}
-        if not has_lr: kw['log10_lrs'] = None
 
         # run binary search
         with performance_context(name, 2) if print_time else nullcontext():
@@ -120,31 +121,31 @@ def run_bench(
 
     # ----------------------------------- PATHS ---------------------------------- #
     bench = FunctionDescent('booth')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, **kw)
     bench.plot(fig=fig.add(f'Booth 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
     bench = FunctionDescent('booth')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True, **kw)
     bench.plot(fig=fig.add(f'Booth 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
     bench = FunctionDescent('rosen')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, **kw)
     bench.plot(fig=fig.add(f'Rosenbrock 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
     bench = FunctionDescent('rosen')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True, **kw)
     bench.plot(fig=fig.add(f'Rosenbrock 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
     bench = FunctionDescent('goldstein_price')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, **kw)
     bench.plot(fig=fig.add(f'Goldstein-Price 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
     bench = FunctionDescent('goldstein_price')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True, **kw)
     bench.plot(fig=fig.add(f'Goldstein-Price 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
     bench = FunctionDescent('spiral')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, **kw)
     bench.plot(fig=fig.add(f'Spiral 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
     bench = FunctionDescent('spiral')
-    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True)
+    bench = _search_for_visualization(bench, opt_fn, max_passes=200, max_seconds=5, penalize_path=True, **kw)
     bench.plot(fig=fig.add(f'Spiral 200 passes lr={bench._info["lr"]} loss={bench.logger.min("train loss")}'), show=False) # type:ignore
 
     # --------------------------- SYNTHETIC OBJECTIVES --------------------------- #
