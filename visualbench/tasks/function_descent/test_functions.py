@@ -152,15 +152,18 @@ class Booth(TestFunction):
 booth = Booth().register('booth')
 
 class IllConditioned(TestFunction):
+    def __init__(self, a: float = 1e6):
+        self.a = a
     def objective(self, X:torch.Tensor):
         x,y = X
-        return (x + 1000 * y - 5) ** 2 + (2 * x + y - 2) ** 2
+        return (x + self.a * y - 5) ** 2 + (2 * x + y - 2) ** 2
 
     def x0(self): return (750, -8)
-    def domain(self): return ((-1000, 1000), (-10, 10))
+    def domain(self): return ((-self.a, self.a), (-10, 10))
     def minima(self): return None
 
 ill_conditioned = IllConditioned().register('ill_conditioned', 'ill')
+extremely_ill_conditioned = IllConditioned(1e10).register('extremely_ill_conditioned', 'ill')
 
 class GoldsteinPrice(TestFunction):
     def objective(self, X):
