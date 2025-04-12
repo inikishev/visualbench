@@ -114,10 +114,13 @@ class FunctionDescent(Benchmark):
 
         if 'params' in self.logger:
             params = self.logger.numpy('params')
-            params = np.clip(params, *bounds.T) # type:ignore
+            # params = np.clip(params, *bounds.T) # type:ignore
             losses = self.logger.numpy('train loss')
-            if len(params) > 0: fig.path(*params.T, c = losses, cmap=marker_cmap, s = marker_size, marker_alpha = marker_alpha, line_alpha=line_alpha, linewidth = linewidth, front='marker', linecolor=linecolor)
-
+            if len(params) > 0:
+                fig.path(*params.T, c = losses, cmap=marker_cmap, s = marker_size, marker_alpha = marker_alpha,
+                         line_alpha=line_alpha, linewidth = linewidth, front='marker', linecolor=linecolor)
+                fig.xlim(*bounds[0])
+                fig.ylim(*bounds[1])
         if show: fig.show()
         return fig
 
