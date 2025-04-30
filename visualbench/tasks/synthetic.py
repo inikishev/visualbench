@@ -1,5 +1,5 @@
 """synthetic funcs"""
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from collections.abc import Callable
 
 import torch
@@ -161,7 +161,7 @@ class AlphaBeta1(Benchmark):
 
     def get_loss(self):
         a = self.a; x = self.x; b = self.b; d = self.x.size(0)
-        loss = 0
+        loss = cast(torch.Tensor, 0)
         if a is not None:
             sums_squared = (x.sum() + a * d) ** 2
             ratios = sums_squared / (sums_squared + 1)
@@ -224,7 +224,7 @@ class SelfRecurrent(Benchmark):
         Returns:
             torch.Tensor: Frobenius norm loss between exp(A) and B.
         """
-        loss = 0
+        loss = cast(torch.Tensor, 0)
         powers = []
         A = self.A
         for p in range(2, self.n+1):

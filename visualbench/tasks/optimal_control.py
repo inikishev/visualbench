@@ -69,24 +69,24 @@ class OptimalControl(Benchmark):
             raise ValueError("optimize_mode must be 'force', 'velocity', or 'position'")
 
         # Buffers
-        initial_state_tensor = torch.tensor([*initial_pos, *initial_vel], device=CUDA_IF_AVAILABLE, dtype=torch.float32)
+        initial_state_tensor = torch.tensor([*initial_pos, *initial_vel], dtype=torch.float32)
         self.register_buffer('initial_state', initial_state_tensor)
-        self.register_buffer('target', torch.tensor(target_pos, device=CUDA_IF_AVAILABLE, dtype=torch.float32))
-        self.register_buffer('walls_tensor', torch.tensor(self.walls, dtype=torch.float32, device=CUDA_IF_AVAILABLE))
+        self.register_buffer('target', torch.tensor(target_pos, dtype=torch.float32))
+        self.register_buffer('walls_tensor', torch.tensor(self.walls, dtype=torch.float32))
 
         # Parameters (created based on mode)
         if self.mode == "force":
             # Optimize accelerations a[0]...a[T-1]
-            self.controls = nn.Parameter(torch.zeros(self.T, 2, device=CUDA_IF_AVAILABLE))
+            self.controls = nn.Parameter(torch.zeros(self.T, 2))
         elif self.mode == "velocity":
              # Optimize velocities v[1]...v[T]
-            self.controls = nn.Parameter(torch.zeros(self.T, 2, device=CUDA_IF_AVAILABLE))
+            self.controls = nn.Parameter(torch.zeros(self.T, 2))
             # warnings.warn("In 'velocity' mode, initial velocity from initial_state is used for v[0], but subsequent velocities v[1]...v[T] are optimized directly.", UserWarning)
         elif self.mode == "position":
             # Optimize positions p[1]...p[T]
             # Initialize near initial position for better start
             initial_p = self.initial_state[:2].unsqueeze(0).repeat(self.T, 1)
-            self.controls = nn.Parameter(initial_p + torch.randn(self.T, 2, device=CUDA_IF_AVAILABLE) * 0.01) # Add small noise
+            self.controls = nn.Parameter(initial_p + torch.randn(self.T, 2) * 0.01) # Add small noise
             # warnings.warn("In 'position' mode, initial velocity from initial_state is ignored during optimization, as velocities are derived from optimized positions.", UserWarning)
 
         self._create_background()
@@ -111,7 +111,7 @@ class OptimalControl(Benchmark):
         draw.ellipse([(x-size, y-size), (x+size, y+size)], fill=color)
 
     def get_loss(self):
-        control_loss = torch.tensor(0.0, device=CUDA_IF_AVAILABLE)
+        control_loss = 0
 
         P0 = self.initial_state[:2]  # Initial position [px0, py0]
         V0 = self.initial_state[2:]  # Initial velocity [vx0, vy0]

@@ -11,6 +11,7 @@ from myai.python_tools import performance_context
 from myai.torch_tools import count_params
 from mystuff.found.torch.optim.Muon import Muon
 import pytorch_optimizer
+import torchzero as tz
 
 from ._utils.runs_plotting import _print_best, plot_lr_search_curve, plot_metric
 from .benchmark import Benchmark
@@ -40,6 +41,8 @@ OPTS2 = {
     "pytorch_optimizer.Kron": pytorch_optimizer.Kron,
     "pytorch_optimizer.SOAP": pytorch_optimizer.SOAP,
     "L-BFGS strong wolfe": lambda p, lr: torch.optim.LBFGS(p,lr,line_search_fn='strong_wolfe'),
+    "CG": lambda p, lr: tz.Modular(p,tz.m.HybridHS_DY(), tz.m.StrongWolfe(), tz.m.LR(lr)),
+    "MeZO": lambda p, lr: tz.Modular(p, tz.m.MeZO(), tz.m.LR(lr)),
 }
 
 

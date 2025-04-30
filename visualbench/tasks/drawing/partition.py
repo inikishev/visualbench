@@ -2,12 +2,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
-from ..benchmark import Benchmark
-from .._utils import _make_float_hw3_tensor, _normalize_to_uint8
+from ...benchmark import Benchmark
+from ..._utils import _make_float_hw3_tensor, _normalize_to_uint8
 
 
 
-class PartitionReconstructor(Benchmark):
+class PartitionDrawer(Benchmark):
     """
     """
 

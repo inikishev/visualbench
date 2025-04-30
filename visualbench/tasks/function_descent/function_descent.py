@@ -1,7 +1,7 @@
 """2D (maybe I add higher D) function descent"""
 
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Sequence, Iterable
 
 import numpy as np
 import torch
@@ -17,6 +17,12 @@ from .test_functions import TEST_FUNCTIONS, TestFunction
 class _UnpackCall:
     def __init__(self, f): self.f=f
     def __call__(self, *x): return self.f(torch.stack(x, 0))
+
+def _safe_flatten(x):
+    # stupid 0d tensors are iterable but not
+    if isinstance(x, (torch.Tensor, np.ndarray)) and x.ndim == 0: return x
+    if isinstance(x, Iterable): return [_safe_flatten(i) for i in x]
+    return x
 
 class FunctionDescent(Benchmark):
     def __init__(
@@ -50,14 +56,14 @@ class FunctionDescent(Benchmark):
             if x0 is None: x0 = f.x0()
             if domain is None: domain = f.domain()
             if minima is None: minima = f.minima()
-            unpack = False
-
-        self.func = f
+            unpack = True
 
         x0 = totensor(x0, dtype=dtype)
         super().__init__(log_params=True, log_projections = x0.numel() > 2)
 
-        if domain is not None: self._domain = tonumpy(flatten(domain))
+        self.func: Callable[..., torch.Tensor] | TestFunction = f # type:ignore
+
+        if domain is not None: self._domain = tonumpy(_safe_flatten(domain))
         else: self._domain = None
 
         self.unpack = unpack
@@ -83,7 +89,7 @@ class FunctionDescent(Benchmark):
         if self.unpack:
             loss = self.func(*self.params)
         else:
-            loss = self.func(self.params)
+            loss = self.func(self.params) # type:ignore
         return loss
 
     @torch.no_grad
@@ -108,8 +114,9 @@ class FunctionDescent(Benchmark):
 
         bounds = self._get_domain()
 
-        if not self.unpack: f = _UnpackCall(self.func)
-        else: f = self.func
+        if self.unpack: f = self.func
+        else: f = _UnpackCall(self.func)
+
         fig.funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, lib=torch) # type:ignore
 
         if 'params' in self.logger:
@@ -135,11 +142,11 @@ class FunctionDescent(Benchmark):
         # I have to swap some of them by trial and error
         x_spacing = torch.linspace(*xrange, num) # type:ignore
         y_spacing = torch.linspace(*yrange, num) # type:ignore
-        X,Y = torch.meshgrid(x_spacing, y_spacing, indexing='ij') # grid of points
+        X,Y = torch.meshgrid(x_spacing, y_spacing, indexing='xy') # grid of points
 
         # make function image
         if self.unpack: img: np.ndarray = tonumpy(self.func(X, Y)) # type:ignore
-        else: img: np.ndarray = tonumpy(self.func(torch.stack([X,Y], dim=0))).T
+        else: img: np.ndarray = tonumpy(self.func(torch.stack([X,Y], dim=0))).T # type:ignore
         img -= img.min()
         img /= img.max()
         img *= 255

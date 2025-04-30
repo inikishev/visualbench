@@ -34,6 +34,8 @@ from ._utils import (
     _search,
     plot_lr_search_curve,
     plot_metric,
+    _plot_landscape_sklearn,
+    _plot_landscape_random,
 )
 
 
@@ -338,7 +340,7 @@ class Benchmark(torch.nn.Module, ABC):
         del spec['self']
         return _plot_loss(self, **spec)
 
-    def plot_trajectory(self, fig = None, norm: str | None = 'symlog', show = True):
+    def plot_trajectory(self, norm: str | None = 'symlog', fig = None, show = True):
         spec = locals().copy()
         del spec['self']
         return _plot_trajectory(self, **spec)
@@ -348,7 +350,7 @@ class Benchmark(torch.nn.Module, ABC):
         del spec['self']
         return _plot_images(self, **spec)
 
-    def plot_summary(self, metrics = (), nrows = None, ncols = None, figsize = None, axsize = None):
+    def plot_summary(self, metrics = (), norm: str | None = 'symlog', nrows = None, ncols = None, figsize = None, axsize = None):
         fig = Fig()
 
         # plot losses
@@ -359,7 +361,7 @@ class Benchmark(torch.nn.Module, ABC):
         for metric in metrics: self.plot_loss(y=metric, fig=fig.add(metric), show=False)
 
         # plot trajectory if it was logged
-        if self._proj1 is not None: self.plot_trajectory(fig.add('trajectory'), show=False)
+        if self._proj1 is not None: self.plot_trajectory(norm=norm, fig=fig.add('trajectory'), show=False)
 
         # check if any images to plot and plot them
         if any(i.startswith(('image', 'train image', 'test image')) for i in self.logger.keys()) or len(self.reference_images) != 0:
@@ -368,6 +370,27 @@ class Benchmark(torch.nn.Module, ABC):
         # show
         if (axsize is None) and (figsize is None): axsize = (8, 4)
         fig.show(nrows=nrows, ncols=ncols, figsize=figsize, axsize=axsize)
+
+    def plot_landscape(
+        self,
+        mode: Literal["random", "edge", "pca"] | Any | None = None,
+        gs_num=30,
+        ars_evals=1000,
+        middle_mode: Literal['middle','mean','min'] = 'mean',
+        norm: str | None = "symlog",
+        expand: float = 1,
+        use_diff=False,
+        fig=None,
+        show=True,
+    ):
+        self.eval()
+        if mode is None:
+            if 'params' in self.logger.keys(): mode = 'pca'
+
+        if mode is None or mode in ('edge', 'random'):
+            return _plot_landscape_random(self, gs_num=gs_num,ars_evals=ars_evals,norm=norm,mode=mode,middle_mode=middle_mode,expand=expand,fig=fig,show=show)
+
+        return _plot_landscape_sklearn(self, gs_num=gs_num,ars_evals=ars_evals,norm=norm,projector=mode,expand=expand,use_diff=use_diff,fig=fig,show=show)
 
     def render_video(self, file: str, fps: int = 60, scale: int | float = 1, progress=True):
         spec = locals().copy()

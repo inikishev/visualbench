@@ -57,6 +57,7 @@ def run_bench(
     max_dims: int | None = None,
     print_time=False,
     blacklist = None,
+    legend_size=12,
 ):
     torch.manual_seed(0)
     if extra is None: extra = []
@@ -111,9 +112,9 @@ def run_bench(
             if (log_scale is not None) and (metric in log_scale) and log_scale[metric]: log_scale_value = True
 
             (plot_metric(task_name=name, metric=metric, opts = opt_name, log_scale=log_scale_value, fig = fig.add(f'{name} {metric}'), show = False, opts_all_lrs=False, ref=ref)
-            .legend(size=12))
+            .legend(size=legend_size))
             (plot_lr_search_curve(task_name=name, metric=metric, opts = opt_name, log_scale=log_scale_value, fig = fig.add(f'{name} {metric} lrs'), show = False, ref = ref)
-            .legend(size=12))
+            .legend(size=legend_size))
 
 
     # note that some benchmarks are a bit faster on CPU

@@ -6,11 +6,11 @@ from torch import nn, optim
 from torch.nn import functional as F
 from myai.transforms import normalize
 
-from ..benchmark import Benchmark
-from .._utils import _make_float_hw3_tensor, CUDA_IF_AVAILABLE
+from ...benchmark import Benchmark
+from ..._utils import _make_float_hw3_tensor, CUDA_IF_AVAILABLE
 
 
-class RectangleReconstructor(Benchmark):
+class RectanglesDrawer(Benchmark):
     """Reconstructs the passed colored image with soft semi-transparent rectangles.
 
     Args:
@@ -145,16 +145,7 @@ class RectangleReconstructor(Benchmark):
 
         if self._make_images:
             img = reconstructed.detach().clamp(0, 1).permute(1, 2, 0)*255
-            self.log(
-                'image reconstructed',
-                img.cpu().numpy().astype(np.uint8),
-                log_test=False,
-                to_uint8=False
-            )
-            self.log_difference(
-                "image difference",
-                img,
-                to_uint8=True,
-            )
+            self.log('image reconstructed', img.cpu().numpy().astype(np.uint8), log_test=False, to_uint8=False)
+            self.log_difference("image difference", img,to_uint8=True)
 
         return loss + penalty

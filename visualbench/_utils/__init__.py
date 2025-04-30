@@ -4,6 +4,8 @@ from .plotting import (
     _plot_trajectory,
     _render_video,
     _repeat_to_largest,
+    _plot_landscape_random,
+    _plot_landscape_sklearn,
 )
 from .runs import rebuild_all_yamls_
 from .search import _search, _search_for_visualization
