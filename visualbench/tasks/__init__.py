@@ -25,4 +25,5 @@ from .synthetic import (
     Sphere,
 )
 from .marbles import MarbleRace, MARBLE_COURSE
+from .colorization import Colorization
 # from .gnn import GraphNN

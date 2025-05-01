@@ -311,8 +311,8 @@ class MarbleRace(Benchmark):
     def _render_current_state(self):
         """Renders the current state and appends to self.frames."""
         # Stack positions, detach from graph, move to CPU for numpy/cv2
-        ball_pos_tensor = self._get_stacked_positions()
-        ball_pos_np = ball_pos_tensor.data.detach().cpu().numpy()
+        ball_pos_tensor = self._get_stacked_positions().nan_to_num()
+        ball_pos_np = ball_pos_tensor.nan_to_num().detach().cpu().numpy()
 
         # Convert obstacles/zones back for drawing (same as before)
         obstacles_draw = []
