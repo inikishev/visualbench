@@ -12,7 +12,7 @@ from myai.torch_tools import count_params
 from mystuff.found.torch.optim.Muon import Muon
 import pytorch_optimizer
 import torchzero as tz
-
+from torchzero.optim.wrappers.scipy import ScipyMinimize, ScipyDE
 from ._utils.runs_plotting import _print_best, plot_lr_search_curve, plot_metric
 from .benchmark import Benchmark
 from .data import ATTNGRAD96, SANIC96, TEST96, get_qrcode, get_randn
@@ -35,13 +35,15 @@ OPTS2 = {
     "Rprop": torch.optim.Rprop,
     "Adagrad": torch.optim.Adagrad,
     "NAG": lambda p,lr: torch.optim.SGD(p, lr, momentum = 0.9, nesterov=True),
+    "NAG 0.999": lambda p,lr: torch.optim.SGD(p, lr, momentum = 0.999, nesterov=True),
     "SGD": torch.optim.SGD,
     "Muon": Muon,
     "pytorch_optimizer.MARS": lambda p, lr: pytorch_optimizer.MARS(p,lr,lr_1d=lr),
     "pytorch_optimizer.Kron": pytorch_optimizer.Kron,
     "pytorch_optimizer.SOAP": pytorch_optimizer.SOAP,
     "L-BFGS strong wolfe": lambda p, lr: torch.optim.LBFGS(p,lr,line_search_fn='strong_wolfe'),
-    "CG": lambda p, lr: tz.Modular(p,tz.m.HybridHS_DY(), tz.m.StrongWolfe(), tz.m.LR(lr)),
+    "CG": lambda p, lr: ScipyMinimize(p, method='cg'),
+    "Powell's method": lambda p, lr: ScipyMinimize(p, method='powell'),
     "MeZO": lambda p, lr: tz.Modular(p, tz.m.MeZO(), tz.m.LR(lr)),
 }
 
@@ -97,7 +99,7 @@ def test_benchmark(
         for opt_name, cls in OPTS2.items():
             if opt_name in skip_opt: continue
 
-            kw:dict = dict(log10_lrs = (0, )) if opt_name == 'L-BFGS strong wolfe' else {}
+            kw:dict = dict(log10_lrs = (0, )) if opt_name in ('L-BFGS strong wolfe', 'CG', "Powell's method") else {}
             # try:
             b._print_timeout = True
             b.search(
@@ -128,7 +130,25 @@ def test_benchmark(
 
         fig = Fig()
         for m in target_metrics:
-            plot_metric(bench_name, None, log_scale=log_scale, metric=m, show=False, ref='all', fig = fig.add(m), root = root)
-            plot_lr_search_curve(bench_name, None, log_scale=log_scale, metric=m, show=False, ref='all', fig = fig.add(m), root = root)
+            plot_metric(
+                bench_name,
+                None,
+                log_scale=log_scale,
+                metric=m,
+                show=False,
+                ref="all",
+                fig=fig.add(m).set_prop_cycle_from_cmap("tab20", 20),
+                root=root,
+            )
+            plot_lr_search_curve(
+                bench_name,
+                None,
+                log_scale=log_scale,
+                metric=m,
+                show=False,
+                ref="all",
+                fig=fig.add(m).set_prop_cycle_from_cmap("tab20", 20),
+                root=root,
+            )
 
         fig.figtitle(bench_name).savefig(f'{bench_name} - {sec:.2f}s..jpg', axsize = (12, 6), dpi=300, ncols=2).close()

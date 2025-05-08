@@ -1,3 +1,4 @@
+from .colorization import Colorization
 from .datasets import *
 from .drawing import LinesDrawer, PartitionDrawer, RectanglesDrawer
 from .function_descent import FunctionDescent, test_functions
@@ -11,9 +12,13 @@ from .graph_layout import (
 from .lennard_jones_clusters import LennardJonesClusters
 from .linalg import *
 from .lstm import RNNArgsort
+from .marbles import MARBLE_COURSE, MarbleRace
 from .operations import Sorting
 from .optimal_control import OptimalControl
 from .packing import BoxPacking, SpherePacking, SquishyBoxPacking
+
+# from .gnn import GraphNN
+from .particles import *
 from .smale7 import Smale7
 from .style_transfer import StyleTransfer
 from .synthetic import (
@@ -24,6 +29,5 @@ from .synthetic import (
     SelfRecurrent,
     Sphere,
 )
-from .marbles import MarbleRace, MARBLE_COURSE
-from .colorization import Colorization
-# from .gnn import GraphNN
+from .katos import KatosProblem
+from .normal_scalar_curvature import NormalScalarCurvature

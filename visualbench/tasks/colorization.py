@@ -25,7 +25,11 @@ class Colorization(Benchmark):
     """inspired by https://distill.pub/2017/momentum/"""
     def __init__(self, init: torch.Tensor = _INIT, mask: torch.Tensor=_get_mask(_INIT, 4, (33, 10, 2)), pull_idxs = ((32, 0),)):
         super().__init__(log_projections=True)
-        self.image = nn.Parameter(init * mask)
+        image = init * mask
+        for idx in pull_idxs:
+            image[*idx] = 1
+
+        self.image = nn.Parameter(image)
         self.mask = nn.Buffer(mask.float())
         self.pull_idxs = pull_idxs
 

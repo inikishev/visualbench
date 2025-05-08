@@ -3,6 +3,7 @@ import os
 from collections.abc import Callable, Sequence
 from contextlib import nullcontext
 
+from accelerate import Accelerator
 import torch
 from myai.jupyter_tools import clean_mem
 from myai.loaders.image import imreadtensor
@@ -88,6 +89,9 @@ def run_bench(
         if max_dims is not None and count_learnable_params(bench) > max_dims: return
         if blacklist is not None and name in blacklist: return
         clean_mem()
+
+        accelerator = Accelerator(cpu = not next(bench.parameters()).is_cuda)
+        bench = accelerator.prepare(bench)
 
         # run binary search
         with performance_context(name, 2) if print_time else nullcontext():

@@ -56,10 +56,12 @@ def draw_state(
     # Draw Balls (ensure they are drawn last/on top)
     for i in range(ball_positions.shape[0]):
         center = tuple(map(int, ball_positions[i]))
-        cv2.circle(img, center, int(radius), ball_color, -1) # pylint:disable=no-member
-        # Optional: Draw black outline for better visibility
-        cv2.circle(img, center, int(radius), (0,0,0), 1) # pylint:disable=no-member
-
+        try:
+            cv2.circle(img, center, int(radius), ball_color, -1) # pylint:disable=no-member
+            # Optional: Draw black outline for better visibility
+            cv2.circle(img, center, int(radius), (0,0,0), 1) # pylint:disable=no-member
+        except Exception:
+            pass
     return img
 
 # Define custom obstacles and zones (optional)
