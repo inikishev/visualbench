@@ -706,3 +706,12 @@ class IOU(TestFunction):
     def minima(self): return (0, 0)
 
 iou = IOU().shifted(-1,2).register('iou')
+
+class LeastSquares(TestFunction):
+    def objective(self, x, y):
+        return (2*x + 3*y - 5)**2 + (5*x - 2*y - 3)**2
+
+    def x0(self): return (-0.9, 0)
+    def domain(self): return (-1,3,-1,3)
+    def minima(self): return (1, 1)
+least_squares = LeastSquares().register('least_squares', 'lstsq')

@@ -145,6 +145,7 @@ class Benchmark(torch.nn.Module, ABC):
                 depending on if training or testing, and takes mean of test values after each test epoch.
                 Otherwise only logged during training. Defaults to True.
         """
+        while value.__class__.__name__ == 'AlgebraicTensor': value = value.data
         if isinstance(value, torch.Tensor): value = value.detach().cpu()
         if to_uint8: value = _normalize_to_uint8(value)
 
@@ -164,6 +165,7 @@ class Benchmark(torch.nn.Module, ABC):
 
     def log_difference(self, name: str, value: Any, to_uint8):
         """basically saves last update to name to visualzie optimziation dynamics, train only"""
+        while value.__class__.__name__ == 'AlgebraicTensor': value = value.data
         if name not in self._previous_difference_values:
             prev = self._previous_difference_values[name] = _maybe_detach_clone(value)
         else:

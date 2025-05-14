@@ -9,10 +9,13 @@ from .graph_layout import (
     grid_graph,
     watts_strogatz_graph,
 )
+from .hadamard import Hadamard
+from .katos import KatosProblem
 from .lennard_jones_clusters import LennardJonesClusters
 from .linalg import *
 from .lstm import RNNArgsort
 from .marbles import MARBLE_COURSE, MarbleRace
+from .normal_scalar_curvature import NormalScalarCurvature
 from .operations import Sorting
 from .optimal_control import OptimalControl
 from .packing import BoxPacking, SpherePacking, SquishyBoxPacking
@@ -20,6 +23,7 @@ from .packing import BoxPacking, SpherePacking, SquishyBoxPacking
 # from .gnn import GraphNN
 from .particles import *
 from .smale7 import Smale7
+from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
     AlphaBeta1,
@@ -29,5 +33,3 @@ from .synthetic import (
     SelfRecurrent,
     Sphere,
 )
-from .katos import KatosProblem
-from .normal_scalar_curvature import NormalScalarCurvature

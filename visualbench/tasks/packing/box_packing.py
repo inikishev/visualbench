@@ -115,9 +115,6 @@ class BoxPacking(Benchmark):
         dtype (dtype, optional): dtype. Defaults to torch.float32.
         device (Device, optional): device. Defaults to 'cpu'.
     """
-    size: torch.nn.Buffer
-    container_size: torch.nn.Buffer
-    box_sizes: torch.nn.Buffer
     def __init__(
         self,
         container_size = CONTAINER1[0],
@@ -138,11 +135,11 @@ class BoxPacking(Benchmark):
         self.scale = scale
         self.container_size_np = (np.array(container_size, dtype = float) * scale).astype(int)
         size = torch.prod(torch.tensor(self.container_size_np, dtype = dtype))
-        self.register_buffer('size', size)
+        self.size = torch.nn.Buffer(size)
         container_size = torch.from_numpy(self.container_size_np).to(dtype=dtype)
-        self.register_buffer('container_size', container_size)
+        self.container_size = torch.nn.Buffer(container_size)
         box_sizes = totensor(box_sizes, dtype = dtype) * scale
-        self.register_buffer('box_sizes', box_sizes)
+        self.box_sizes = torch.nn.Buffer(box_sizes)
         self.box_sizes_np = self.box_sizes.detach().cpu().numpy()
         self.square = square
 

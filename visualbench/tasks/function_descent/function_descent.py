@@ -31,6 +31,7 @@ class FunctionDescent(Benchmark):
         x0: Sequence | np.ndarray | torch.Tensor | None = None,
         domain: tuple[tuple[float, float], tuple[float, float]] | tuple[float,float,float,float] | Sequence[Sequence[float]] | Sequence[float] | None = None,
         minima = None,
+        noise: float | None = None,
         dtype: torch.dtype = torch.float32,
         unpack=True,
     ):
@@ -71,6 +72,9 @@ class FunctionDescent(Benchmark):
         else: self.minima = minima
 
         self.params = torch.nn.Parameter(x0.requires_grad_(True))
+        self.noise = noise
+        self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
+        self.noise_batch = 0
 
     @property
     def ndim(self): return self.params.numel()
@@ -86,10 +90,18 @@ class FunctionDescent(Benchmark):
         return np.array([[self._domain[0],self._domain[1]],[self._domain[2],self._domain[3]]])
 
     def get_loss(self):
+        params = self.params
+        if self.noise is not None:
+            # only update noise on next "batch"
+            if self._num_batches != self.noise_batch:
+                self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
+                self.noise_batch = self._num_batches
+            params = params + self.noise_tensor * self.noise
+
         if self.unpack:
-            loss = self.func(*self.params)
+            loss = self.func(*params)
         else:
-            loss = self.func(self.params) # type:ignore
+            loss = self.func(params) # type:ignore
         return loss
 
     @torch.no_grad

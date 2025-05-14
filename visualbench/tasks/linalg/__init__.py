@@ -21,3 +21,4 @@ from .tensor_decompositions import (
     CompactHOSVD,
     TensorTrain,
 )
+from ._linalg_utils import _full001, _full01, _normal01, _ones, _zeros
