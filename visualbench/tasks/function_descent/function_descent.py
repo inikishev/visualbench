@@ -31,7 +31,8 @@ class FunctionDescent(Benchmark):
         x0: Sequence | np.ndarray | torch.Tensor | None = None,
         domain: tuple[tuple[float, float], tuple[float, float]] | tuple[float,float,float,float] | Sequence[Sequence[float]] | Sequence[float] | None = None,
         minima = None,
-        noise: float | None = None,
+        noise: float = 0,
+        noise_bias: float = 0,
         dtype: torch.dtype = torch.float32,
         unpack=True,
     ):
@@ -60,7 +61,7 @@ class FunctionDescent(Benchmark):
             unpack = True
 
         x0 = totensor(x0, dtype=dtype)
-        super().__init__(log_params=True, log_projections = x0.numel() > 2)
+        super().__init__(log_params=True, log_projections = x0.numel() > 2, noise=noise, noise_bias=noise_bias)
 
         self.func: Callable[..., torch.Tensor] | TestFunction = f # type:ignore
 
@@ -72,9 +73,9 @@ class FunctionDescent(Benchmark):
         else: self.minima = minima
 
         self.params = torch.nn.Parameter(x0.requires_grad_(True))
-        self.noise = noise
-        self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
-        self.noise_batch = 0
+        # self.noise = noise
+        # self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
+        # self.noise_batch = 0
 
     @property
     def ndim(self): return self.params.numel()
@@ -91,12 +92,12 @@ class FunctionDescent(Benchmark):
 
     def get_loss(self):
         params = self.params
-        if self.noise is not None:
-            # only update noise on next "batch"
-            if self._num_batches != self.noise_batch:
-                self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
-                self.noise_batch = self._num_batches
-            params = params + self.noise_tensor * self.noise
+        # if self.noise is not None:
+        #     # only update noise on next "batch"
+        #     if self._num_batches != self.noise_batch:
+        #         self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
+        #         self.noise_batch = self._num_batches
+        #     params = params + self.noise_tensor * self.noise
 
         if self.unpack:
             loss = self.func(*params)

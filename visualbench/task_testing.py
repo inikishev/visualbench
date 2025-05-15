@@ -33,20 +33,25 @@ OPTS = {
 OPTS2 = {
     "Adam": torch.optim.Adam,
     "Rprop": torch.optim.Rprop,
+    "RMSprop": torch.optim.RMSprop,
     "Adagrad": torch.optim.Adagrad,
     "NAG": lambda p,lr: torch.optim.SGD(p, lr, momentum = 0.9, nesterov=True),
     "NAG 0.999": lambda p,lr: torch.optim.SGD(p, lr, momentum = 0.999, nesterov=True),
     "SGD": torch.optim.SGD,
-    "Muon": Muon,
+    "NormalizedSGD": lambda p, lr: tz.Modular(p, tz.m.Normalize(), tz.m.LR(lr)),
+    "Muon": lambda p, lr: tz.Modular(p, tz.m.Orthogonalize(), tz.m.LR(lr)),
     "pytorch_optimizer.MARS": lambda p, lr: pytorch_optimizer.MARS(p,lr,lr_1d=lr),
     "pytorch_optimizer.Kron": pytorch_optimizer.Kron,
     "pytorch_optimizer.SOAP": pytorch_optimizer.SOAP,
+    "SOAP-NormalizeByEMA": lambda p, lr: tz.Modular(p, tz.m.SOAP(), tz.m.NormalizeByEMA(max_ema_growth=1.1), tz.m.LR(lr)),
+    "AdaptiveBacktracking": lambda p, lr: tz.Modular(p, tz.m.AdaptiveBacktracking()),
     "L-BFGS strong wolfe": lambda p, lr: torch.optim.LBFGS(p,lr,line_search_fn='strong_wolfe'),
     "CG": lambda p, lr: ScipyMinimize(p, method='cg'),
+    "NewtonCG": lambda p, lr: tz.Modular(p, tz.m.NewtonCG(maxiter=100), tz.m.StrongWolfe()),
     "Powell's method": lambda p, lr: ScipyMinimize(p, method='powell'),
     "MeZO": lambda p, lr: tz.Modular(p, tz.m.MeZO(), tz.m.LR(lr)),
 }
-
+OPTS_WITH_NO_LR = {'AdaptiveBacktracking', 'L-BFGS strong wolfe', 'CG', "Powell's method", "NewtonCG"}
 
 _randn = get_randn()
 _qrcode = get_qrcode()
@@ -99,7 +104,7 @@ def test_benchmark(
         for opt_name, cls in OPTS2.items():
             if opt_name in skip_opt: continue
 
-            kw:dict = dict(log10_lrs = (0, )) if opt_name in ('L-BFGS strong wolfe', 'CG', "Powell's method") else {}
+            kw:dict = dict(log10_lrs = (0, )) if opt_name in OPTS_WITH_NO_LR else {}
             # try:
             b._print_timeout = True
             b.search(

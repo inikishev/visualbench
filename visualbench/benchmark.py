@@ -1,5 +1,6 @@
 import itertools
 import time
+import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Sequence
 from contextlib import nullcontext
@@ -41,7 +42,14 @@ from ._utils import (
 
 class StopCondition(Exception): pass
 
+def _make_biased_noise(p: torch.Tensor, noise_level: float, noise_bias: float, rng: RNG) -> torch.Tensor:
+    if noise_level == 0:
+        assert noise_bias != 0
+        return torch.full(p.shape, random.uniform(-noise_bias, noise_bias),device=p.device, dtype=p.dtype)
 
+    noise = torch.randn(p.shape, device=p.device, dtype=p.dtype, generator=rng.torch(p.device)) * noise_level
+    if noise_bias != 0: noise += random.uniform(-noise_bias, noise_bias)
+    return noise
 
 class Benchmark(torch.nn.Module, ABC):
     def __init__(
@@ -50,6 +58,8 @@ class Benchmark(torch.nn.Module, ABC):
         dltest: Iterable[Any] | None = None,
         log_params = False,
         log_projections = False,
+        noise: float = 0,
+        noise_bias: float = 0,
         seed: int | None = 0,
     ):
         super().__init__()
@@ -66,6 +76,9 @@ class Benchmark(torch.nn.Module, ABC):
         self._make_images = True
         self._initial_state_dict = None
         self._print_timeout = False
+
+        self._noise_level = noise
+        self._noise_bias_level = noise_bias
         self._reset()
 
     def _store_initial_state_dict(self):
@@ -81,6 +94,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._reset()
         return self
 
+    @torch.no_grad
     def _reset(self):
         self.logger = DictLogger()
         self.rng = RNG(self._seed)
@@ -185,15 +199,31 @@ class Benchmark(torch.nn.Module, ABC):
         # store initial state dict on 1st step
         # this also gets called at the beginning of run to make time more accurate
         # but this is for when function is evaluated manually
-        if self._initial_state_dict is None: self._store_initial_state_dict()
+        if self._initial_state_dict is None:
+            self._update_noise()
+            self._store_initial_state_dict()
 
         # terminate if stop condition reached
+        noise = None
+        params = None
         if self.training:
             msg = _check_stop_condition(self)
             if msg is not None: raise StopCondition(msg)
 
+            if self._has_noise:
+                with torch.no_grad():
+                    params = tuple(self.parameters())
+                    noise = self._get_noise()
+                    torch._foreach_add_(params, noise)
+
         # get loss and log it
+
         loss = self.get_loss()
+
+        if noise is not None:
+            assert params is not None
+            with torch.no_grad():
+                torch._foreach_sub_(params, noise)
 
         cpu_loss = _ensure_float(loss)
         self.log('loss', cpu_loss, log_test=True)
@@ -210,6 +240,24 @@ class Benchmark(torch.nn.Module, ABC):
             self._last_test_loss = cpu_loss
 
         return loss
+
+    @property
+    def _has_noise(self):
+        return self._noise_level != 0 or self._noise_bias_level != 0
+
+    def _update_noise(self):
+        if self._has_noise:
+            for i,p in enumerate(self.parameters()):
+                k = f"_noise_{i}"
+                v = _make_biased_noise(p, self._noise_level, self._noise_bias_level, self.rng)
+                if not hasattr(self, k): self.register_buffer(k, v)
+                else: getattr(self, k).set_(v)
+
+    def _get_noise(self) -> list[torch.Tensor]:
+        noise = []
+        for i,p in enumerate(self.parameters()):
+            noise.append(getattr(self, f"_noise_{i}"))
+        return noise
 
     def _post_closure(self, backward: bool) -> None:
         """post closure logic that must be called by closure, but that way any custom closure can be used like
@@ -248,17 +296,30 @@ class Benchmark(torch.nn.Module, ABC):
 
     def one_step(self, optimizer, batch):
         """one batch or one step"""
+        self._update_noise()
         self.batch = batch
 
         if self.training:
             optimizer.step(self.closure)
             self._num_batches += 1
+
+            # if has_noise, train loss is calculated at params+noise
+            # giving huge advantage to optimizers that simply grind one closure for many steps
+            # we log test loss after each step
+            if self._has_noise and self._dltest is None:
+                self.eval()
+                with torch.inference_mode():
+                    test_loss = self.closure(False).detach().cpu()
+                    self.logger.log(self._num_forwards, 'test loss', test_loss)
+                self.train()
+
         else:
             self.closure(False)
 
 
+
     def one_epoch(self, optimizer, dl):
-        """one epoch"""
+        """one epoch (if you haven't noticed)"""
         if dl is None: self.one_step(optimizer, None)
         else:
             for batch in dl: self.one_step(optimizer, batch)
@@ -294,7 +355,10 @@ class Benchmark(torch.nn.Module, ABC):
         test_every_seconds: float | None = None,
         progress = True
     ):
-        if self._initial_state_dict is None: self._store_initial_state_dict()
+        """RUN TA TATTATA ATAT ATATATTATATAT ATTATA """
+        if self._initial_state_dict is None:
+            self._update_noise()
+            self._store_initial_state_dict()
 
         self._max_forwards = max_forwards
         self._max_passes = max_passes

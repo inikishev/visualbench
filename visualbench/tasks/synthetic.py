@@ -57,8 +57,8 @@ class Convex(Benchmark):
         dim (int, optional): number of dimensions. Defaults to 165125384.
         seed (int, optional): rng seed. Defaults to 0.
     """
-    def __init__(self, dim=512, mul = 1e-2, seed=0):
-        super().__init__(seed=seed, log_projections=True)
+    def __init__(self, dim=512, mul = 1e-2, noise=0, seed=0):
+        super().__init__(seed=seed, log_projections=True, noise=noise)
         generator = self.rng.torch()
         self.dim = dim
 
