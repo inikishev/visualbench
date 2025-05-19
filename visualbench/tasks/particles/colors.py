@@ -16,13 +16,13 @@ def _get_colors(n):
 class ColoredParticles(Benchmark):
     def __init__(
         self,
-        points_per_group,
         n_groups,
+        points_per_group,
         repulsion=1.0,
         attraction=0.1,
         repulsion_dist=0.5,
         world_size=1.0,
-        frame_size=512,
+        resolution=512,
     ):
         """Particles of same color are repulsed from each other, particles of different colors attract each other."""
         super().__init__()
@@ -35,7 +35,7 @@ class ColoredParticles(Benchmark):
         self.num_groups = n_groups
         self.total_points = sum(points_per_group)
         self.world_size = world_size
-        self.frame_size = frame_size
+        self.resolution = resolution
 
         # params
         initial_points = torch.rand(self.total_points, 2) * self.world_size
@@ -55,25 +55,25 @@ class ColoredParticles(Benchmark):
         self.group_ids = nn.Buffer(torch.tensor(group_ids, dtype=torch.long))
 
         self.cv2_colors = _get_colors(self.num_groups)
-        self.point_radius_px = max(3, frame_size // 100)
+        self.point_radius_px = max(3, resolution // 100)
 
     @torch.no_grad
     def _make_frame(self):
         points = self.points.data.clone().detach().cpu().numpy()
         group_ids = self.group_ids.cpu().numpy()
 
-        frame = np.ones((self.frame_size, self.frame_size, 3), dtype=np.uint8) * 255
+        frame = np.ones((self.resolution, self.resolution, 3), dtype=np.uint8) * 255
 
         for i in range(self.total_points):
             x, y = points[i]
             group_id = group_ids[i]
             color = self.cv2_colors[group_id]
 
-            center_x = int(x / self.world_size * self.frame_size)
-            center_y = int(y / self.world_size * self.frame_size)
+            center_x = int(x / self.world_size * self.resolution)
+            center_y = int(y / self.world_size * self.resolution)
 
-            center_x = np.clip(center_x, self.point_radius_px, self.frame_size - self.point_radius_px -1)
-            center_y = np.clip(center_y, self.point_radius_px, self.frame_size - self.point_radius_px -1)
+            center_x = np.clip(center_x, self.point_radius_px, self.resolution - self.point_radius_px -1)
+            center_y = np.clip(center_y, self.point_radius_px, self.resolution - self.point_radius_px -1)
 
             cv2.circle(frame, (center_x, center_y), self.point_radius_px, color, -1) # pylint:disable=no-member
             cv2.circle(frame, (center_x, center_y), self.point_radius_px, (0,0,0), 1) # black outline  # pylint:disable=no-member

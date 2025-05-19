@@ -40,7 +40,7 @@ def _make_collage(images: list[np.ndarray]):
     # it is now (image, H, W, 3)
 
     # compose them
-    ncols = len(stacked) ** (0.55 * (max_shape[0]/max_shape[1]))
+    ncols = len(stacked) ** (0.6 * (max_shape[0]/max_shape[1]))
     nrows = round(len(stacked) / ncols)
     ncols = round(ncols)
     nrows = max(nrows, 1)

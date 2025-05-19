@@ -30,3 +30,4 @@ from .synthetic import (
     Rosenbrock,
     Sphere,
 )
+from .covering import RigidBoxCovering
