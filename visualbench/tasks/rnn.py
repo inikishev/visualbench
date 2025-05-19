@@ -1,12 +1,15 @@
 from collections.abc import Callable
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from ..benchmark import Benchmark
+
 
 class RNNArgsort(Benchmark):
     def __init__(self, seq_len=10, hidden_size=32, batch_size=128, num_layers=1, rnn_cls: Callable[..., nn.Module] = nn.LSTM):
-        super().__init__(log_projections=True)
+        super().__init__()
         self.seq_len = seq_len
         self.hidden_size = hidden_size
         self.batch_size = batch_size
@@ -31,4 +34,4 @@ class RNNArgsort(Benchmark):
 
     def reset(self):
         super().reset()
-        self.rnn.flatten_parameters() # type:ignore
+        if hasattr(self, 'rnn'): self.rnn.flatten_parameters() # type:ignore

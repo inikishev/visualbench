@@ -1,12 +1,12 @@
-from typing import Any
 import copy
 from abc import ABC, abstractmethod
-from collections.abc import Sequence, Callable
-
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import torch
-from myai.python_tools import RelaxedMultikeyDict
-from myai.transforms import totensor
+
+from ...utils import totensor
+from ...utils.relaxed_multikey_dict import RelaxedMultikeyDict
 
 TEST_FUNCTIONS:"RelaxedMultikeyDict[TestFunction]" = RelaxedMultikeyDict()
 
@@ -251,7 +251,7 @@ rastrigin = Rastrigin().register('rastrigin')
 rastrigin_shifted = Rastrigin().shifted(0.5, -1.33).register('rastrigin_shifted')
 
 class Ackley(TestFunction):
-    def __init__(self, a=20., b=0.2, c=2 * torch.pi, domain=12):
+    def __init__(self, a=20., b=0.2, c=2 * torch.pi, domain=6):
         self.a = a
         self.b = b
         self.c = c
@@ -306,17 +306,6 @@ class GoldsteinPrice(TestFunction):
 golstein_price = GoldsteinPrice().register('goldstein_price')
 
 
-class NonConvex(TestFunction):
-    def objective(self, x, y):
-        return (x**4 - 2*y**3 + y**4 - 2*x**2 + (torch.sin(x-y)*3)**3) + 28.708
-
-    def x0(self): return (2.5, -3)
-    def domain(self): return (-4, 4, -4, 4)
-    def minima(self): return None
-
-non_convex = NonConvex().register('nonconvex')
-
-
 
 class Norm(TestFunction):
     def __init__(self, ord:int|float=2):
@@ -351,7 +340,7 @@ class CrossEntropy(TestFunction):
     def minima(self): return self.target
 
 bce = CrossEntropy().register('ce', 'bce')
-
+bcer = CrossEntropy(logits=False).register('cer', 'bcer')
 
 class DotProduct(TestFunction):
     def __init__(self, target = (1., -2.)):
@@ -625,18 +614,6 @@ class Around(TestFunction):
     def minima(self): return None
 
 around = Around().register('around')
-
-class LogHeart(TestFunction):
-    def objective(self,x,y):
-        xt = x.abs().log() + y
-        yt = y.abs().log() + x
-        return (xt**2) + (yt**2)
-
-    def x0(self): return (-9, 7)
-    def domain(self): return (-10, 10, -10, 10)
-    def minima(self): return None
-
-log_heart = LogHeart().register('log_heart')
 
 
 class Tanh(TestFunction):

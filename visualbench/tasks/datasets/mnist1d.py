@@ -10,9 +10,9 @@ from mnist1d.data import make_dataset
 from torch import nn
 from torch.nn import functional as F
 
-from ..._utils import CUDA_IF_AVAILABLE
+from ...utils import CUDA_IF_AVAILABLE
 from .dataset import DatasetBenchmark
-from .models import ModelClass, Mnist1dConvNet, Mnist1dConvNetAutoencoder
+
 
 class ObjectView:
     """this is taken from mnist1d.utils (i added with)"""
@@ -81,18 +81,24 @@ def get_mnist1d( # pylint:disable = dangerous-default-value
 
 
 class Mnist1d(DatasetBenchmark):
+    """
+    Input - (B, 40)
+
+    output - logits (B, 10)
+    """
     def __init__(
         self,
-        model: ModelClass = Mnist1dConvNet(),
+        model,
+        num_samples=5000,
         criterion=F.cross_entropy,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
     ):
-        (x,y), (x_test, y_test) = get_mnist1d()
+        (x,y), (x_test, y_test) = get_mnist1d(num_samples=num_samples)
         super().__init__(
             data_train = (x, y),
             data_test = (x_test, y_test),
-            model = model(40, 10),
+            model = model,
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
@@ -100,18 +106,24 @@ class Mnist1d(DatasetBenchmark):
         )
 
 class Mnist1dAutoencoder(DatasetBenchmark):
+    """
+    Input - (B, 40)
+
+    output - (B, 40)
+    """
     def __init__(
         self,
-        model: ModelClass = Mnist1dConvNetAutoencoder(),
+        model,
+        num_samples=5000,
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
     ):
-        (x,_), (x_test, _) = get_mnist1d()
+        (x,_), (x_test, _) = get_mnist1d(num_samples=num_samples)
         super().__init__(
             data_train = (x, ),
             data_test = (x_test, ),
-            model = model(40, 10),
+            model = model,
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size = test_batch_size,

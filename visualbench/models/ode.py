@@ -1,7 +1,6 @@
 from functools import partial
 
 import torch
-from sklearn.datasets import fetch_california_housing, make_moons
 from torch import nn
 from torch.nn import functional as F
 from torchdiffeq import odeint, odeint_adjoint
@@ -18,8 +17,8 @@ class _ODELinear(nn.Module):
         return self.bn(self.act(self.linear(z)))
 
 
-class _NeuralODE(nn.Module):
-    def __init__(self, in_channels = 2, out_channels = 1, width = 8, act = F.softplus, bn=True, T = 10., steps = 2, adjoint = False):
+class NeuralODE(nn.Module):
+    def __init__(self, in_channels: int, out_channels: int, width: int, act = F.softplus, bn=True, T = 10., steps = 2, adjoint = False):
         super().__init__()
         self.in_layer = nn.Linear(in_channels, width)
         self.ode_func = _ODELinear(width, act = act, bn=bn)
@@ -37,5 +36,3 @@ class _NeuralODE(nn.Module):
         out = self.head(zT)
         return out
 
-def NeuralODE(width = 8, act = F.softplus, bn=True, T = 10., steps = 2, adjoint = False):
-    return partial(_NeuralODE, width = width, act = act, bn = bn, T = T, steps = steps, adjoint = adjoint)

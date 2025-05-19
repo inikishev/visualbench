@@ -1,147 +1,122 @@
-from collections.abc import Callable, Sequence
-from typing import Any, Literal
-
-import numpy as np
 import torch
-from myai.transforms import normalize, totensor
-from torch import nn
-from torch.nn import functional as F
-import torchalgebras as ta
 
-from ..._utils import (
-    _make_float_chw_square_matrix,
-    _make_float_chw_tensor,
-    _make_float_tensor,
-    _normalize_to_uint8,
-    sinkhorn,
-)
+from ...utils import totensor, to_CHW, get_algebra, to_square, from_algebra
 from ...benchmark import Benchmark
-from ._linalg_utils import _expand_channels, _zeros
-
 
 class Inverse(Benchmark):
-    """Finding inverse of a matrix.
+    def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
+        self.B = torch.nn.Parameter(torch.zeros_like(self.A))
+        self.criterion = criterion
+        self.algebra = get_algebra(algebra)
 
-    Args:
-        mat (torch.Tensor):
-            square matrix (last two dims must be the same), can have additional first channels dimension which is treated as batch dimension.
-        loss (Callable, optional): final loss is `loss(A@B, B@A) + loss(A@B, I) + loss(B@A, I) + loss(diag(B@A), 1) + loss(diag(A@B), 1)`. Defaults to l1.
-        dtype (dtype, optional): dtype. Defaults to torch.float32.
-        device (Device, optional): device. Defaults to 'cuda'.
-    """
-    def __init__(self, A: Any, loss: Callable = torch.nn.functional.mse_loss, algebra: ta.AlgebraType | None = None, dtype: torch.dtype=torch.float32, make_images=True):
-        super().__init__(log_projections = True, seed=0)
-        matrix: torch.Tensor = _make_float_chw_square_matrix(A)
-        if matrix.shape[-1] != matrix.shape[-2]: raise ValueError(f'{matrix.shape = } - not a matrix!')
-        matrix = matrix.to(dtype = dtype, memory_format = torch.contiguous_format)
-        self.loss_fn = loss
-
-        if make_images:
-            self.add_reference_image('input', matrix)
-            # invert the matrix to show as reference
-            try:
-                true_inv, info = torch.linalg.inv_ex(matrix) # pylint:disable=not-callable
-                self.add_reference_image('true inverse', true_inv)
-            except torch.linalg.LinAlgError:
-                pinv = torch.linalg.pinv(matrix) # pylint:disable=not-callable
-                self.add_reference_image('pseudoinverse', pinv)
-
-        self.A = torch.nn.Buffer(matrix.contiguous())
-        self.B = torch.nn.Parameter(self.A.clone().contiguous().requires_grad_(True))
-        self._make_images = make_images
-        self.set_display_best('image inverse', True)
-
-        self.algebra = algebra
-
+        self.add_reference_image('A', A, to_uint8=True)
 
     def get_loss(self):
-        ch = self.A.size(0)
         A = self.A; B = self.B
-        if self.algebra is not None:
-            A = ta.AlgebraicTensor(A, self.algebra)
-            B = ta.AlgebraicTensor(B, self.algebra)
-        AB = ta.totorch(A @ B)
-        BA = ta.totorch(B @ A)
-        I = _expand_channels(torch.eye(A.shape[-1], device = AB.device, dtype=AB.dtype), ch)
-        I_diag = _expand_channels(torch.ones(BA.shape[-1], device = AB.device, dtype=AB.dtype), ch)
+        if self.algebra is not None: A, B = self.algebra.convert(A, B)
 
-        loss = self.loss_fn(AB, BA)  +\
-            self.loss_fn(AB, I) +\
-            self.loss_fn(BA, I) +\
-            self.loss_fn(BA.diagonal(0,-2,-1), I_diag) +\
-            self.loss_fn(AB.diagonal(0,-2,-1), I_diag)
+        AB = A @ B
+        BA = B @ A
+
+        AB, BA = from_algebra(AB, BA)
+
+        loss1 = self.criterion(AB, BA)
+        loss2 = self.criterion(AB, self.I)
+        loss3 = self.criterion(BA, self.I)
+
+        loss = loss1+loss2+loss3
 
         if self._make_images:
-            self.log('image inverse', self.B, False, to_uint8=True)
-            self.log('image reconstructed', torch.linalg.inv_ex(self.B)[0], False, to_uint8=True) # pylint:disable=not-callable
-            self.log('image AB', AB, False, to_uint8=True)
-            self.log('image BA', BA, False, to_uint8=True)
-            self.log_difference('image update B', self.B, to_uint8=True)
+            self.log_image('B', self.B, to_uint8=True, log_difference=True)
+            self.log_image('AB', AB, to_uint8=True)
+            self.log_image('BA', BA, to_uint8=True)
+            if self.algebra is None:
+                A_inv_inv = torch.linalg.inv_ex(self.B)[0] # pylint:disable=not-callable
+                self.log_image('B inverse', A_inv_inv, to_uint8=True)
 
         return loss
 
 
+class StochasticInverse(Benchmark):
+    """sample random x, update A_inv such that (x@A)@A_inv = x"""
+    def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, vec=False, algebra=None, seed=0):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.B = torch.nn.Parameter(torch.zeros_like(self.A))
+        self.vec = vec
+        self.batch_size = batch_size
+        self.criterion = criterion
+        self.algebra = get_algebra(algebra)
 
-# zeros is much better
-class MoorePenrose(Benchmark):
-    def __init__(self, A, loss = F.mse_loss, init: Callable | Literal['copy'] = _zeros, algebra: ta.AlgebraType | None = None,  make_images = True):
-        super().__init__(log_projections = True, seed=0)
-        self.A = nn.Buffer(_make_float_chw_tensor(A))
-        C, M, N = self.A.shape
-
-        if callable(init): self.X = nn.Parameter(init((C, N, M), generator=self.rng.torch()).contiguous())
-        elif init == 'copy': self.X = nn.Parameter(self.A.clone().contiguous(), requires_grad=True)
-        else: raise ValueError(init)
-
-        self.loss_fn = loss
-        self.algebra = algebra
-        # real pinv outputs for reference
-        self._make_images = make_images
-        if make_images:
-            self.add_reference_image('input', self.A)
-            try:
-                pinv = torch.linalg.pinv(self.A) # pylint:disable = not-callable
-                self.add_reference_image('pseudoinverse - true', pinv)
-            except Exception as e:
-                print(f"true pseudoinverse somehow managed to fail: {e!r}")
-            self.set_display_best('image pseudoinverse', True)
-
+        self.add_reference_image('A', A, to_uint8=True)
 
     def get_loss(self):
-        A = self.A
-        X = self.X
+        if self.vec:
+            *b, n, m = self.A.shape
+            x = torch.randn((self.batch_size, *b, 1, m), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
-        if self.algebra is not None:
-            A = ta.AlgebraicTensor(A, self.algebra)
-            X = ta.AlgebraicTensor(X, self.algebra)
+        else:
+            x = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
-        AX = A @ X
-        XA = X @ A
+        A = self.A.unsqueeze(0); B = self.B.unsqueeze(0)
+        if self.algebra is not None: x, A, B = self.algebra.convert(x, A, B)
 
-        # Term 1: || A X A - A ||_F^2
-        AXA = ta.totorch(AX @ A)
-        term1 = self.loss_fn(AXA, ta.totorch(A))
+        x_hat = (x @ self.A.unsqueeze(0)) @ self.B.unsqueeze(0)
+        x, x_hat = from_algebra(x, x_hat)
 
-        # Term 2: || X A X - X ||_F^2
-        XAX = ta.totorch(XA @ X)
-        term2 = self.loss_fn(XAX, ta.totorch(X))
-
-        # Term 3: || (A X)^T - A X ||_F^2 (symmetry of A X)
-        AX = ta.totorch(AX); XA = ta.totorch(XA)
-        term3 = self.loss_fn(AX.mT, AX)
-
-        # Term 4: || (X A)^T - X A ||_F^2 (symmetry of X A)
-        term4 = self.loss_fn(XA.mT, XA)
+        loss = self.criterion(x, x_hat)
 
         if self._make_images:
-            self.log('image pseudoinverse', self.X, False, to_uint8=True)
-            self.log('image reconstructed', torch.linalg.pinv(self.X), False, to_uint8=True) # pylint:disable=not-callable
-            self.log('image XA', XA, False, to_uint8=True)
-            self.log('image AX', AX, False, to_uint8=True)
-            self.log('image AXA', AXA, False, to_uint8=True)
-            self.log('image XAX', XAX, False, to_uint8=True)
-            self.log_difference('image update pseudoinverse', X, to_uint8=True)
+            self.log_image('B', self.B, to_uint8=True, log_difference=True)
+            if self.algebra is None:
+                A_inv_inv = torch.linalg.inv_ex(self.B)[0] # pylint:disable=not-callable
+                self.log_image('B inverse', A_inv_inv, to_uint8=True)
+
+        return loss
 
 
-        loss = term1 + term2 + term3 + term4
+class MoorePenrose(Benchmark):
+    def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(to_CHW(A))
+        self.B = torch.nn.Parameter(torch.zeros_like(self.A))
+        self.criterion = criterion
+        self.algebra = get_algebra(algebra)
+
+        self.add_reference_image('A', A, to_uint8=True)
+
+    def get_loss(self):
+        A = self.A; B = self.B
+        if self.algebra is not None: A, B = self.algebra.convert(A, B)
+
+        AB = A @ B
+        BA = B @ A
+        ABA = AB @ A
+        BAB = B @ AB
+
+        AB, BA, ABA, BAB = from_algebra(AB, BA, ABA, BAB)
+
+        loss1 = self.criterion(ABA, self.A)
+        loss2 = self.criterion(BAB, self.B)
+        loss3 = self.criterion(AB, AB.mH)
+        loss4 = self.criterion(BA, BA.mH)
+        loss = loss1+loss2+loss3+loss4
+
+        if self._make_images:
+            self.log_image('B', self.B, to_uint8=True, log_difference=True)
+            self.log_image('AB', AB, to_uint8=True)
+            self.log_image('BA', BA, to_uint8=True)
+            self.log_image('ABA', ABA, to_uint8=True)
+            self.log_image('BAB', BAB, to_uint8=True)
+            # if self.algebra is None:
+            #     try:
+            #         B_pinv = torch.linalg.pinv(self.B) # pylint:disable=not-callable
+            #         self.log_image('B pseudoinverse', B_pinv, to_uint8=True)
+
+            #     except torch.linalg.LinAlgError:
+            #         self.log_image('B pseudoinverse', torch.zeros_like(self.A), to_uint8=True)
+
         return loss

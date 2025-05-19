@@ -58,8 +58,6 @@ def visualize_cluster(
         depth_cueing: If True, scale dot size and intensity based on Z-coordinate.
         depth_strength: Controls the intensity of depth cueing (0=none, 1=max).
 
-    Returns:
-        A NumPy array representing the image in BGR format (uint8).
     """
     # 1. Select the specific cluster and reshape
     pos_single = positions.nan_to_num() # Shape [3N]
@@ -157,15 +155,14 @@ class LennardJonesClusters(Benchmark):
 
     Here are some known minima https://doye.chem.ox.ac.uk/jon/structures/LJ.html"""
     def __init__(self, n):
-        super().__init__(log_projections=True)
+        super().__init__()
         self.n = n
 
         self.positions = torch.nn.Parameter(torch.randn((n, 3), generator=self.rng.torch('cpu'))*10)
-        self.set_display_best('image')
 
     def get_loss(self):
         if self._make_images:
             frame = visualize_cluster(self.positions.detach().cpu().view(-1)) # pylint:disable=not-callable
-            self.log('image', frame, log_test=False, to_uint8=False)
+            self.log_image('cluster', frame, to_uint8=False)
 
         return cluster_potential(self.positions.unsqueeze(0))[0]

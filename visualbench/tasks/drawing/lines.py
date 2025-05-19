@@ -3,9 +3,8 @@ import math
 import torch
 from torch import nn
 import torch.nn.functional as F
-from myai.transforms import normalize
 
-from ..._utils import _make_float_hw3_tensor, _normalize_to_uint8
+from ...utils import to_HW3, normalize
 from ...benchmark import Benchmark
 
 
@@ -22,18 +21,8 @@ def _point_segment_distance_sq(p, a, b, epsilon=1e-6):
 
 class LinesDrawer(Benchmark):
     """
-    Args:
-        num_lines (int): The number of lines to use.
-        height (int): The height of the target image.
-        width (int): The width of the target image.
-        initial_line_thickness (float): Initial value for line thickness (sigma).
-                                    Sigma is now learnable and per-line.
-        sigma_penalty_weight (float): Coefficient for the sigma penalty term in the loss.
-                                    Positive value penalizes *large* sigmas (promotes sharpness).
-        init_range (float): Range (+/-) for random initialization of raw coordinates.
-                            Colors are initialized with randn.
+    sus
     """
-
     def __init__(
         self,
         target_image,
@@ -45,9 +34,9 @@ class LinesDrawer(Benchmark):
         min_log_sigma = 0,
         init_range: float = 0.1,
     ):
-        super().__init__(log_projections=True)
+        super().__init__()
 
-        target_image = normalize(_make_float_hw3_tensor(target_image)).moveaxis(-1, 0)
+        target_image = normalize(to_HW3(target_image)).moveaxis(-1, 0)
         self.target_image = nn.Buffer(target_image)
         self.add_reference_image('target', target_image, to_uint8=True)
 
@@ -78,9 +67,6 @@ class LinesDrawer(Benchmark):
         )
         pixel_grid = torch.stack((grid_x, grid_y), dim=-1).permute(1, 0, 2) # [H, W, 2]
         self.pixel_grid = nn.Buffer(pixel_grid)
-
-        # plotting
-        self.set_display_best('image reconstructed')
 
     def _get_sigmoid_params(self):
         """maps params with sigmoid"""
@@ -142,9 +128,9 @@ class LinesDrawer(Benchmark):
         loss = reconstruction_loss + sigma_penalty
 
         if self._make_images:
-            img = rendered_image.detach() * 255
-            self.log('image reconstructed', img.cpu().to(torch.uint8), log_test=False, to_uint8=False)
-            self.log_difference("image difference", rendered_image, to_uint8=True)
+            with torch.no_grad():
+                img = rendered_image.detach() * 255
+                self.log_image('reconstructed', img.cpu().to(torch.uint8), to_uint8=False, log_difference=False, show_best=True)
 
         return loss
 

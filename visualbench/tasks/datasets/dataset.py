@@ -2,12 +2,12 @@ from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
 import torch
-from light_dataloader import TensorDataLoader
-from myai.transforms import normalize as _normalize, totensor
 from torch import nn
 
-from ..._utils import CUDA_IF_AVAILABLE
 from ...benchmark import Benchmark
+from ...utils import CUDA_IF_AVAILABLE, totensor
+from ...utils import normalize as _normalize
+from ...utils.light_dataloader import TensorDataLoader
 
 
 class DatasetBenchmark(Benchmark):
@@ -129,7 +129,7 @@ class DatasetBenchmark(Benchmark):
             else:
                 dltest = None
 
-        super().__init__(dltrain=dltrain, dltest=dltest, log_projections=True, seed = seed)
+        super().__init__(dltrain=dltrain, dltest=dltest, seed=seed)
 
         self.model = model
         self.criterion = criterion
@@ -171,7 +171,6 @@ class DatasetBenchmark(Benchmark):
             self.data = nn.Buffer(data)
 
             self.resolution = resolution
-            self.set_display_best('image')
             self.boundary_act = boundary_act
 
     def penalty(self, preds):
@@ -181,6 +180,7 @@ class DatasetBenchmark(Benchmark):
         device = self.device
         self.model.train()
 
+        assert self.batch is not None
         if len(self.batch) == 1: x = y = self.batch[0].to(device)
         else: x, y = [i.to(device) for i in self.batch]
 
@@ -195,13 +195,13 @@ class DatasetBenchmark(Benchmark):
             train_loss = loss[:self.test_start_idx].mean() + penalty
             test_loss = loss[self.test_start_idx:].mean() + penalty
 
-            self.log('test loss', test_loss, log_test=False)
+            self.log('test loss', test_loss)
 
         else:
             train_loss = self.criterion(y_hat, y) + penalty
 
         # decision boundary
-        if self._make_images:
+        if self._make_images and self.training:
             self.model.eval()
             with torch.inference_mode():
                 out: torch.Tensor = self.model(self.grid_points)
@@ -211,7 +211,6 @@ class DatasetBenchmark(Benchmark):
                 Z[2] = 0
                 Z = torch.where(self.mask, self.data, Z)
                 Z = Z.clamp_(0, 255)
-                self.log("image", Z.to(torch.uint8), log_test=False, to_uint8=False)
-                self.log_difference("image update", Z, to_uint8=True)
+                self.log_image("decision boundary", Z.to(torch.uint8), to_uint8=False, log_difference=True, show_best=True)
 
         return train_loss

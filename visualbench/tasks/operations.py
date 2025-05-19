@@ -1,6 +1,7 @@
 import torch
 
-from .._utils import sinkhorn, _make_float_tensor
+from ..utils import totensor
+from ..utils.linalg import sinkhorn
 from ..benchmark import Benchmark
 
 
@@ -17,18 +18,25 @@ class Sorting(Benchmark):
         ortho_weight (float, optional): weight for loss to nudge sums of rows and columns to 0 or 1. Defaults to 0.2.
         p (int, optional): power for loss (1 for L1, 2 for L2). Defaults to 2.
         init (_type_, optional): _description_. Defaults to torch.randn.
-        make_images (bool, optional): _description_. Defaults to True.
     """
-    def __init__(self, vec=torch.randint(0, 100, (100,), generator=torch.Generator().manual_seed(0)), sinkhorn_iters: int | None = 10, binary_weight = 0.2, ortho_weight = 0.2, p=2, init = _zeros, make_images = True):
-        super().__init__(log_projections=True)
+
+    def __init__(
+        self,
+        vec=torch.randint(0, 100, (100,), generator=torch.Generator().manual_seed(0)),
+        sinkhorn_iters: int | None = 10,
+        binary_weight=0.2,
+        ortho_weight=0.2,
+        p=2,
+        init=_zeros,
+    ):
+        super().__init__()
 
         self.sinkhorn_iters = sinkhorn_iters
-        self._make_images = make_images
-        self.binary_weight = binary_weight # TODO cycle this from 0 to 1
+        self.binary_weight = binary_weight
         self.ortho_weight = ortho_weight
         self.p = p
 
-        self.vec = torch.nn.Buffer(_make_float_tensor(vec).ravel().float().contiguous())
+        self.vec = torch.nn.Buffer(totensor(vec).ravel().float().contiguous())
         self.P_logits = torch.nn.Parameter(init((self.vec.numel(), self.vec.numel()), generator = self.rng.torch()).contiguous())
         self.identity = torch.nn.Buffer(torch.eye(self.vec.numel()).contiguous())
 
@@ -55,11 +63,12 @@ class Sorting(Benchmark):
         ortho_loss = torch.norm(PPt - self.identity, p='fro')
 
         if self._make_images:
-            self.log('image logits', self.P_logits, False, to_uint8=True)
-            self.log('image permutation', P, False, to_uint8=True)
+            self.log_image('image logits', self.P_logits, to_uint8=True)
+            self.log_image('image permutation', P, to_uint8=True)
 
         with torch.no_grad():
             predicted_argsort = P.argmax(0).float()
-            self.log('accuracy', (predicted_argsort == self.true_argsort).sum() / P.size(0), False)
-            self.log('distance', torch.nn.functional.l1_loss(predicted_argsort, self.true_argsort), False)
+            self.log('accuracy', (predicted_argsort == self.true_argsort).sum() / P.size(0), plot=True)
+            self.log('distance', torch.nn.functional.l1_loss(predicted_argsort, self.true_argsort), plot=True)
+
         return loss + binary_loss*self.binary_weight + ortho_loss*self.ortho_weight

@@ -1,3 +1,3 @@
-from .squishy_box_packing import SquishyBoxPacking
-from .box_packing import CONTAINER1, BoxPacking, uniform_container
-from .sphere_packing import SpherePacking
+from .box import BoxPacking
+from .rigid_box import CONTAINER1, RigidBoxPacking, uniform_container
+from .sphere import SpherePacking

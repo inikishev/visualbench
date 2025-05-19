@@ -1,9 +1,11 @@
 import random
 from collections.abc import Sequence
+
 import cv2
 import numpy as np
 import torch
 from torch import nn
+
 from ..benchmark import Benchmark
 
 
@@ -39,7 +41,7 @@ class GraphLayout(Benchmark):
         edge_color: tuple[int, int, int] = (0, 255, 0),
         bg_color: tuple[int, int, int] = (0, 0, 0),
     ):
-        super().__init__(log_projections=True)
+        super().__init__()
 
         num_nodes = len(adj)
         if not all(isinstance(neighbors, Sequence) for neighbors in adj):
@@ -88,33 +90,25 @@ class GraphLayout(Benchmark):
         elif len(nodes_with_edges) < num_nodes and num_nodes > 0 :
             print(f"Warning: {num_nodes - len(nodes_with_edges)} nodes appear to have no edges. Attraction loss will not affect them.")
 
-        self.set_display_best('image graph')
-
     def get_loss(self) -> torch.Tensor:
-        """
-        Calculates the layout loss and generates a visualization frame.
-
-        Returns:
-            torch.Tensor: The calculated scalar loss value.
-        """
         pos = self.node_positions
         pos_clamped = torch.clip(pos, 0, self.canvas_size - 1)
         penalty = torch.mean((pos - pos_clamped) ** 2)
 
         # attraction loss
-        loss_attraction = torch.tensor(0.0, device=pos.device, dtype=pos.dtype)
+        attraction = torch.tensor(0.0, device=pos.device, dtype=pos.dtype)
         if self.edges:
 
             edge_nodes_u = pos[ [u for u, v in self.edges] ] # num_edges, 2
             edge_nodes_v = pos[ [v for u, v in self.edges] ] # num_edges, 2
 
             diff = edge_nodes_u - edge_nodes_v
-            loss_attraction = torch.mean(diff * diff) # num_edges
+            attraction = torch.mean(diff * diff) # num_edges
 
-        loss_attraction = self.k_attraction * loss_attraction
+        attraction = self.k_attraction * attraction
 
         # repulsion loss
-        loss_repulsion = torch.tensor(0.0, device=pos.device, dtype=pos.dtype)
+        repulsion = torch.tensor(0.0, device=pos.device, dtype=pos.dtype)
         if self.num_nodes > 1:
             # istances between all pairs (i, j)
             dist_sq = torch.mean((pos.unsqueeze(1) - pos.unsqueeze(0)) ** 2, dim=-1)
@@ -123,24 +117,23 @@ class GraphLayout(Benchmark):
             # no self repulsion
             inv_dist_sq = inv_dist_sq.fill_diagonal_(0)
 
-            loss_repulsion = self.k_repulsion * torch.mean(inv_dist_sq) / 2.0
+            repulsion = self.k_repulsion * torch.mean(inv_dist_sq) / 2.0
 
         # loss
-        total_loss = loss_attraction + loss_repulsion + penalty
+        loss = attraction + repulsion + penalty
 
         # visualize
         if self._make_images:
-            pos_np = self.node_positions.detach().cpu().numpy() # pylint:disable=not-callable ???
-            frame = self._visualize(pos_np)
-            self.log('image graph', frame, log_test=False, to_uint8=False)
+            frame = self._make_frame(self.node_positions.detach().cpu().numpy()) # pylint:disable=not-callable ???
+            self.log_image('graph', frame, to_uint8=False, show_best=True)
 
-        return total_loss
+        return loss
 
-    def _visualize(self, pos_np: np.ndarray) -> np.ndarray:
-        """Helper function to create the visualization frame."""
+    @torch.no_grad
+    def _make_frame(self, pos: np.ndarray) -> np.ndarray:
         canvas = np.full((self.canvas_size, self.canvas_size, 3), self.bg_color, dtype=np.uint8)
 
-        pos_np_clamped = np.clip(pos_np, 0, self.canvas_size - 1).astype(int)
+        pos_np_clamped = np.clip(pos, 0, self.canvas_size - 1).astype(int)
 
         if self.edges:
             for u, v in self.edges:

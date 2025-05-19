@@ -2,12 +2,11 @@ from typing import Any
 from collections.abc import Callable
 import numpy as np
 import torch
-from torch import nn, optim
+from torch import nn
 from torch.nn import functional as F
-from myai.transforms import normalize
 
 from ...benchmark import Benchmark
-from ..._utils import _make_float_hw3_tensor, CUDA_IF_AVAILABLE
+from ...utils import to_HW3, CUDA_IF_AVAILABLE, normalize
 
 
 class RectanglesDrawer(Benchmark):
@@ -31,8 +30,6 @@ class RectanglesDrawer(Benchmark):
             Multiplier to penalty for when sharness is too low. Defaults to 1.
         loss_fn (Callable):
             loss function between reconstructed and target image. Defaults to F.mse_loss.
-        device (str, optional):
-            device. Defaults to 'cuda'.
     """
     x_grid: torch.nn.Buffer
     y_grid: torch.nn.Buffer
@@ -40,16 +37,15 @@ class RectanglesDrawer(Benchmark):
     def __init__(
         self,
         target_image,
-        num_rectangles: int = 20,
+        num_rectangles: int = 100,
         initial_sharpness: float = 150,
         exp_sharpness = False,
         min_sharpness: float = 100,
         penalty: float = 1,
         loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = F.mse_loss,
-        make_images = True,
     ):
-        target_image = normalize(_make_float_hw3_tensor(target_image), 0, 1).moveaxis(-1, 0)
-        super().__init__(log_projections=True)
+        target_image = normalize(to_HW3(target_image).float(), 0, 1).moveaxis(-1, 0)
+        super().__init__()
         # 3HW image
         self.register_buffer('target_image', target_image)
         self.add_reference_image('target', (target_image*255).detach().cpu().numpy().astype(np.uint8), to_uint8=False)
@@ -80,10 +76,8 @@ class RectanglesDrawer(Benchmark):
             torch.linspace(0, 1, W),
             indexing='ij'
         )
-        self.register_buffer('x_grid', x_grid)
-        self.register_buffer('y_grid', y_grid)
-        self._make_images = make_images
-        self.set_display_best('image reconstructed')
+        self.x_grid = torch.nn.Buffer(x_grid)
+        self.y_grid = torch.nn.Buffer(y_grid)
 
     def get_loss(self):
         # Normalize parameters to (0,1)
@@ -144,8 +138,8 @@ class RectanglesDrawer(Benchmark):
         loss = self.loss_fn(reconstructed, self.target_image)
 
         if self._make_images:
-            img = reconstructed.detach().clamp(0, 1).permute(1, 2, 0)*255
-            self.log('image reconstructed', img.cpu().numpy().astype(np.uint8), log_test=False, to_uint8=False)
-            self.log_difference("image difference", img,to_uint8=True)
+            with torch.no_grad():
+                img = reconstructed.detach().clamp(0, 1).permute(1, 2, 0)*255
+                self.log_image('reconstructed', img.cpu().numpy().astype(np.uint8), to_uint8=False, show_best=True)
 
         return loss + penalty

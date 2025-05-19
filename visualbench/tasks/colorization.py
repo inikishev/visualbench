@@ -21,10 +21,11 @@ def _get_mask(init: torch.Tensor, n_nodes, withds):
     raise RuntimeError('widths not enough of them')
 
 _INIT = torch.zeros(64, 256)
+
 class Colorization(Benchmark):
     """inspired by https://distill.pub/2017/momentum/"""
     def __init__(self, init: torch.Tensor = _INIT, mask: torch.Tensor=_get_mask(_INIT, 4, (33, 10, 2)), pull_idxs = ((32, 0),)):
-        super().__init__(log_projections=True)
+        super().__init__(bounds=(0,1))
         image = init * mask
         for idx in pull_idxs:
             image[*idx] = 1
@@ -45,13 +46,14 @@ class Colorization(Benchmark):
         spreader = torch.sum(diff_down**2) + torch.sum(diff_right**2)
 
         if self._make_images:
-            frame = (w + (1-self.mask)*0.1)[:,:,None].repeat_interleave(3, 2)
-            # frame[0,0]=1; frame[-1,-1]=0 # lazy way to do minimal norm
-            red_overflow = (frame - 1).clip(min=0)
-            red_overflow[:,:,1:] *= 2
-            blue_overflow = - frame.clip(max=0)
-            blue_overflow[:,:,2] *= 2
-            frame = ((frame - red_overflow + blue_overflow) * 255).clip(0,255).to(torch.uint8).detach().cpu()
-            self.log('image', frame, log_test=False, to_uint8=False)
+            with torch.no_grad():
+                frame = (w + (1-self.mask)*0.1)[:,:,None].repeat_interleave(3, 2)
+                # frame[0,0]=1; frame[-1,-1]=0 # lazy way to do minimal norm
+                red_overflow = (frame - 1).clip(min=0)
+                red_overflow[:,:,1:] *= 2
+                blue_overflow = - frame.clip(max=0)
+                blue_overflow[:,:,2] *= 2
+                frame = ((frame - red_overflow + blue_overflow) * 255).clip(0,255).to(torch.uint8).detach().cpu()
+                self.log_image('image', frame, to_uint8=False)
 
         return 0.5*colorizer + 0.5*spreader

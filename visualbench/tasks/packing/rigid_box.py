@@ -1,25 +1,22 @@
 
 # pylint:disable=not-callable
 import itertools
-import math
 import random
 from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
-import cv2
-import matplotlib.pyplot as plt  # For distinct colors
 import numpy as np
 import torch
-from myai.transforms import tonumpy, totensor
 from torch import nn
 
 from ...benchmark import Benchmark
+from ...utils import tonumpy, totensor
 
 
-def put_alpha(x: np.ndarray, other:np.ndarray, alpha1: float, alpha2: float = 1):
+def _put_alpha(x: np.ndarray, other:np.ndarray, alpha1: float, alpha2: float = 1):
     return x - (x - other)*(alpha1*alpha2)
 
-def softrect2d_(array: np.ndarray, x1, x2, color, alpha: float, add_fn = put_alpha) -> None:
+def _softrect2d_(array: np.ndarray, x1, x2, color, alpha: float, add_fn = _put_alpha) -> None:
     """same as array[x1[0]:x2[0], x1[1]:x2[1]] = color, but with a soft edge
 
     Args:
@@ -89,7 +86,7 @@ def _make_colors(n,seed):
 
     return rgbs
 
-class BoxPacking(Benchmark):
+class RigidBoxPacking(Benchmark):
     """Box packing without rotation benchmark, can be rendered as a video.
 
     If an optimizer accepts bounds, pass (0, 1) for all parameters.
@@ -126,20 +123,19 @@ class BoxPacking(Benchmark):
         init: Literal['center', 'corner', 'random', 'top'] = 'top',
         colors_seed: int | None = 13,
         dtype = torch.float32,
-        make_images = True,
         seed = 0,
     ):
-        super().__init__(log_projections = True, seed = seed)
+        super().__init__(bounds=(0, 1), seed = seed)
         if npixels is not None: scale = (npixels / np.prod(container_size)) ** (1/2)
         else: scale = 1
         self.scale = scale
         self.container_size_np = (np.array(container_size, dtype = float) * scale).astype(int)
         size = torch.prod(torch.tensor(self.container_size_np, dtype = dtype))
-        self.size = torch.nn.Buffer(size)
+        self.size = nn.Buffer(size)
         container_size = torch.from_numpy(self.container_size_np).to(dtype=dtype)
-        self.container_size = torch.nn.Buffer(container_size)
+        self.container_size = nn.Buffer(container_size)
         box_sizes = totensor(box_sizes, dtype = dtype) * scale
-        self.box_sizes = torch.nn.Buffer(box_sizes)
+        self.box_sizes = nn.Buffer(box_sizes)
         self.box_sizes_np = self.box_sizes.detach().cpu().numpy()
         self.square = square
 
@@ -148,7 +144,6 @@ class BoxPacking(Benchmark):
 
         # generate colors for boxes
         self.colors = _make_colors(len(box_sizes), colors_seed)
-        self._make_images = make_images
 
         # slightly randomize params so that no params overlap which gives them exactly the same gradients
         # so they never detach from each other
@@ -156,20 +151,19 @@ class BoxPacking(Benchmark):
         noise = torch.randn((len(box_sizes), 2), dtype = dtype, generator=self.rng.torch())
 
         if init == 'center':
-            self.params = torch.nn.Parameter((1 - normalized_box_sizes) * 0.5 + noise.mul(0.01), requires_grad=True)
+            self.params = nn.Parameter((1 - normalized_box_sizes) * 0.5 + noise.mul(0.01), requires_grad=True)
         elif init == 'corner':
-            self.params = torch.nn.Parameter(noise.uniform_(0, 0.01), requires_grad=True)
+            self.params = nn.Parameter(noise.uniform_(0, 0.01), requires_grad=True)
         elif init == 'top':
             p = (1 - normalized_box_sizes) * 0.5 + noise.mul(0.01)
             p[:, 0] = noise.uniform_(0, 0.01)[:,0]
-            self.params = torch.nn.Parameter(p, requires_grad=True)
+            self.params = nn.Parameter(p, requires_grad=True)
         elif init == 'random':
-            self.params = torch.nn.Parameter((1 - normalized_box_sizes) * noise.uniform_(0, 1))
+            self.params = nn.Parameter((1 - normalized_box_sizes) * noise.uniform_(0, 1))
 
-        self.set_display_best('image')
 
     @torch.no_grad
-    def _make_solution_image(self):
+    def _make_frame(self):
         # arr = paramvec.detach().cpu().numpy().reshape(self.params.shape)
         arr = self.params.detach().cpu().numpy()
         container = np.full((*self.container_size_np, 3), 255)
@@ -180,7 +174,7 @@ class BoxPacking(Benchmark):
             x *= (self.container_size_np[1] - box[1])/self.container_size_np[1]
             # if y+box[0] >= self.container_size_np[0]: y = self.container_size_np[0] - box[0]
             # if x+box[1] >= self.container_size_np[1]: x = self.container_size_np[1] - box[1]
-            try: softrect2d_(container, (y,x), (y+box[0], x+box[1]), c, 0.5,)
+            try: _softrect2d_(container, (y,x), (y+box[0], x+box[1]), c, 0.5,)
             except IndexError: pass
         return np.clip(container, 0, 255).astype(np.uint8)
 
@@ -245,6 +239,7 @@ class BoxPacking(Benchmark):
         #             if self.square: overlap = overlap ** 2
         #             loss = loss + overlap / self.size
 
-        if self._make_images: self.log("image", self._make_solution_image(), False, to_uint8=False)
+        if self._make_images:
+            self.log_image("boxes", self._make_frame(), to_uint8=False, show_best=True)
         return penalized_loss
 

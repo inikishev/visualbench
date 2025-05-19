@@ -1,514 +1,471 @@
 import itertools
 import time
-import random
+import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, Sequence
-from contextlib import nullcontext
-from typing import Any, Literal, Unpack, final
+from collections import defaultdict
+from collections.abc import Iterable
+from typing import Any, Literal, final
 
 import numpy as np
 import torch
-from myai.logger import DictLogger
-from myai.plt_tools import Fig
-from myai.plt_tools._types import _K_Line2D
-from myai.rng import RNG
-from myai.torch_tools import copy_state_dict
 
-from ._utils import (
-    _aggregate_test_metrics_,
-    _check_image,
-    _check_stop_condition,
-    _check_test_epoch_condition,
-    _ensure_float,
-    _ensure_stop_condition_exists_,
-    _log_params_and_projections_,
-    _make_float_hw3_tensor,
-    _make_float_tensor,
-    _maybe_detach_clone,
-    _normalize_to_uint8,
-    _plot_images,
-    _plot_loss,
-    _plot_trajectory,
-    _print_final_report,
-    _print_progress,
-    _render_video,
-    _search,
-    plot_lr_search_curve,
-    plot_metric,
-    _plot_landscape_sklearn,
-    _plot_landscape_random,
-)
+from . import utils
+from .logger import Logger
+from .rng import RNG
+from .utils import _benchmark_utils, plt_tools, python_tools, torch_tools, _benchmark_plotting, _benchmark_video
 
 
-class StopCondition(Exception): pass
-
-def _make_biased_noise(p: torch.Tensor, noise_level: float, noise_bias: float, rng: RNG) -> torch.Tensor:
-    if noise_level == 0:
-        assert noise_bias != 0
-        return torch.full(p.shape, random.uniform(-noise_bias, noise_bias),device=p.device, dtype=p.dtype)
-
-    noise = torch.randn(p.shape, device=p.device, dtype=p.dtype, generator=rng.torch(p.device)) * noise_level
-    if noise_bias != 0: noise += random.uniform(-noise_bias, noise_bias)
-    return noise
+class StopCondition(BaseException): pass
 
 class Benchmark(torch.nn.Module, ABC):
+    num_steps: int
+
+    "same as number of batches"
     def __init__(
         self,
-        dltrain: Iterable[Any] | None = None,
-        dltest: Iterable[Any] | None = None,
-        log_params = False,
-        log_projections = False,
-        noise: float = 0,
-        noise_bias: float = 0,
-        seed: int | None = 0,
+        dltrain: Iterable | None = None,
+        dltest: Iterable | None = None,
+        param_noise: float = 0,
+        grad_noise: float = 0,
+        log_params: bool | None = None,
+        num_projections: int = 0,
+        bounds: tuple[float, float] | None = None,
+        make_images: bool = True,
+        seed: int | None | RNG = 0,
     ):
         super().__init__()
-        self.reference_images: dict[str, np.ndarray[Any, np.dtype[np.uint8]] | torch.IntTensor] = {}
-        self.display_best_keys: list[str] = []
-        """list of keys to logger images that will be shown twice - best value and last value"""
+        self._dltrain: Iterable | None = dltrain
+        self._dltest: Iterable | None = dltest
+        self._param_noise_alpha: float = param_noise
+        self._grad_noise_alpha: float = grad_noise
+        self._log_params: bool | None = log_params
+        self._num_projections: int = num_projections
+        self._seed: int | None | RNG = seed
+        self.bounds: tuple[float, float] | None = bounds
+        self._make_images: bool = make_images
 
-        self._dltrain: Iterable[Any] | None = dltrain
-        self._dltest: Iterable[Any] | None = dltest
-        self._log_params: bool = log_params
-        self._log_projections: bool = log_projections
-        self._seed: int | None = seed
-        self._print_progress = True
-        self._make_images = True
         self._initial_state_dict = None
-        self._print_timeout = False
 
-        self._noise_level = noise
-        self._noise_bias_level = noise_bias
-        self._reset()
+        self._reference_images: dict[str, torch.Tensor] = {}
+        """images to always include in visualizations"""
+        self._image_keys: set[str] = set()
+        """keys to display as images"""
+        self._image_lowest_keys: set[str] = set()
+        """keys to display images corresponding to lowest loss found so far"""
+        self._plot_keys: set[str] = set()
+        """keys to display line charts for"""
 
-    def _store_initial_state_dict(self):
-        """gets called before run or before first function evaluation depending on what is called first, saves deep copy of state dict on cpu"""
-        self._initial_state_dict = copy_state_dict(self, device='cpu')
+        self._basis: torch.Tensor | None = None
+        self._print_interval_s: float | None = 0.1
+        self._print_timeout: bool = False
+        self._plot_perturbed: bool = False
+        self._benchmark_mode: bool = False
 
-    def _restore_initial_state_dict(self):
-        if self._initial_state_dict is None: raise RuntimeError("_initial_state_dict is None")
-        self.load_state_dict(copy_state_dict(self._initial_state_dict))
-
-    def reset(self):
-        """resets this benchmark to initial state, may be faster than creating new benchmark (this needs to be implemented by benchmarks)"""
-        self._reset()
-        return self
+        self.reset()
 
     @torch.no_grad
-    def _reset(self):
-        self.logger = DictLogger()
-        self.rng = RNG(self._seed)
+    def reset(self):
+        self.rng: RNG = RNG(self._seed)
 
-        self._start_time: float | None = None
-        self._cur_time: float | None = None
+        # --------------------------------- trackers --------------------------------- #
+        self.num_forwards: int = 0
+        self.num_backwards: int = 0
+        # self.num_hvps: int = 0
+        # self.num_jvps: int = 0
 
-        self._num_forwards: int = 0
-        self._num_backwards: int = 0
-        self._num_batches: int = 0
-        self._num_epochs: int = 0
-        self._info = {}
+        self.num_steps: int = 0
+        self.num_epochs: int = 0
+        self.start_time: float | None = None
+        self._current_time: float = time.time()
+        self._last_train_loss: float | None = None
+        self._last_test_loss: float | None = None
+        self._last_print_time: float = 0
+        self.batch = None
 
-        self._max_forwards: int | None = None
+        # ------------------------------ stop conditions ----------------------------- #
         self._max_passes: int | None = None
-        self._max_batches: int | None = None
+        self._max_forwards: int | None = None
+        self._max_steps: int | None = None
         self._max_epochs: int | None = None
         self._max_seconds: float | None = None
+        self._target_loss: float | None = None
 
+        # --------------------------- test epoch conditions -------------------------- #
         self._test_every_forwards: int | None = None
-        self._test_every_batches: int | None = None
+        self._test_every_steps: int | None = None
         self._test_every_epochs: int | None = None
         self._test_every_seconds: float | None = None
         self._last_test_time: float = 0
-        self._last_print_time: float = 0
-        self._last_train_loss: float | None = None
-        self._last_test_loss: float | None = None
-        self._test_metrics: dict[str, list[Any]] = {}
-        self._previous_difference_values: dict[str, Any] = {}
 
-        self._proj1: torch.Tensor | None = None
-        self._proj2: torch.Tensor | None = None
 
-        if self._initial_state_dict is not None: self._restore_initial_state_dict()
-        self.train()
+        self.logger = Logger()
+        self._test_scalar_metrics = defaultdict(list)
+        self._test_other_metrics: dict[str, Any] = {}
+        self._previous_images: dict[str, torch.Tensor | np.ndarray] = {} # for logging differences
+        self._is_perturbed = False
 
-    @property
-    def _status(self) -> Literal['train','test']: return 'train' if self.training else 'test'
-    @property
-    def _num_passes(self) -> int: return self._num_forwards + self._num_backwards
-    @property
-    def _time_passed(self) -> float:
-        if (self._start_time is None) or (self._cur_time is None): return 0.
-        return self._cur_time - self._start_time
+        # restore original parameters on reset
+        if self._initial_state_dict is not None:
+            self.load_state_dict(utils.torch_tools.copy_state_dict(self._initial_state_dict, device=self.device), assign=True)
+
 
     @property
-    def device(self):
-        return next(iter(self.parameters())).device
+    def device(self): return next(iter(self.parameters())).device
 
-    def parameters(self, recurse=True):
-        for n, p in self.named_parameters(recurse=recurse):
-            if not n.startswith('_ignore_'): yield p
+    @property
+    def num_passes(self) -> int: return sum([self.num_forwards, self.num_backwards])
 
-    def log(self, name: str, value: Any, log_test: bool, to_uint8 = False):
-        """log something, it automatically gets detached and moved to cpu
+    @property
+    def seconds_passed(self):
+        if self.start_time is None: return None
+        return self._current_time - self.start_time
+
+    def set_noise(self, p: float | None = None, g: float | None = None):
+        if p is not None: self._param_noise_alpha = p
+        if g is not None: self._grad_noise_alpha = g
+        return self
+
+    def set_print_inverval(self, s: float | None = None):
+        self._print_interval_s = s
+        return self
+
+    def set_log_params(self, enable: bool=True):
+        self._log_params = enable
+        return self
+
+    def set_num_projections(self, num_projections: int):
+        self._num_projections = num_projections
+        return self
+
+    def set_plot_perturbed(self, enable: bool = True):
+        self._plot_perturbed = enable
+        return self
+
+    def set_benchmark_mode(self, enable: bool = True):
+        self._benchmark_mode = enable
+        return self
+
+    @torch.no_grad
+    def add_reference_image(self, name: str, image, to_uint8: bool, min: float | None = None, max: float | None = None):
+        """Add an image to be always displayed, for example the target image for image reconstruction.
 
         Args:
-            name (str): name of metric
-            value (Any): value
-            log_test (bool, optional):
-                if true something like 'accuracy' becomes 'train accuracy' or 'test accuracy'
-                depending on if training or testing, and takes mean of test values after each test epoch.
-                Otherwise only logged during training. Defaults to True.
+            name (str): name of the image.
+            image (Any): image itself
+            to_uint8 (bool, optional):
+                if True, image will be normalized and converted to uin8. Otherwise it has to already be in uint8. Defaults to False.
+            min (float | None, optional):
+                only if to_uint8=True, defines minimal value, if None this is calculated as image.min(). Defaults to None.
+            max (float | None, optional):
+                only if to_uint8=True, defines minimal value, if None this is calculated as image.max(). Defaults to None.
         """
-        while value.__class__.__name__ == 'AlgebraicTensor': value = value.data
+        if (not to_uint8) and (min is not None or max is not None): raise RuntimeError("min and max are only for to_uint8=True")
+        image = utils.types.to_3HW(image)
+        if to_uint8: image = utils.types.normalize_to_uint8(image, min=min, max=max)
+        elif image.dtype != torch.uint8:
+            raise RuntimeError(f"Reference image needs to be in uint8 dtype, or to_uint8 needs to be True, got {image.dtype}")
+        self._reference_images[name] = image.cpu()
+
+    @torch.no_grad
+    def log(self, metric: str, value: Any, plot: bool = True):
+        """
+        Log `value` under `metric` key.
+        Either "train " or "test " prefix will be added to "metric" automatically but it can be specified manually too.
+
+        Note that if value is a scalar (single element tensor, array or python number),
+        test value is calculated as mean of values obtained during test epoch.
+        Otherwise test value is simply the last value obtained during test epoch.
+
+        Args:
+            metric (str): name of the metric
+            value (Any): value (anything)
+            plot (DisplayType | None, optional): if enabled and if value is a scalar, plots this value on visualizations.
+        """
+        if self._is_perturbed:
+            plot = False
+            metric = f'{metric} - perturbed'
+
+        # note - it is possible to log test metrics in train mode
+        # for example when both train and test samples are one large batch passed to model in a single pass
+        # thats why it is possible to manually specify metric as "test {name}" for it to be logged as test metric while training
+        if plot:
+            self._plot_keys.add(_benchmark_utils._remove_prefix(metric))
+
         if isinstance(value, torch.Tensor): value = value.detach().cpu()
-        if to_uint8: value = _normalize_to_uint8(value)
+        value = utils.types.maybe_tofloat(value)
 
-        # for consistency images should be in uint8 format and I check them to avoid stupid issues
-        if name.startswith('image'): value = _check_image(value, name)
-
-        # logged during training
         if self.training:
-            if log_test: name = f"{self._status} {name}"
-            self.logger.log(self._num_forwards, name, value)
+            if not metric.startswith(('train ', 'test ')): metric = f'train {metric}'
+            self.logger.log(self.num_forwards, metric, value)
 
-        # if logged during testing, save to test metrics for aggregation
         else:
-            if not log_test: return
-            if name in self._test_metrics: self._test_metrics[name].append(value)
-            else: self._test_metrics[name] = [value]
+            if metric.startswith('train'): warnings.warn(f"Logging {metric} in eval() mode (while testing)")
+            if not metric.startswith(('train ', 'test ')): metric = f'test {metric}'
+            if utils.types.is_scalar(value): self._test_scalar_metrics[metric].append(value)
+            else: self._test_other_metrics[metric] = value
 
-    def log_difference(self, name: str, value: Any, to_uint8):
-        """basically saves last update to name to visualzie optimziation dynamics, train only"""
-        while value.__class__.__name__ == 'AlgebraicTensor': value = value.data
-        if name not in self._previous_difference_values:
-            prev = self._previous_difference_values[name] = _maybe_detach_clone(value)
-        else:
-            prev = self._previous_difference_values[name]
+    @torch.no_grad
+    def log_image(
+        self,
+        name: str,
+        image: np.ndarray | torch.Tensor | Any,
+        to_uint8: bool,
+        min: float | None = None,
+        max: float | None = None,
+        log_difference: bool = False,
+        show_best: bool = False,
+    ):
+        """Log an image which will be displayed in plots and animations, images are only logged in training mode.
 
-        self.log(name, value - prev, log_test=False, to_uint8=to_uint8)
+        Args:
+            name (str): name of the image
+            image (np.ndarray | torch.Tensor): image
+            to_uint8 (bool): if True, image will be normalized and converted to uin8. Otherwise it has to already be in uint8. Defaults to False.
+            min (float | None, optional):
+                only if to_uint8=True, defines minimal value, if None this is calculated as image.min(). Defaults to None.
+            max (float | None, optional):
+                only if to_uint8=True, defines minimal value, if None this is calculated as image.max(). Defaults to None.
+            log_difference (bool, optional):
+                if True, will also store difference between current and previous image, only while training.
+                If parameter noise is enabled, this logs differences between noiseless images.
+                Defaults to False.
+            show_best (DisplayType | None, optional):
+                if enabled, will add a display of the image corresponding to the best loss so far.
+        """
+        if not self._make_images: warnings.warn(f'logging image {name} with make_images=False')
+        if self._benchmark_mode: warnings.warn(f'logging image {name} in BENCHMARK_MODE')
+        if self._is_perturbed:
+            name = f'{name} - perturbed'
+            log_difference=False; show_best=False
+
+        self._image_keys.add(name)
+        if show_best: self._image_lowest_keys.add(name)
+
+        if not to_uint8:
+            if image.dtype not in (np.uint8, torch.uint8):
+                raise RuntimeError(f"image needs to be in uint8 dtype, or to_uint8 needs to be True, got {image.dtype}")
+        if (not to_uint8) and (min is not None or max is not None): raise RuntimeError("min and max are only for to_uint8=True")
+
+        if isinstance(image, torch.Tensor): image = image.detach().cpu().clone()
+
+        # difference
+        if log_difference:
+            k = f'{name} difference'
+
+            if name not in self._previous_images: difference = image
+            else: difference = self._previous_images[name] - image
+
+            self._previous_images[name] = image
+            if to_uint8: difference = utils.types.normalize_to_uint8(difference)
+            self._image_keys.add(k)
+            self.logger.log(self.num_forwards, k, difference)
+
+        # value
+        if to_uint8:
+            image = utils.types.normalize_to_uint8(image, min=min, max=max)
+
+        self.logger.log(self.num_forwards, name, image)
+
 
     @abstractmethod
     def get_loss(self) -> torch.Tensor:
-        """returns loss, if needed batch can be accessed via self.batch (please make sure to move it to self.device),
-        can log stuff with self.log. No need to log train and test losses, they are logged automatically
-        """
+        """"""
 
     @final
     def forward(self) -> torch.Tensor:
-        """get_loss + logs params, loss and checks stop conditions"""
         # store initial state dict on 1st step
         # this also gets called at the beginning of run to make time more accurate
         # but this is for when function is evaluated manually
         if self._initial_state_dict is None:
-            self._update_noise()
-            self._store_initial_state_dict()
+            _benchmark_utils._update_noise_(self)
+            self._initial_state_dict = torch_tools.copy_state_dict(self.state_dict(), device='cpu')
 
         # terminate if stop condition reached
-        noise = None
-        params = None
         if self.training:
-            msg = _check_stop_condition(self)
+            msg = _benchmark_utils._should_stop(self)
             if msg is not None: raise StopCondition(msg)
-
-            if self._has_noise:
-                with torch.no_grad():
-                    params = tuple(self.parameters())
-                    noise = self._get_noise()
-                    torch._foreach_add_(params, noise)
+            if self._is_perturbed: _benchmark_utils._add_param_noise_(self, sub=False)
 
         # get loss and log it
-
         loss = self.get_loss()
+        cpu_loss = utils.types.tofloat(loss)
+        self.log('loss', cpu_loss)
 
-        if noise is not None:
-            assert params is not None
-            with torch.no_grad():
-                torch._foreach_sub_(params, noise)
-
-        cpu_loss = _ensure_float(loss)
-        self.log('loss', cpu_loss, log_test=True)
+        if self._is_perturbed:
+            _benchmark_utils._add_param_noise_(self, sub=True)
+            return loss
 
         if self.training:
             self._last_train_loss = cpu_loss
 
             # start timer right after forward pass before 3rd optimizer step to let things compile and warn up.
             # plus it runs the 1st test epoch
-            if self._num_forwards == 2:
-                self._start_time = time.time()
+            if self.num_forwards == 2:
+                self.start_time = time.time()
 
         else:
             self._last_test_loss = cpu_loss
 
         return loss
 
-    @property
-    def _has_noise(self):
-        return self._noise_level != 0 or self._noise_bias_level != 0
-
-    def _update_noise(self):
-        if self._has_noise:
-            for i,p in enumerate(self.parameters()):
-                k = f"_noise_{i}"
-                v = _make_biased_noise(p, self._noise_level, self._noise_bias_level, self.rng)
-                if not hasattr(self, k): self.register_buffer(k, v)
-                else: getattr(self, k).set_(v)
-
-    def _get_noise(self) -> list[torch.Tensor]:
-        noise = []
-        for i,p in enumerate(self.parameters()):
-            noise.append(getattr(self, f"_noise_{i}"))
-        return noise
-
-    def _post_closure(self, backward: bool) -> None:
+    @torch.no_grad
+    def post_closure(self, backward: bool) -> None:
         """post closure logic that must be called by closure, but that way any custom closure can be used like
         gauss newton one as long as it calls this before returning whatever it returns."""
-        self._cur_time = time.time()
+        if backward:
+            _benchmark_utils._add_grad_noise_(self)
+
+        if self._is_perturbed:
+            if backward: self.num_backwards += 1 # num_forwards incremented by closure(False)
+            self._is_perturbed = False
+            self.closure(False)
+            self._is_perturbed = True
+            return
+
+        self._current_time = time.time()
         if self.training:
             # log params (conditons are in the method)
-            _log_params_and_projections_(self)
+            _benchmark_utils._log_params_and_projections_(self)
 
-            self.log("time", self._time_passed, log_test=False)
-            self.log("num passes", self._num_passes, log_test=False)
-            self.log("num batches", self._num_batches, log_test=False)
+            self.logger.log(self.num_forwards, "seconds", self.seconds_passed)
+            self.logger.log(self.num_forwards, "num passes", self.num_passes)
+            self.logger.log(self.num_forwards, "num batches", self.num_steps)
 
             # this runs before first num forwards is incremented
             # so it usually on 1st step as 0%x = 0
             # this happens after backward so there are .grad attributes already
             # so the only way this could cause issues is if forward pass calcualtes and uses gradients wrt parameters
-            if _check_test_epoch_condition(self): self._test_epoch()
+            if _benchmark_utils._should_run_test_epoch(self): self.test_epoch()
 
             # increments
-            self._num_forwards += 1
-            if backward: self._num_backwards += 1
+            self.num_forwards += 1
+            if backward: self.num_backwards += 1
 
-        if self._print_progress: _print_progress(self)
+        if self._print_interval_s is not None: _benchmark_utils._print_progress_(self)
 
-    def closure(self, backward = True):
-        loss = self.forward()
+    @torch.no_grad
+    def closure(self, backward=True, retain_graph=None, create_graph=False) -> torch.Tensor:
 
         if backward:
-            self.zero_grad()
-            loss.backward()
+            with torch.enable_grad():
+                self.zero_grad()
+                loss = self.forward()
+                loss.backward(retain_graph=retain_graph, create_graph=create_graph)
+        else:
+            loss = self.forward()
 
-        self._post_closure(backward)
+        self.post_closure(backward)
 
         return loss
 
-    def one_step(self, optimizer, batch):
+    def one_step(self, optimizer):
         """one batch or one step"""
-        self._update_noise()
-        self.batch = batch
+        _benchmark_utils._update_noise_(self)
 
         if self.training:
-            optimizer.step(self.closure)
-            self._num_batches += 1
+            if self._param_noise_alpha != 0: self._is_perturbed = True
+            else: self._is_perturbed = False
 
-            # if has_noise, train loss is calculated at params+noise
-            # giving huge advantage to optimizers that simply grind one closure for many steps
-            # we log test loss after each step
-            if self._has_noise and self._dltest is None:
-                self.eval()
-                with torch.inference_mode():
-                    test_loss = self.closure(False).detach().cpu()
-                    self.logger.log(self._num_forwards, 'test loss', test_loss)
-                self.train()
+            optimizer.step(self.closure)
+            self.num_steps += 1
+            self._is_perturbed = False
 
         else:
+            self._is_perturbed = False
             self.closure(False)
 
-
-
-    def one_epoch(self, optimizer, dl):
-        """one epoch (if you haven't noticed)"""
-        if dl is None: self.one_step(optimizer, None)
+    def train_epoch(self, optimizer):
+        if self._dltrain is None: self.one_step(optimizer)
         else:
-            for batch in dl: self.one_step(optimizer, batch)
+            for batch in self._dltrain:
+                self.batch = batch
+                self.one_step(optimizer)
 
-        if self.training: self._num_epochs += 1
+        if self.training:
+            self.num_epochs += 1
 
-    @torch.inference_mode()
-    def _test_epoch(self):
-        """this runs after potential backward inside optimizer step
-        optimizer might perform another backward on same batch
-        so this stores current batch and restores it"""
+    def test_epoch(self):
+        assert self._dltest is not None
         self.eval()
         batch_backup = self.batch
-        self.one_epoch(None, self._dltest)
+
+        for batch in self._dltest:
+            self.batch = batch
+            self.one_step(optimizer=None)
+
         self._last_test_time = time.time()
         self.batch = batch_backup
         self.train()
-        _aggregate_test_metrics_(self) # this needs to be called after .train because log checks if training
-
+        _benchmark_utils._aggregate_test_metrics_(self) # this needs to be called after .train because log checks if training
 
 
     def run(
         self,
-        optimizer,
+        optimizer: torch.optim.Optimizer,
         max_passes: int | None = None,
         max_forwards: int | None = None,
-        max_batches: int | None = None,
+        max_steps: int | None = None,
         max_epochs: int | None = None,
-        max_seconds: float | None = None,
+        max_seconds: int | None = None,
         test_every_forwards: int | None = None,
         test_every_batches: int | None = None,
         test_every_epochs: int | None = None,
         test_every_seconds: float | None = None,
-        progress = True
+        target_loss: int | None = None,
     ):
-        """RUN TA TATTATA ATAT ATATATTATATAT ATTATA """
-        if self._initial_state_dict is None:
-            self._update_noise()
-            self._store_initial_state_dict()
+        _benchmark_utils._set_stop_criteria_(self, max_passes=max_passes,max_forwards=max_forwards,max_steps=max_steps,
+                                             max_epochs=max_epochs,max_seconds=max_seconds,target_loss=target_loss)
 
-        self._max_forwards = max_forwards
-        self._max_passes = max_passes
-        self._max_batches = max_batches
-        self._max_epochs = max_epochs
-        self._max_seconds = max_seconds
-        self._test_every_forwards = test_every_forwards
-        self._test_every_batches = test_every_batches
-        self._test_every_epochs = test_every_epochs
-        self._test_every_seconds = test_every_seconds
-        self._print_progress = progress
-        _ensure_stop_condition_exists_(self)
+        _benchmark_utils._set_test_intervals_(self, test_every_forwards=test_every_forwards, test_every_batches=test_every_batches,
+                                             test_every_epochs=test_every_epochs, test_every_seconds=test_every_seconds)
+
+        if self._initial_state_dict is None:
+            _benchmark_utils._update_noise_(self)
+            self._initial_state_dict = torch_tools.copy_state_dict(self.state_dict(), device='cpu')
 
         self.train()
 
         try:
             for _ in range(max_epochs) if max_epochs is not None else itertools.count():
-                self.one_epoch(optimizer, self._dltrain)
+                self.train_epoch(optimizer)
 
-        except StopCondition:# pass
+        except (StopCondition, KeyboardInterrupt):# pass
         # finally:
-            if self._dltest is not None: self._test_epoch()
-            if self._print_progress: _print_final_report(self)
+            if self._dltest is not None: self.test_epoch()
+            if self._print_interval_s: _benchmark_utils._print_final_report(self)
 
         else:
-            if self._dltest is not None: self._test_epoch()
-            if self._print_progress: _print_final_report(self)
+            if self._dltest is not None: self.test_epoch()
+            if self._print_interval_s: _benchmark_utils._print_final_report(self)
 
         return self
 
-    def add_reference_image(self, key: str, image:np.ndarray | torch.Tensor, to_uint8 = True):
-        if to_uint8: image = _normalize_to_uint8(image)
-        self.reference_images[key] = image # type:ignore
+    def plot_loss(self, ylim: Literal['auto'] | tuple[float,float] | None = 'auto',
+                  yscale=None, smoothing: float | tuple[float,float,float] = 0, ax=None):
+        train_loss = test_loss = train_loss_perturbed = None
 
-    def set_display_best(self, key: str, display_best: bool = True):
-        if key in self.display_best_keys:
-            if display_best: return
-            self.display_best_keys.remove(key)
-        else:
-            if display_best: self.display_best_keys.append(key)
+        train_loss = self.logger.numpy('train loss') if 'train loss' in self.logger else None
+        test_loss = self.logger.numpy('test loss') if 'test loss' in self.logger else None
+        if self._plot_perturbed and "train loss - perturbed" in self.logger:
+            train_loss_perturbed = self.logger.numpy("train loss - perturbed")
 
-    def plot_loss(self, ylim: Literal['auto'] | Sequence[float] | None = 'auto', yscale = None, x = 'num passes', y = 'loss', fig=None, show=True, **kw: Unpack[_K_Line2D]):
-        spec = locals().copy()
-        spec.update(spec.pop('kw'))
-        del spec['self']
-        return _plot_loss(self, **spec)
+        losses = {"train loss": train_loss, "test loss": test_loss, "train loss - perturbed": train_loss_perturbed}
 
-    def plot_trajectory(self, norm: str | None = 'symlog', fig = None, show = True):
-        spec = locals().copy()
-        del spec['self']
-        return _plot_trajectory(self, **spec)
+        plt_tools.plot_loss(losses, ylim=ylim, yscale=yscale, smoothing=smoothing, ax=ax)
 
-    def plot_images(self, fig=None, show=True):
-        spec = locals().copy()
-        del spec['self']
-        return _plot_images(self, **spec)
-
-    def plot_summary(self, metrics = (), norm: str | None = 'symlog', nrows = None, ncols = None, figsize = None, axsize = None):
-        fig = Fig()
-
-        # plot losses
-        self.plot_loss(fig=fig, show=False)
-
-        # plot any other metrics
-        if isinstance(metrics, str): metrics = (metrics, )
-        for metric in metrics: self.plot_loss(y=metric, fig=fig.add(metric), show=False)
-
-        # plot trajectory if it was logged
-        if self._proj1 is not None: self.plot_trajectory(norm=norm, fig=fig.add('trajectory'), show=False)
-
-        # check if any images to plot and plot them
-        if any(i.startswith(('image', 'train image', 'test image')) for i in self.logger.keys()) or len(self.reference_images) != 0:
-            self.plot_images(fig.add(), show = False)
-
-        # show
-        if (axsize is None) and (figsize is None): axsize = (8, 4)
-        fig.show(nrows=nrows, ncols=ncols, figsize=figsize, axsize=axsize)
-
-    def plot_landscape(
-        self,
-        mode: Literal["random", "edge", "pca"] | Any | None = None,
-        gs_num=30,
-        ars_evals=1000,
-        middle_mode: Literal['middle','mean','min'] = 'mean',
-        norm: str | None = "symlog",
-        expand: float = 1,
-        use_diff=False,
+    def plot_summary(
+        self: "Benchmark",
+        ylim: tuple[float, float] | Literal["auto"] | None = "auto",
+        yscale=None,
+        smoothing: float | tuple[float, float, float] = 0,
+        axsize: float | tuple[float, float] | None = (8, 4),
+        dpi: float | None = None,
         fig=None,
-        show=True,
     ):
-        self.eval()
-        if mode is None:
-            if 'params' in self.logger.keys(): mode = 'pca'
+        _benchmark_plotting.plot_summary(self, ylim=ylim, yscale=yscale, smoothing=smoothing, axsize=axsize, dpi=dpi, fig=fig)
 
-        if mode is None or mode in ('edge', 'random'):
-            return _plot_landscape_random(self, gs_num=gs_num,ars_evals=ars_evals,norm=norm,mode=mode,middle_mode=middle_mode,expand=expand,fig=fig,show=show)
+    def render(self, file: str, fps: int = 60, scale: int | float = 1, progress=True):
+        _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress)
 
-        return _plot_landscape_sklearn(self, gs_num=gs_num,ars_evals=ars_evals,norm=norm,projector=mode,expand=expand,use_diff=use_diff,fig=fig,show=show)
 
-    def render_video(self, file: str, fps: int = 60, scale: int | float = 1, progress=True):
-        spec = locals().copy()
-        del spec['self']
-        return _render_video(self, **spec)
-
-    def search(
-        self,
-        task_name: str,
-        opt_name: str,
-        target_metrics: dict[str, bool], # {metric: maximize}; first target metric is targeted by binary search
-        optimizer_fn: Callable,
-        max_passes: int | None = None,
-        max_forwards: int | None = None,
-        max_batches: int | None = None,
-        max_epochs: int | None = None,
-        max_seconds: float | None = None,
-        test_every_forwards: int | None = None,
-        test_every_batches: int | None = None,
-        test_every_epochs: int | None = None,
-        test_every_seconds: float | None = None,
-        batched: dict[str, bool] | None = None,
-        smoothing: dict[str, int | None] | None = None,
-        log10_lrs: Sequence[float] | None = (1, 0, -1, -2, -3, -4, -5),
-        progress: Literal['full', 'reduced', 'none'] = 'reduced',
-        root = 'runs',
-        print_achievements = True,
-
-        plot=False,
-
-        # lr tuning kwargs
-        # existing_files_count_towards_steps = True,
-        # max_files = 17,
-        lr_binary_search_steps = 7, # binary search steps
-        max_lr_expansions = 7, # separate count for when best lr is on the edge
-        debug=False,
-    ):
-        """go to definition and see _search for kwargs"""
-        # performance settings
-        self._log_params = False
-        self._log_projections = False
-        self._make_images = False
-
-        spec = locals().copy()
-        spec['bench'] = spec.pop('self')
-        del spec['plot']
-        _search(**spec)
-
-        if plot:
-            fig = Fig()
-            for metric in target_metrics.keys():
-                plot_metric(task_name = task_name, metric = metric, opts = opt_name, root=root, fig=fig.add(metric), show=False)
-            plot_lr_search_curve(task_name = task_name, opts = opt_name, root=root, fig = fig.add('lrs'), show=False)
-            fig.show(axsize = (12, 6))
 

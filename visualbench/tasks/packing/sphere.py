@@ -5,16 +5,15 @@ import random
 from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
-import cv2
-import matplotlib.pyplot as plt  # For distinct colors
 import numpy as np
 import torch
-from myai.transforms import tonumpy, totensor
 from torch import nn
 
 from ...benchmark import Benchmark
+from ...utils import tonumpy, totensor
 
 RADII1 = tuple([1,2,3,4,1,2,3,1,2,1]*4 + [10])
+RADII2 = list(range(100))
 
 class SpherePacking(Benchmark):
     """The goal is to pack 2D spheres as densely as possible.
@@ -25,13 +24,10 @@ class SpherePacking(Benchmark):
         radii (Sequence[float] | np.ndarray | torch.Tensor): list of radii of each sphere
 
     """
-    radii: torch.nn.Buffer
-    grid: torch.nn.Buffer
-    def __init__(self, radii: Sequence[float] | np.ndarray | torch.Tensor = RADII1, make_images = True):
-        super().__init__(log_projections = True)
-        self._make_images = make_images
+    def __init__(self, radii: Sequence[float] | np.ndarray | torch.Tensor = RADII1):
+        super().__init__()
         self.N = len(radii)
-        self.register_buffer('radii', totensor(radii, dtype=torch.float32))
+        self.radii = nn.Buffer(totensor(radii, dtype=torch.float32))
 
         # we arrange spheres in a circle which is quite involved but its good initialization...
         # Calculate sum of consecutive radii (including last to first)
@@ -75,7 +71,7 @@ class SpherePacking(Benchmark):
         y_coords = torch.linspace(-1, 1, H)
         x_coords = torch.linspace(-1, 1, W)
         grid_y, grid_x = torch.meshgrid(y_coords, x_coords, indexing='ij')
-        self.register_buffer('grid', torch.stack([grid_x, grid_y], -1))  # (H, W, 2)
+        self.grid = nn.Buffer(torch.stack([grid_x, grid_y], -1))
 
     def get_loss(self):
         pos, radii = self.positions, self.radii
@@ -119,7 +115,7 @@ class SpherePacking(Benchmark):
                 image[any_sphere] = 255
                 image[any_edge] = 0
 
-                self.log('image', image, False, to_uint8 = False)
+                self.log_image('spheres', image, to_uint8=False)
         return total_loss
 
 

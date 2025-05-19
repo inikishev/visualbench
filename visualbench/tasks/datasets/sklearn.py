@@ -5,13 +5,19 @@ from torch import nn
 from torch.nn import functional as F
 
 from .dataset import DatasetBenchmark
-from .models import MLP, ModelClass
 
 
 class CaliforniaHousing(DatasetBenchmark):
+    """
+    regression
+
+    input - (B, 8)
+
+    output - (B, 1)
+    """
     def __init__(
         self,
-        model: ModelClass = nn.Linear,
+        model,
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
@@ -22,7 +28,7 @@ class CaliforniaHousing(DatasetBenchmark):
         x,y = fetch_california_housing(return_X_y=True)
         super().__init__(
             data_train = (x, y[...,None]), # type:ignore
-            model = model(8, 1),
+            model = model,
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
@@ -33,20 +39,29 @@ class CaliforniaHousing(DatasetBenchmark):
 
 
 class Moons(DatasetBenchmark):
+    """
+    binary classification
+
+    input - (B, 2)
+
+    output - (B, 1)
+    """
     def __init__(
         self,
-        model: ModelClass = MLP([8, 16, 24, 32]),
+        model,
         criterion=F.binary_cross_entropy_with_logits,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
+        n_samples = 1024,
+        noise = 0.2,
         test_split=None,
         shuffle_split=True,
         normalize_x=True,
     ):
-        x,y = make_moons(n_samples = 1024, noise = 0.2, random_state=0)
+        x,y = make_moons(n_samples = n_samples, noise = noise, random_state=0)
         super().__init__(
             data_train = (x, y[...,None]), # type:ignore
-            model = model(2, 1),
+            model = model,
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,

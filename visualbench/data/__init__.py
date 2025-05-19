@@ -1,11 +1,10 @@
 import os
 
 import torch
-from myai.loaders.image import imreadtensor
 from torch.nn import functional as F
 
-from .._utils import _make_float_3hw_tensor
-
+from ..utils import to_3HW
+from ..utils.image import _imread
 _path = os.path.dirname(__file__)
 
 QRCODE96 = os.path.join(_path, 'qr-96.jpg')
@@ -15,7 +14,7 @@ TEST96 = os.path.join(_path, 'test-96.jpg')
 
 
 def get_qrcode():
-    qrcode = imreadtensor(QRCODE96).float().mean(0)
+    qrcode = to_3HW(_imread(QRCODE96).float()).mean(0)
     return torch.where(qrcode > 128, 1, 0).float().contiguous()
 
 def get_randn():
@@ -24,9 +23,9 @@ def get_randn():
 
 def get_3d_structured48():
     qr = get_qrcode() # (96x96)
-    attn = _make_float_3hw_tensor(ATTNGRAD96) # (3x96x96)
-    sanic = _make_float_3hw_tensor(SANIC96)
-    test = _make_float_3hw_tensor(TEST96)
+    attn = to_3HW(ATTNGRAD96) # (3x96x96)
+    sanic = to_3HW(SANIC96)
+    test = to_3HW(TEST96)
 
     qr = qr.unfold(0, 48, 48).unfold(1, 48, 48).flatten(0,1) # 4,48,48
     qr = torch.cat([qr, qr.flip(0), qr.flip(1)]) # 12,48,48

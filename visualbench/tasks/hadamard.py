@@ -24,33 +24,18 @@ class Hadamard(Benchmark):
         self.raw_a_first_row = nn.Parameter(torch.randn(self.n_half) * 0.5)
         self.raw_b_first_row = nn.Parameter(torch.randn(self.n_half) * 0.5)
 
-        self.frames = [] # To store generated images
-
     def _construct_circulant_matrix(self, first_row: torch.Tensor) -> torch.Tensor:
-        """
-        Constructs a circulant matrix from its first row.
-        """
         dim = first_row.shape[0]
         rows = [torch.roll(first_row, shifts=i) for i in range(dim)]
         return torch.stack(rows, dim=0)
 
     def get_loss(self) -> torch.Tensor:
-        """
-        Computes the loss and generates a frame.
-
-        Returns:
-            torch.Tensor: The total loss.
-        """
-        # Apply tanh to raw parameters to get values in (-1, 1)
-        # These are the first rows that define the circulant matrices A and B
         a_first_row = torch.tanh(self.raw_a_first_row)
         b_first_row = torch.tanh(self.raw_b_first_row)
 
-        # Construct circulant matrices A and B
         A = self._construct_circulant_matrix(a_first_row)
         B = self._construct_circulant_matrix(b_first_row)
 
-        # Construct the full matrix H using the specified block structure
         # H = [[A,  B],
         #      [B, -A]]
         H_top_row = torch.cat((A, B), dim=1)
@@ -58,40 +43,31 @@ class Hadamard(Benchmark):
         H = torch.cat((H_top_row, H_bottom_row), dim=0)
 
         # 1. Hadamard Loss: H @ H.T should be N * I
-        # H is on the same device as parameters. Ensure Identity is too.
         identity_N = torch.eye(self.N, device=H.device, dtype=H.dtype)
         target_HHT = self.N * identity_N
 
-        # Using torch.matmul for matrix multiplication
         HHT = torch.matmul(H, H.T)
         loss_hadamard = torch.mean((HHT - target_HHT)**2)
 
         # 2. Binarization Loss: Entries of H should be close to +1 or -1
         loss_binarization = torch.mean((H**2 - 1)**2)
 
-        # Total loss
         total_loss = loss_hadamard + self.binarization_weight * loss_binarization
 
-        # Generate and append frame
+        # vis
         if self._make_images:
-            frame = self._generate_and_append_frame(H)
-            self.log('image', frame, False, False)
+            frame = self._make_frame(H)
+            self.log_image('image', frame, to_uint8=False)
 
         return total_loss
 
-    def _generate_and_append_frame(self, matrix_H: torch.Tensor, frame_size: tuple = (256, 256)):
-        """
-        Generates a uint8 image from the matrix H and appends it to self.frames.
-        """
-        # Detach from computation graph, move to CPU, convert to NumPy
+    @torch.no_grad
+    def _make_frame(self, matrix_H: torch.Tensor, frame_size: tuple = (256, 256)):
         H_np = matrix_H.detach().cpu().numpy()
 
-        # Normalize from (-1, 1) to (0, 1) then to (0, 255)
         img_normalized = (H_np + 1.0) / 2.0
         img_uint8 = (img_normalized * 255.0).astype(np.uint8)
 
-        # Resize for better visualization (optional, but good for small matrices)
-        # Using INTER_NEAREST to keep sharp pixel boundaries
         if img_uint8.shape[0] < frame_size[0] or img_uint8.shape[1] < frame_size[1]:
             img_resized = cv2.resize(img_uint8, frame_size, interpolation=cv2.INTER_NEAREST) # pylint:disable=no-member
         else:
@@ -100,10 +76,6 @@ class Hadamard(Benchmark):
         return img_resized
 
     def get_final_H(self, threshold: float = 0.0) -> torch.Tensor:
-        """
-        Returns the current H matrix, binarized to +1/-1.
-        Values > threshold become 1, otherwise -1.
-        """
         with torch.no_grad():
             a_first_row = torch.tanh(self.raw_a_first_row)
             b_first_row = torch.tanh(self.raw_b_first_row)

@@ -5,10 +5,10 @@ import torch
 from PIL import Image, ImageDraw
 from torch import nn
 
-from .._utils import CUDA_IF_AVAILABLE
 from ..benchmark import Benchmark
+from ..utils import CUDA_IF_AVAILABLE
 
-SIMPLE_MAZE = (
+WALLS1 = (
             # Perimeter walls
             (0.0, 5.0, 0.0, 0.2),    # Bottom
             (0.0, 5.0, 4.8, 5.0),    # Top
@@ -43,7 +43,7 @@ class OptimalControl(Benchmark):
 
     def __init__(
         self,
-        walls=SIMPLE_MAZE,
+        walls=WALLS1,
         dt=0.1,
         T=100,
         mode: Literal['force', 'velocity', 'position'] = "force",
@@ -69,28 +69,22 @@ class OptimalControl(Benchmark):
             raise ValueError("optimize_mode must be 'force', 'velocity', or 'position'")
 
         # Buffers
-        initial_state_tensor = torch.tensor([*initial_pos, *initial_vel], dtype=torch.float32)
-        self.register_buffer('initial_state', initial_state_tensor)
-        self.register_buffer('target', torch.tensor(target_pos, dtype=torch.float32))
-        self.register_buffer('walls_tensor', torch.tensor(self.walls, dtype=torch.float32))
+        initial_state = torch.tensor([*initial_pos, *initial_vel], dtype=torch.float32)
+        self.initial_state = nn.Buffer(initial_state)
+        self.target = nn.Buffer(torch.tensor(target_pos, dtype=torch.float32))
+        self.walls_tensor = nn.Buffer(torch.tensor(self.walls, dtype=torch.float32))
 
-        # Parameters (created based on mode)
         if self.mode == "force":
-            # Optimize accelerations a[0]...a[T-1]
             self.controls = nn.Parameter(torch.zeros(self.T, 2))
+
         elif self.mode == "velocity":
-             # Optimize velocities v[1]...v[T]
             self.controls = nn.Parameter(torch.zeros(self.T, 2))
-            # warnings.warn("In 'velocity' mode, initial velocity from initial_state is used for v[0], but subsequent velocities v[1]...v[T] are optimized directly.", UserWarning)
+
         elif self.mode == "position":
-            # Optimize positions p[1]...p[T]
-            # Initialize near initial position for better start
             initial_p = self.initial_state[:2].unsqueeze(0).repeat(self.T, 1)
             self.controls = nn.Parameter(initial_p + torch.randn(self.T, 2) * 0.01) # Add small noise
-            # warnings.warn("In 'position' mode, initial velocity from initial_state is ignored during optimization, as velocities are derived from optimized positions.", UserWarning)
 
         self._create_background()
-        self.set_display_best('image path')
 
     def _create_background(self):
         """pre-renders static maze elements."""
@@ -152,7 +146,7 @@ class OptimalControl(Benchmark):
         collision_loss = self._collision_loss(P[1:])
         target_loss = torch.sum((P[-1] - self.target)**2)
 
-        total_loss = target_loss + control_loss + collision_loss
+        loss = target_loss + control_loss + collision_loss
 
         if self._make_images:
             with torch.no_grad():
@@ -168,9 +162,9 @@ class OptimalControl(Benchmark):
                     for i in range(len(points)-1):
                         draw.line([points[i], points[i+1]], fill='#0000ff', width=3)
 
-                self.log('image path', np.asarray(img), False, False)
+                self.log_image('trajectory', np.asarray(img), to_uint8=False, show_best=True)
 
-        return total_loss
+        return loss
 
     def _collision_loss(self, trajectory):
         """collision penalty"""

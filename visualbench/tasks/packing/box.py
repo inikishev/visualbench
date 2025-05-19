@@ -1,23 +1,18 @@
 
 # pylint:disable=not-callable
-import itertools
-import math
-import random
 from collections.abc import Callable, Sequence
-from typing import Any, Literal
 
 import cv2
-import matplotlib.pyplot as plt  # For distinct colors
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from myai.transforms import tonumpy, totensor
 from torch import nn
 
 from ...benchmark import Benchmark
-from .box_packing import CONTAINER1, uniform_container
+from .rigid_box import CONTAINER1
 
 
-def rotation_matrix(theta):
+def _rotation_matrix(theta):
     cos_t = torch.cos(theta)
     sin_t = torch.sin(theta)
     return torch.stack([
@@ -26,7 +21,7 @@ def rotation_matrix(theta):
     ], dim=-2)
 
 
-def soft_point_in_polygon(points, vertices, smoothness=10.0):
+def _soft_point_in_polygon(points, vertices, smoothness=10.0):
     """
     Checks if points are inside a convex polygon defined by vertices.
     Assumes Y grows downwards (image coordinates) for grid and vertices.
@@ -59,7 +54,7 @@ def soft_point_in_polygon(points, vertices, smoothness=10.0):
     inside_polygon, _ = torch.min(inside_edge, dim=-1) # H, W
     return inside_polygon
 
-class SquishyBoxPacking(Benchmark):
+class BoxPacking(Benchmark):
     """
     box packing where it can apply affine to boxes but area stays the same.
 
@@ -76,39 +71,39 @@ class SquishyBoxPacking(Benchmark):
         self,
         container_size=CONTAINER1[0],
         box_sizes=CONTAINER1[1],
-        render_resolution: Sequence[int] = (128, 128),
+        resolution: Sequence[int] = (128, 128),
         smoothness: float = 50.0,
         squishiness: float | None = 1,
-        border_penalty_weight: float = 1.0,
-        overlap_penalty_weight: float = 1.0,
-        init_strategy: str = "random_inside",  # 'center', 'random', 'random_inside'
+        border_penalty: float = 1.0,
+        overlap_penalty: float = 1.0,
+        init: str = "random_inside",  # 'center', 'random', 'random_inside'
     ):
-        super().__init__(log_projections=True)
+        super().__init__()
 
         self.boxes = box_sizes
         self.num_boxes = len(box_sizes)
         self.container_W, self.container_H = container_size
-        self.render_H, self.render_W = render_resolution
+        self.render_H, self.render_W = resolution
         self.smoothness = smoothness # Store the smoothness value
-        self.border_penalty_weight = border_penalty_weight
-        self.overlap_penalty_weight = overlap_penalty_weight
+        self.border_penalty = border_penalty
+        self.overlap_penalty = overlap_penalty
         self.squishiness = squishiness
 
         self.initial_areas = nn.Buffer(torch.tensor([w * h for w, h in box_sizes], dtype=torch.float32))
         self.initial_dims = nn.Buffer(torch.tensor(box_sizes, dtype=torch.float32))
 
         # init
-        if init_strategy == 'center':
+        if init == 'center':
             init_translations = torch.tensor([[self.container_W / 2, self.container_H / 2]] * self.num_boxes)
-        elif init_strategy == 'random':
+        elif init == 'random':
             init_translations = torch.rand(self.num_boxes, 2) * torch.tensor([self.container_W, self.container_H])
-        elif init_strategy == 'random_inside':
+        elif init == 'random_inside':
             buffer = 0.1
             rand_w = torch.rand(self.num_boxes, 1) * (self.container_W - buffer*2) + buffer
             rand_h = torch.rand(self.num_boxes, 1) * (self.container_H - buffer*2) + buffer
             init_translations = torch.cat([rand_w, rand_h], dim=1)
         else:
-            raise ValueError(f"Unknown init_strategy: {init_strategy}")
+            raise ValueError(f"Unknown init_strategy: {init}")
 
         init_rotations = torch.zeros(self.num_boxes)
         init_squishes = torch.zeros(self.num_boxes)
@@ -128,10 +123,7 @@ class SquishyBoxPacking(Benchmark):
         cmap = plt.get_cmap('tab20')
         self.box_colors = [tuple(map(int, c)) for c in (np.array(cmap(np.linspace(0, 1, self.num_boxes)))[:, :3] * 255)]
 
-        self.set_display_best('image')
-
-    def _get_transformed_vertices(self):
-        N = self.num_boxes
+    def _get_vertices(self):
         half_dims = self.initial_dims / 2.0
         base_vertices = torch.stack([
             torch.stack([-half_dims[:, 0], -half_dims[:, 1]], dim=-1),
@@ -144,7 +136,7 @@ class SquishyBoxPacking(Benchmark):
         sy = torch.exp(-self.squishes).unsqueeze(-1).unsqueeze(-1)
         scaled_vertices = base_vertices * torch.cat([sx, sy], dim=-1)
 
-        rot_matrices = rotation_matrix(self.rotations)
+        rot_matrices = _rotation_matrix(self.rotations)
         rotated_vertices = torch.einsum('nij,nvj->nvi', rot_matrices, scaled_vertices)
 
         translations_exp = self.translations.unsqueeze(1)
@@ -152,45 +144,44 @@ class SquishyBoxPacking(Benchmark):
 
         return final_vertices
 
-    def get_loss(self) -> torch.Tensor:
-        """ Calculates the packing loss and generates a visualization frame. """
-        transformed_vertices = self._get_transformed_vertices()
+    def get_loss(self):
+        vertices = self._get_vertices()
 
         canvas = torch.zeros((self.render_H, self.render_W), device=self.device, dtype=torch.float32)
 
         for i in range(self.num_boxes):
-            box_canvas_i = soft_point_in_polygon(
+            box_canvas_i = _soft_point_in_polygon(
                 self.grid_points,
-                transformed_vertices[i],
+                vertices[i],
                 self.smoothness
             )
             canvas += box_canvas_i
 
         # penalize overlap
         overlap_map = torch.relu(canvas - 1.0)
-        overlap_loss = torch.mean(overlap_map) * self.overlap_penalty_weight
+        overlap_loss = torch.mean(overlap_map) * self.overlap_penalty
 
         # penalize border overlap
-        verts = transformed_vertices
+        verts = vertices
         verts_x, verts_y = verts[..., 0], verts[..., 1]
-        loss_outside_x = torch.relu(verts_x - self.container_W) + torch.relu(-verts_x)
-        loss_outside_y = torch.relu(verts_y - self.container_H) + torch.relu(-verts_y)
-        border_loss = (torch.mean(loss_outside_x) + torch.mean(loss_outside_y)) * self.border_penalty_weight
+        x_overlap = torch.relu(verts_x - self.container_W) + torch.relu(-verts_x)
+        y_overlap = torch.relu(verts_y - self.container_H) + torch.relu(-verts_y)
+        border_loss = (torch.mean(x_overlap) + torch.mean(y_overlap)) * self.border_penalty
 
         # penalize squishing
-        squish_penalty = (self.squishes**2).mean() * (1/self.squishiness)
+        if self.squishiness is not None: squish_penalty = (self.squishes**2).mean() * (1/self.squishiness)
+        else: squish_penalty = 0
 
-        total_loss = overlap_loss + border_loss + squish_penalty
-
+        loss = overlap_loss + border_loss + squish_penalty
 
         if self._make_images:
-            frame = self._generate_frame(transformed_vertices)
-            self.log('image', frame, log_test=False, to_uint8=False)
+            frame = self._make_frame(vertices)
+            self.log_image('boxes', frame, to_uint8=False, show_best=True)
 
-        return total_loss
+        return loss
 
-    @torch.no_grad()
-    def _generate_frame(self, vertices_tensor):
+    @torch.no_grad
+    def _make_frame(self, vertices_tensor):
         vis_H, vis_W = 512, 512
         frame = np.zeros((vis_H, vis_W, 3), dtype=np.uint8)
         cv2.rectangle(frame, (0, 0), (vis_W - 1, vis_H - 1), (255, 255, 255), 1) # pylint:disable=no-member

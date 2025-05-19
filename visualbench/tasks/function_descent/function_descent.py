@@ -1,20 +1,21 @@
-"""2D (maybe I add higher D) function descent"""
+"""2D function descent"""
 
 
-from collections.abc import Callable, Sequence, Iterable
+from collections.abc import Callable, Iterable, Sequence
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from myai.plt_tools import Fig
-from myai.python_tools import Progress, flatten
-from myai.transforms import tonumpy, totensor
-from myai.video.renderer import OpenCVRenderer
 
 from ...benchmark import Benchmark
+from ...utils._benchmark_video import _maybe_progress
+from ...utils.renderer import OpenCVRenderer
+from ...utils.types import tonumpy, totensor
 from .test_functions import TEST_FUNCTIONS, TestFunction
-
+from ...utils.funcplot import funcplot2d
 
 class _UnpackCall:
+    __slots__ = ("f", )
     def __init__(self, f): self.f=f
     def __call__(self, *x): return self.f(torch.stack(x, 0))
 
@@ -31,12 +32,10 @@ class FunctionDescent(Benchmark):
         x0: Sequence | np.ndarray | torch.Tensor | None = None,
         domain: tuple[tuple[float, float], tuple[float, float]] | tuple[float,float,float,float] | Sequence[Sequence[float]] | Sequence[float] | None = None,
         minima = None,
-        noise: float = 0,
-        noise_bias: float = 0,
         dtype: torch.dtype = torch.float32,
         unpack=True,
     ):
-        """descend a function. Currently plotting is only supported for 2D functions.
+        """descend a function.
 
         Args:
             func (Callable | str):
@@ -61,7 +60,7 @@ class FunctionDescent(Benchmark):
             unpack = True
 
         x0 = totensor(x0, dtype=dtype)
-        super().__init__(log_params=True, log_projections = x0.numel() > 2, noise=noise, noise_bias=noise_bias)
+        super().__init__(log_params=True)
 
         self.func: Callable[..., torch.Tensor] | TestFunction = f # type:ignore
 
@@ -77,9 +76,6 @@ class FunctionDescent(Benchmark):
         # self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
         # self.noise_batch = 0
 
-    @property
-    def ndim(self): return self.params.numel()
-
     @staticmethod
     def list_funcs():
         print(sorted(list(TEST_FUNCTIONS.keys())))
@@ -92,13 +88,6 @@ class FunctionDescent(Benchmark):
 
     def get_loss(self):
         params = self.params
-        # if self.noise is not None:
-        #     # only update noise on next "batch"
-        #     if self._num_batches != self.noise_batch:
-        #         self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
-        #         self.noise_batch = self._num_batches
-        #     params = params + self.noise_tensor * self.noise
-
         if self.unpack:
             loss = self.func(*params)
         else:
@@ -119,40 +108,37 @@ class FunctionDescent(Benchmark):
         linewidth=0.5,
         line_alpha=1.,
         linecolor="red",
-        fig=None,
-        show = True,
+        ax=None,
     ):
-        if self.ndim != 2: raise NotImplementedError(self.ndim)
-        if fig is None: fig = Fig()
-
+        if ax is None: ax = plt.gca()
         bounds = self._get_domain()
 
         if self.unpack: f = self.func
         else: f = _UnpackCall(self.func)
-
-        fig.funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, lib=torch) # type:ignore
+        funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, lib=torch) # type:ignore
 
         if 'params' in self.logger:
             params = self.logger.numpy('params')
             # params = np.clip(params, *bounds.T) # type:ignore
             losses = self.logger.numpy('train loss')
+
             if len(params) > 0:
-                fig.path(*params.T, c = losses, cmap=marker_cmap, s = marker_size, marker_alpha = marker_alpha,
-                         line_alpha=line_alpha, linewidth = linewidth, front='marker', linecolor=linecolor)
-                fig.xlim(*bounds[0])
-                fig.ylim(*bounds[1])
-        if show: fig.show()
-        return fig
+                ax.scatter(*params.T, c=losses, cmap=marker_cmap, s=marker_size, alpha=marker_alpha)
+                ax.plot(*params.T, alpha=line_alpha, lw=linewidth, c=linecolor)
+                ax.set_xlim(*bounds[0]); ax.set_ylim(*bounds[1])
 
+        return ax
 
-    def render_video(self, file: str, fps: int = 60, scale: int | float = 1, progress=True, num: int = 500, marker_size:int|np.ndarray = 2, marker_alpha: float = 0.5, ):
+    # override render, because get_loss doesnt make frames so that it is even faster
+    @torch.no_grad
+    def render(self, file: str, fps: int = 60, scale: int | float = 1, progress=True, num: int = 500, marker_size:int|np.ndarray = 2, marker_alpha: float = 0.5, ):
         bounds = self._get_domain()
         xrange = bounds[0]
         yrange = bounds[1]
 
         # note: variables have "x" and "y" in their names.
         # but I am not sure if they are actually x and y coordinates.
-        # I have to swap some of them by trial and error
+        # I had to suswap some of them by trial and error
         x_spacing = torch.linspace(*xrange, num) # type:ignore
         y_spacing = torch.linspace(*yrange, num) # type:ignore
         X,Y = torch.meshgrid(x_spacing, y_spacing, indexing='xy') # grid of points
@@ -189,9 +175,9 @@ class FunctionDescent(Benchmark):
         size = img.shape
         img = img[:,:,np.newaxis].repeat(repeats = 3, axis = 2)
 
-        with OpenCVRenderer(file, fps) as renderer:
+        with OpenCVRenderer(file, fps, scale=scale) as renderer:
             frame = img.copy()
-            for x, y, c, s in Progress(list(zip(x_coords, y_coords, colors, sizes)), enable = progress, sec=0.1):
+            for x, y, c, s in _maybe_progress(list(zip(x_coords, y_coords, colors, sizes)), enable = progress):
                 out_of_screen = False
                 if any(((not np.isfinite(ii)) for ii in (x, y, s,))): out_of_screen = True
                 else:
