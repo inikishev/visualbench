@@ -23,9 +23,10 @@ class RNG:
     def torch(self, device: Any = None) -> torch.Generator:
         if device is None: device = torch.get_default_device()
         elif not isinstance(device, torch.device): device = torch.device(device)
+
         key = (device.type, device.index)
         if key not in self._torch_generators:
-            self._torch_generators[key] = torch.Generator(device).manual_seed(self.seed) if self.seed else None
+            self._torch_generators[key] = torch.Generator(device).manual_seed(self.seed) if self.seed is not None else None
         return self._torch_generators[key]
 
 Seed = int | RNG | None

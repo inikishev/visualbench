@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from ..utils import totensor, to_CHW, get_algebra
+from ..utils import totensor, to_CHW, get_algebra, to_square, from_algebra
 from ..benchmark import Benchmark
 
 
@@ -15,7 +15,6 @@ class Sphere(Benchmark):
 
     Directly minimizes `criterion` between `target` and `init`.
 
-    Supports rendering a video as long as `target` is an image (2d or 3d tensor or path to image)
     Args:
         target (Any): if int, used as number of dims, otherwise is the target itself.
         init (Any, optional): initial values same shape as target, if None initializes to zeros. Defaults to None.
@@ -46,30 +45,52 @@ class Sphere(Benchmark):
         # return loss
         return self.criterion(self.x, self.target)
 
-class Convex(Benchmark):
-    """Basic convex function.
+class Quadratic(Benchmark):
+    """Basic convex quadratic objective.
 
     Args:
-        dim (int, optional): number of dimensions. Defaults to 165125384.
+        dim (int, optional): number of dimensions. Defaults to 512.
+        eps (int, optional): to make sure matrix is positive definite. Defaults to 1e-8.
+        shift (bool | None, optional): shifts loss so that minimal loss is close to 0 (not exactly due to imprecision)
         seed (int, optional): rng seed. Defaults to 0.
     """
-    def __init__(self, dim=512, mul = 1e-2, seed=0):
+    def __init__(self, dim=512, eps=1e-4, algebra=None, shift=None, seed=0):
         super().__init__(seed=seed)
         generator = self.rng.torch()
         self.dim = dim
 
-        self.W = torch.nn.Buffer(torch.randn(dim, dim, generator=generator, requires_grad=False))
-        self.I = torch.nn.Buffer(torch.eye(dim))
-        self.C = torch.nn.Buffer(torch.randn(dim, generator=generator, requires_grad=False))
+        H = torch.randn(dim, dim, generator=generator)
+        self.H = torch.nn.Buffer((H @ H.mT) + torch.eye(dim)*eps) # positive definite matrix
+        self.b = torch.nn.Buffer(torch.randn(dim, generator=generator))
+        self.shift = torch.nn.Buffer(torch.randn(dim, generator=generator))
 
-        self.x = torch.nn.Parameter(torch.randn((1, dim), generator=generator))
-        self.mul = mul
+        self.x = torch.nn.Parameter(torch.randn(dim, generator=generator))
+        self.algebra = get_algebra(algebra)
+
+        self.min_value = None
+        if shift is None: shift = (algebra is None) and (dim <= 10_000)
+        if shift:
+            # shift so that minimal value is 0
+            try:
+                sol, success = torch.linalg.solve_ex(self.H, -self.b) # pylint:disable=not-callable
+                if success: self.min_value = 0.5*(sol @ self.H).dot(sol) + sol.dot(self.b)
+            except Exception:
+                pass
 
 
     def get_loss(self):
-        x = self.x + self.C
-        Wx = x @ self.W.T
-        return ((Wx**2).sum() + (x**2).sum()) * self.mul
+        x = self.x
+        H = self.H * 0.5 # before algebra
+
+        if self.algebra is not None: x, H = self.algebra.convert(x, H)
+        x = x + self.shift
+
+        term1 = (x @ H).dot(x) # pyright:ignore[reportArgumentType]
+        term2 = x.dot(self.b)
+
+        loss = from_algebra(term1 + term2)
+        if self.min_value is not None: return loss - self.min_value
+        return loss
 
 
 class Rosenbrock(Benchmark):

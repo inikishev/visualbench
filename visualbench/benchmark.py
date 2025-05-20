@@ -272,6 +272,7 @@ class Benchmark(torch.nn.Module, ABC):
         """"""
 
     @final
+    @torch.no_grad
     def forward(self) -> torch.Tensor:
         # store initial state dict on 1st step
         # this also gets called at the beginning of run to make time more accurate
@@ -287,7 +288,7 @@ class Benchmark(torch.nn.Module, ABC):
             if self._is_perturbed: _benchmark_utils._add_param_noise_(self, sub=False)
 
         # get loss and log it
-        loss = self.get_loss()
+        with torch.enable_grad(): loss = self.get_loss()
         cpu_loss = utils.types.tofloat(loss)
         self.log('loss', cpu_loss)
 
@@ -343,14 +344,12 @@ class Benchmark(torch.nn.Module, ABC):
 
         if self._print_interval_s is not None: _benchmark_utils._print_progress_(self)
 
-    @torch.no_grad
     def closure(self, backward=True, retain_graph=None, create_graph=False) -> torch.Tensor:
 
         if backward:
-            with torch.enable_grad():
-                self.zero_grad()
-                loss = self.forward()
-                loss.backward(retain_graph=retain_graph, create_graph=create_graph)
+            self.zero_grad()
+            loss = self.forward()
+            loss.backward(retain_graph=retain_graph, create_graph=create_graph)
         else:
             loss = self.forward()
 

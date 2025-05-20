@@ -25,7 +25,7 @@ from .smale7 import Smale7
 from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
-    Convex,
+    Quadratic,
     IllConditioned,
     Rosenbrock,
     Sphere,
