@@ -17,7 +17,7 @@ def orthonormalize_svd(M, driver=None):
     U,S,V = svd(M, driver)
     return (U @ V.mT)
 
-OrthoMode = float | Literal['svd']
+OrthoMode = float | Literal['svd', 'qr']
 def orthonormality_constraint(M: torch.Tensor, ortho: OrthoMode, algebra, criterion=F.mse_loss):
     """either orthonormality penalty or projects onto the Stiefel manifold via svd"""
     if not isinstance(M, torch.Tensor): raise TypeError(M)
@@ -28,9 +28,15 @@ def orthonormality_constraint(M: torch.Tensor, ortho: OrthoMode, algebra, criter
         except torch.linalg.LinAlgError:
             ortho = 1
 
+    if ortho == 'qr':
+        try:
+            return torch.linalg.qr(M)[0], 0 #pylint:disable=not-callable
+        except torch.linalg.LinAlgError:
+            ortho = 1
+
     *b, m, n = M.shape
     if n > m:
-        M = M.mT
+        M = M.mH # works for unitary too
         m, n = n, m
 
     I = torch.eye(n, dtype=M.dtype, device=M.device).expand(M.shape).clone()
