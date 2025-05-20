@@ -1,7 +1,8 @@
 import torch
 
-from ...utils import totensor, to_CHW, get_algebra, to_square, from_algebra
 from ...benchmark import Benchmark
+from ...utils import from_algebra, get_algebra, to_CHW, to_square, totensor
+
 
 class MatrixRoot(Benchmark):
     def __init__(self, A, p: int, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
@@ -27,7 +28,7 @@ class MatrixRoot(Benchmark):
             Xp = X
             for _ in range(1, self.p):
                 Xp = self.algebra.matmul(X, Xp)
-                if self._make_images: powers.append(X)
+                if self._make_images: powers.append(Xp)
 
         loss = self.criterion(Xp, self.A)
 
