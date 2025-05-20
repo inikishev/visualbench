@@ -160,8 +160,8 @@ class Benchmark(torch.nn.Module, ABC):
                 only if to_uint8=True, defines minimal value, if None this is calculated as image.max(). Defaults to None.
         """
         if (not to_uint8) and (min is not None or max is not None): raise RuntimeError("min and max are only for to_uint8=True")
-        image = utils.types.to_3HW(image)
-        if to_uint8: image = utils.types.normalize_to_uint8(image, min=min, max=max)
+        image = utils.format.to_3HW(image)
+        if to_uint8: image = utils.format.normalize_to_uint8(image, min=min, max=max)
         elif image.dtype != torch.uint8:
             raise RuntimeError(f"Reference image needs to be in uint8 dtype, or to_uint8 needs to be True, got {image.dtype}")
         self._reference_images[name] = image.cpu()
@@ -192,7 +192,7 @@ class Benchmark(torch.nn.Module, ABC):
             self._plot_keys.add(_benchmark_utils._remove_prefix(metric))
 
         if isinstance(value, torch.Tensor): value = value.detach().cpu()
-        value = utils.types.maybe_tofloat(value)
+        value = utils.format.maybe_tofloat(value)
 
         if self.training:
             if not metric.startswith(('train ', 'test ')): metric = f'train {metric}'
@@ -201,7 +201,7 @@ class Benchmark(torch.nn.Module, ABC):
         else:
             if metric.startswith('train'): warnings.warn(f"Logging {metric} in eval() mode (while testing)")
             if not metric.startswith(('train ', 'test ')): metric = f'test {metric}'
-            if utils.types.is_scalar(value): self._test_scalar_metrics[metric].append(value)
+            if utils.format.is_scalar(value): self._test_scalar_metrics[metric].append(value)
             else: self._test_other_metrics[metric] = value
 
     @torch.no_grad
@@ -256,13 +256,13 @@ class Benchmark(torch.nn.Module, ABC):
             else: difference = self._previous_images[name] - image
 
             self._previous_images[name] = image
-            if to_uint8: difference = utils.types.normalize_to_uint8(difference)
+            if to_uint8: difference = utils.format.normalize_to_uint8(difference)
             self._image_keys.add(k)
             self.logger.log(self.num_forwards, k, difference)
 
         # value
         if to_uint8:
-            image = utils.types.normalize_to_uint8(image, min=min, max=max)
+            image = utils.format.normalize_to_uint8(image, min=min, max=max)
 
         self.logger.log(self.num_forwards, name, image)
 
@@ -289,7 +289,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         # get loss and log it
         with torch.enable_grad(): loss = self.get_loss()
-        cpu_loss = utils.types.tofloat(loss)
+        cpu_loss = utils.format.tofloat(loss)
         self.log('loss', cpu_loss)
 
         if self._is_perturbed:

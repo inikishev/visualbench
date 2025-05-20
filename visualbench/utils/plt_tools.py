@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
-from .types import tonumpy
+from .format import tonumpy
 
 
 def _auto_loss_yrange(*losses, yscale=None):

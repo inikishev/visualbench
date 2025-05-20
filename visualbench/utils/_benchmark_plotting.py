@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .plt_tools import legend, make_axes, plot_loss
-from .types import to_HW3
+from .format import to_HW3
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark

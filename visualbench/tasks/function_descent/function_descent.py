@@ -10,7 +10,7 @@ import torch
 from ...benchmark import Benchmark
 from ...utils._benchmark_video import _maybe_progress
 from ...utils.renderer import OpenCVRenderer
-from ...utils.types import tonumpy, totensor
+from ...utils.format import tonumpy, totensor
 from .test_functions import TEST_FUNCTIONS, TestFunction
 from ...utils.funcplot import funcplot2d
 

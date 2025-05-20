@@ -5,7 +5,7 @@ import torch
 
 from .padding import pad_to_shape
 from .renderer import OpenCVRenderer, make_hw3, render_frames
-from .types import tonumpy
+from .format import tonumpy
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark

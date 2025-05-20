@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from .types import tonumpy
+from .format import tonumpy
 
 
 @torch.no_grad

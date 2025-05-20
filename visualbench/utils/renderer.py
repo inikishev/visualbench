@@ -3,7 +3,7 @@ from typing import Literal
 import cv2
 import numpy as np
 import torch
-from .types import tonumpy
+from .format import tonumpy
 
 def make_hw3(x: np.ndarray, allow_4_channels = False) -> np.ndarray:
     """Forces input tensor to be (H, W, 3) format.

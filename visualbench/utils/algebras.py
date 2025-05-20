@@ -26,3 +26,16 @@ def from_algebra(tensor1: "MaybeAlgebraicTensor", tensor2: "MaybeAlgebraicTensor
     torch_tensors = [_to_tensor(t) for t in (tensor1, tensor2, *tensors) if t is not None]
     if len(torch_tensors) == 1: return torch_tensors[0]
     return torch_tensors
+
+
+def matmul(x, y, algebra):
+    if algebra is None: return x @ y
+    return algebra.matmul(x, y)
+
+def dot(x, y, algebra):
+    if algebra is None: return x.dot(y)
+    return algebra.dot(x, y)
+
+def outer(x, y, algebra):
+    if algebra is None: return x.outer(y)
+    return algebra.outer(x, y)
