@@ -1,4 +1,5 @@
 from .colorization import Colorization
+from .covering import RigidBoxCovering
 from .datasets import *
 from .drawing import LinesDrawer, PartitionDrawer, RectanglesDrawer
 from .function_descent import FunctionDescent, test_functions
@@ -25,9 +26,8 @@ from .smale7 import Smale7
 from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
-    QuadraticForm, LeastSquares,
     IllConditioned,
+    QuadraticForm,
     Rosenbrock,
     Sphere,
 )
-from .covering import RigidBoxCovering
