@@ -30,4 +30,5 @@ from .synthetic import (
     QuadraticForm,
     Rosenbrock,
     Sphere,
+    PSF,
 )

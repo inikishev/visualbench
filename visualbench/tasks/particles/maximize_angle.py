@@ -11,13 +11,13 @@ from ...benchmark import Benchmark
 
 
 class MaximizeSmallestAngle(Benchmark):
-    def __init__(self, n, resolution = (512, 512), penalty=10.0):
-        super().__init__()
+    def __init__(self, n, resolution = (512, 512), penalty=10.0, seed=0):
+        super().__init__(seed=seed)
         if n < 3: raise ValueError("Need at least 3 points to form a triangle.")
         self.n = n
         self.image_width, self.image_height = resolution
         self.penalty = penalty
-        self.points = nn.Parameter(torch.rand(n, 2, dtype=torch.float32)) # Points are in [0, 1] range
+        self.points = nn.Parameter(torch.rand(n, 2, generator=self.rng.torch()) / 2 + 0.25)
 
     def _calculate_angles_for_triangle(self, p0, p1, p2):
         v01 = p1 - p0
@@ -94,7 +94,7 @@ class MaximizeSmallestAngle(Benchmark):
         points_scaled = torch.zeros_like(points)
         points_scaled[:, 0] = points[:, 0] * self.image_width
         points_scaled[:, 1] = points[:, 1] * self.image_height
-        points_scaled = points_scaled.detach().numpy().astype(int)
+        points_scaled = points_scaled.detach().cpu().numpy().astype(int)
 
 
         # Draw all points
@@ -102,8 +102,8 @@ class MaximizeSmallestAngle(Benchmark):
             pt = (points_scaled[i, 0], points_scaled[i, 1])
              # Clip points to be within image boundaries for drawing, just in case penalty isn't enough
             pt = (np.clip(pt[0], 0, self.image_width -1), np.clip(pt[1], 0, self.image_height -1))
-            cv2.circle(img, pt, 5, (255, 100, 100), -1) # Light blue points
-            cv2.putText(img, str(i), (pt[0]+5, pt[1]+5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
+            cv2.circle(img, pt, 3, (255, 100, 100), -1) # Light blue points
+            cv2.putText(img, str(i), (pt[0]+5, pt[1]+5), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255,255,255), 1)
 
         # Draw all triangles faintly
         if self.n >= 3:
@@ -114,9 +114,9 @@ class MaximizeSmallestAngle(Benchmark):
                 pt1 = tuple(np.clip(points_scaled[idx1], [0,0], [self.image_width-1, self.image_height-1]))
                 pt2 = tuple(np.clip(points_scaled[idx2], [0,0], [self.image_width-1, self.image_height-1]))
 
-                cv2.line(img, pt0, pt1, (50, 50, 50), 1)
-                cv2.line(img, pt1, pt2, (50, 50, 50), 1)
-                cv2.line(img, pt2, pt0, (50, 50, 50), 1)
+                cv2.line(img, pt0, pt1, (100, 100, 100), 1)
+                cv2.line(img, pt1, pt2, (100, 100, 100), 1)
+                cv2.line(img, pt2, pt0, (100, 100, 100), 1)
 
         # Highlight the critical triangle and angle
         if (min_angle is not None and
@@ -141,13 +141,13 @@ class MaximizeSmallestAngle(Benchmark):
             p_side1_end_draw = np.clip(points_scaled[p_indices[other_indices_in_triangle[0]]], [0,0], [self.image_width-1, self.image_height-1])
             p_side2_end_draw = np.clip(points_scaled[p_indices[other_indices_in_triangle[1]]], [0,0], [self.image_width-1, self.image_height-1])
 
-            cv2.line(img, tuple(p_vertex_draw), tuple(p_side1_end_draw), (0, 0, 255), 3) # Red
-            cv2.line(img, tuple(p_vertex_draw), tuple(p_side2_end_draw), (0, 0, 255), 3) # Red
-            cv2.circle(img, tuple(p_vertex_draw), 7, (0,0,255), -1) # Red filled circle
+            cv2.line(img, tuple(p_vertex_draw), tuple(p_side1_end_draw), (0, 0, 255), 2) # Red
+            cv2.line(img, tuple(p_vertex_draw), tuple(p_side2_end_draw), (0, 0, 255), 2) # Red
+            cv2.circle(img, tuple(p_vertex_draw), 4, (0,0,255), -1) # Red filled circle
 
             angle_deg = math.degrees(min_angle)
-            cv2.putText(img, f"Min Angle: {angle_deg:.2f} deg", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.putText(img, f"Min Angle: {angle_deg:.2f} deg", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
         else:
-            cv2.putText(img, "Optimizing...", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            cv2.putText(img, "Optimizing...", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
 
         return img[:,:,::-1]

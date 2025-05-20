@@ -143,3 +143,18 @@ class IllConditioned(Benchmark):
         return term1 * susq + term2 * (sum**2)
 
 
+class PSF(Benchmark):
+    """powell's singular function"""
+    def __init__(self):
+        super().__init__()
+
+        self.x = torch.nn.Parameter(torch.tensor([3., -1., 0., 1.]))
+        self.shift = torch.ones_like(self.x)
+
+
+    def get_loss(self):
+        x = self.x + self.shift
+        x1,x2,x3,x4=x
+        return (x1 + 10*x2)**2 + 5*(x3 - x4)**2 + (x2 - 2*x3)**4 + 10*(x1 - x4)**4
+
+
