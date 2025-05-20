@@ -41,7 +41,7 @@ class Inverse(Benchmark):
 
 
 class StochasticInverse(Benchmark):
-    """sample random x, update A_inv such that (x@A)@A_inv = x"""
+    """sample random x, update A_inv such that (x@A)@A_inv = x which converges to true inverse"""
     def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, vec=False, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
