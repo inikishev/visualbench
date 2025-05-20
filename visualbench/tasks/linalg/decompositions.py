@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Literal
 import warnings
 import torch
@@ -8,17 +9,28 @@ from . import linalg_utils
 
 
 class QR(Benchmark):
-    """QR"""
+    """Decompose A into orthonormal Q and upper triangular R.
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        ortho (linalg_utils.OrthoMode, optional): how to enforce orthogonality of Q (float penalty or "svd"). Defaults to 1.
+        exp_diag (bool, optional): if True, applies exp to R diagonal to make it positive. Defaults to False.
+        mode (Literal[str]], optional): "full" or "reduced". Defaults to "reduced".
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
     def __init__(
         self,
         A,
         ortho: linalg_utils.OrthoMode = 1,
         exp_diag: bool = False,
         mode: Literal["full", "reduced"] = "reduced",
-        criterion=torch.nn.functional.mse_loss,
+        criterion:Callable=torch.nn.functional.mse_loss,
         algebra=None,
         seed=0,
     ):
+
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(format.to_CHW(A))
 
