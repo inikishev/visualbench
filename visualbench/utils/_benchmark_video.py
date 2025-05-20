@@ -80,7 +80,7 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
     # initialize all keys
     for key, value in self.logger.items():
         if key in self._image_keys:
-            if (not self._plot_perturbed) and key.endswith(' - perturbed'): continue
+            if (not self._plot_perturbed) and key.endswith(' (perturbed)'): continue
             images_list = logger_images[key] = list(value.values())
             if len(images_list) != 0: _check_image(images_list[0])
             assert len(logger_images[key]) == length, f'images must be logged on all steps, "{key}" was logged {len(logger_images[key])} times, expected {length} times'

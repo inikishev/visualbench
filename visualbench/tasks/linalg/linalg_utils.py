@@ -40,6 +40,6 @@ def orthonormality_constraint(M: torch.Tensor, ortho: OrthoMode, algebra, criter
         m, n = n, m
 
     I = torch.eye(n, dtype=M.dtype, device=M.device).expand(M.shape).clone()
-    penalty = criterion(algebras.matmul(M.mT, M, algebra=algebra), I)
+    penalty = criterion(algebras.matmul(M.mH, M, algebra=algebra), I)
 
     return M, penalty*ortho

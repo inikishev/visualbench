@@ -1,6 +1,6 @@
 import functools
 import operator
-from collections import UserDict
+from collections import UserDict, UserList
 from collections.abc import Callable, Iterable
 from typing import Any, TypeVar
 
@@ -33,3 +33,15 @@ X = TypeVar("X")
 def reduce_dim(x:Iterable[Iterable[X]]) -> list[X]: # pylint:disable=E0602
     """Reduces one level of nesting. Takes an iterable of iterables of X, and returns an iterable of X."""
     return functools.reduce(operator.iconcat, x, [])
+
+
+class SortedSet[T](UserList[T]):
+    """not efficient"""
+    def add(self, v: T):
+        if v not in self: self.append(v)
+
+    def intersection(self, other):
+        return SortedSet(v for v in self if v in other)
+
+    def union(self, other):
+        return SortedSet(list(self) + [v for v in other if v not in self])

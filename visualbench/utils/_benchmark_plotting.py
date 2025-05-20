@@ -10,12 +10,13 @@ if TYPE_CHECKING:
     from ..benchmark import Benchmark
 
 def _key_exists(logger, k:str, plot_perturbed: bool):
-    if k.endswith(' - perturbed') and not plot_perturbed: return False
+    if k.endswith(' (perturbed)') and not plot_perturbed: return False
+    if k.endswith(' (difference)'): return False
     if k in logger: return True
     if f'train {k}' in logger: return True
     if f'test {k}' in logger: return True
-    if f'{k} - perturbed' in logger: return True
-    if f'train {k} - perturbed' in logger: return True
+    if f'{k} (perturbed)' in logger: return True
+    if f'train {k} (perturbed)' in logger: return True
     return False
 
 
@@ -65,11 +66,10 @@ def plot_summary(
     fig,
 ):
     # ------------------------------ create a figure ----------------------------- #
-    image_keys = [k for k in self._image_keys if _key_exists(self.logger, k, self._plot_perturbed)]
-    image_lowest_keys = [k for k in self._image_lowest_keys if _key_exists(self.logger, k, self._plot_perturbed)]
+    image_keys = [k for k in self._image_keys.union(self._image_lowest_keys) if _key_exists(self.logger, k, self._plot_perturbed)]
     plot_keys = [k for k in self._plot_keys if _key_exists(self.logger, k, self._plot_perturbed)]
 
-    n = len(image_keys) + len(image_lowest_keys) + len(plot_keys) + len(self._reference_images)
+    n = len(image_keys) + len(plot_keys) + len(self._reference_images)
     if 'params' in self.logger or 'projected' in self.logger: n += 1
 
     axes = make_axes(n, axsize=axsize, dpi=dpi, fig=fig)
@@ -83,14 +83,14 @@ def plot_summary(
 
         else:
             train_k = f'train {k}'
-            train_k_perturbed = f'train {k} - perturbed'
+            train_k_perturbed = f'train {k} (perturbed)'
             test_k = f'test {k}'
             ks = [k,train_k,test_k,train_k_perturbed] if self._plot_perturbed else [k,train_k,test_k]
             ks = [k for k in ks if k in self.logger]
 
             for kk in ks:
                 x,y = self.logger[kk].keys(), self.logger[kk].values()
-                args:dict = {"lw":0.5} if kk.endswith(' - perturbed') else {}
+                args:dict = {"lw":0.5} if kk.endswith(' (perturbed)') else {}
                 ax.plot(list(x), list(y), label=kk, **args)
 
             if len(ks) > 1: legend(ax)
@@ -106,7 +106,7 @@ def plot_summary(
         plot_trajectory(self, ax=ax, loss_scale=yscale)
 
     # ---------------------------------- images ---------------------------------- #
-    lowest_idx = self.logger.stepmin('test loss') if 'test loss' in self.logger else self.logger.stepmin('train loss')
+    step = self.logger.stepmin('test loss') if 'test loss' in self.logger else self.logger.stepmin('train loss')
 
     def imshow_(v, title):
         ax = next(axes_iter)
@@ -118,15 +118,7 @@ def plot_summary(
         imshow_(v, k)
 
     for k in image_keys:
-        if k.endswith(' - perturbed') and not self._plot_perturbed: continue
-        imshow_(self.logger.last(k), k)
-
-        if k in image_lowest_keys:
-            imshow_(self.logger.closest(k, lowest_idx), f'{k} - best')
-
-    # cases where only lowest loss image is displayed
-    for k in image_lowest_keys:
-        if k not in image_keys:
-            imshow_(self.logger.closest(k, lowest_idx), f'{k} - best')
+        if k.endswith(' (perturbed)') and not self._plot_perturbed: continue
+        imshow_(self.logger.closest(k, step), k)
 
     return fig

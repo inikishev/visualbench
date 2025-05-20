@@ -7,7 +7,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from ..benchmark import Benchmark
-from ..utils import from_algebra, get_algebra, to_CHW, to_square, totensor
+from ..utils import algebras, to_CHW, to_square, totensor
 
 
 class Sphere(Benchmark):
@@ -66,7 +66,7 @@ class QuadraticForm(Benchmark):
         self.target = torch.nn.Buffer(torch.randn(dim, generator=generator))
 
         self.x = torch.nn.Parameter(torch.randn(dim, generator=generator))
-        self.algebra = get_algebra(algebra)
+        self.algebra = algebras.get_algebra(algebra)
 
         self.min_value = None
         if shift is None: shift = (algebra is None) and (dim <= 10_000)
@@ -80,16 +80,13 @@ class QuadraticForm(Benchmark):
 
 
     def get_loss(self):
-        x = self.x
-        H = self.H * 0.5 # before algebra
+        x = self.x + self.target
 
-        if self.algebra is not None: x, H = self.algebra.convert(x, H)
-        x = x + self.target
+        xH = algebras.matmul(x, self.H, self.algebra)
+        xHx = algebras.dot(xH, x, self.algebra)
+        xb = algebras.dot(x, self.b, self.algebra)
 
-        term1 = (x @ H).dot(x) # pyright:ignore[reportArgumentType]
-        term2 = x.dot(self.b)
-
-        loss = from_algebra(term1 + term2)
+        loss = 0.5*xHx + xb
         if self.min_value is not None: return loss - self.min_value
         return loss
 

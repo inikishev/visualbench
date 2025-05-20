@@ -1,7 +1,8 @@
 import torch
 
-from ...utils import totensor, to_CHW, get_algebra, to_square, from_algebra
 from ...benchmark import Benchmark
+from ...utils import algebras, to_CHW, to_square, totensor
+
 
 class Inverse(Benchmark):
     def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
@@ -10,18 +11,15 @@ class Inverse(Benchmark):
         self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
         self.B = torch.nn.Parameter(torch.zeros_like(self.A))
         self.criterion = criterion
-        self.algebra = get_algebra(algebra)
+        self.algebra = algebras.get_algebra(algebra)
 
         self.add_reference_image('A', A, to_uint8=True)
 
     def get_loss(self):
         A = self.A; B = self.B
-        if self.algebra is not None: A, B = self.algebra.convert(A, B)
 
-        AB = A @ B
-        BA = B @ A
-
-        AB, BA = from_algebra(AB, BA)
+        AB = algebras.matmul(A, B, self.algebra)
+        BA = algebras.matmul(B, A, self.algebra)
 
         loss1 = self.criterion(AB, BA)
         loss2 = self.criterion(AB, self.I)
@@ -49,25 +47,24 @@ class StochasticInverse(Benchmark):
         self.vec = vec
         self.batch_size = batch_size
         self.criterion = criterion
-        self.algebra = get_algebra(algebra)
+        self.algebra = algebras.get_algebra(algebra)
 
         self.add_reference_image('A', A, to_uint8=True)
 
     def get_loss(self):
         if self.vec:
             *b, n, m = self.A.shape
-            x = torch.randn((self.batch_size, *b, 1, m), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            X = torch.randn((self.batch_size, *b, 1, m), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         else:
-            x = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            X = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         A = self.A.unsqueeze(0); B = self.B.unsqueeze(0)
-        if self.algebra is not None: x, A, B = self.algebra.convert(x, A, B)
 
-        x_hat = (x @ self.A.unsqueeze(0)) @ self.B.unsqueeze(0)
-        x, x_hat = from_algebra(x, x_hat)
+        XA = algebras.matmul(X, A, self.algebra)
+        X_hat = algebras.matmul(XA, B, self.algebra)
 
-        loss = self.criterion(x, x_hat)
+        loss = self.criterion(X, X_hat)
 
         if self._make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)
@@ -84,20 +81,17 @@ class MoorePenrose(Benchmark):
         self.A = torch.nn.Buffer(to_CHW(A))
         self.B = torch.nn.Parameter(torch.zeros_like(self.A))
         self.criterion = criterion
-        self.algebra = get_algebra(algebra)
+        self.algebra = algebras.get_algebra(algebra)
 
         self.add_reference_image('A', A, to_uint8=True)
 
     def get_loss(self):
         A = self.A; B = self.B
-        if self.algebra is not None: A, B = self.algebra.convert(A, B)
 
-        AB = A @ B
-        BA = B @ A
-        ABA = AB @ A
-        BAB = B @ AB
-
-        AB, BA, ABA, BAB = from_algebra(AB, BA, ABA, BAB)
+        AB = algebras.matmul(A, B, self.algebra)
+        BA = algebras.matmul(B, A, self.algebra)
+        ABA = algebras.matmul(AB, A, self.algebra)
+        BAB = algebras.matmul(BA, B, self.algebra)
 
         loss1 = self.criterion(ABA, self.A)
         loss2 = self.criterion(BAB, self.B)
@@ -111,12 +105,5 @@ class MoorePenrose(Benchmark):
             self.log_image('BA', BA, to_uint8=True)
             self.log_image('ABA', ABA, to_uint8=True)
             self.log_image('BAB', BAB, to_uint8=True)
-            # if self.algebra is None:
-            #     try:
-            #         B_pinv = torch.linalg.pinv(self.B) # pylint:disable=not-callable
-            #         self.log_image('B pseudoinverse', B_pinv, to_uint8=True)
-
-            #     except torch.linalg.LinAlgError:
-            #         self.log_image('B pseudoinverse', torch.zeros_like(self.A), to_uint8=True)
 
         return loss

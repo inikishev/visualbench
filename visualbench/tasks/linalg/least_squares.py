@@ -1,5 +1,4 @@
 """synthetic funcs"""
-from collections.abc import Callable
 from typing import Any, Literal, cast
 
 import torch
@@ -7,7 +6,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from ...benchmark import Benchmark
-from ...utils import from_algebra, get_algebra, to_CHW, to_square, totensor
+from ...utils import to_CHW, algebras
 
 
 class LeastSquares(Benchmark):
@@ -33,7 +32,7 @@ class LeastSquares(Benchmark):
         else:
             self._make_images = True
             A = to_CHW(A)
-        self.A = torch.nn.Buffer(A)
+        self.A = nn.Buffer(A)
         *b, m, n = self.A.shape
 
         if isinstance(B, int): B = torch.randn(B, generator=generator)
@@ -41,32 +40,31 @@ class LeastSquares(Benchmark):
         else:
             self._make_images = True
             B = to_CHW(B)
-        self.B = torch.nn.Buffer(B)
+        self.B = nn.Buffer(B)
 
         if B.ndim == 1:
             assert B.size(0) == m, B.shape
             self.k = None
-            self.X = torch.nn.Parameter(torch.zeros(n))
+            self.X = nn.Parameter(torch.zeros(n))
 
         else:
             assert B.size(-2) == m, B.shape
             self.k = B.size(-1)
-            self.X = torch.nn.Parameter(torch.zeros(n, self.k))
+            self.X = nn.Parameter(torch.zeros(n, self.k))
 
         self.criterion = criterion
         self.l1 = l1
         self.l2 = l2
         self.linf = linf
 
-        self.algebra = get_algebra(algebra)
+        self.algebra = algebras.get_algebra(algebra)
 
         if self._make_images:
             self.add_reference_image('A', A, to_uint8=True)
             self.add_reference_image('B', B, to_uint8=True)
 
     def get_loss(self):
-        matmul = self.algebra.matmul if self.algebra is not None else torch.matmul
-        AX = matmul(self.A, self.X)
+        AX = algebras.matmul(self.A, self.X, self.algbera)
 
         penalty = 0
         if self.l1 != 0: penalty = penalty + torch.linalg.vector_norm(self.X, ord=1) # pylint:disable=not-callable

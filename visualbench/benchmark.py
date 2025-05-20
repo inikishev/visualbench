@@ -48,11 +48,11 @@ class Benchmark(torch.nn.Module, ABC):
 
         self._reference_images: dict[str, torch.Tensor] = {}
         """images to always include in visualizations"""
-        self._image_keys: set[str] = set()
+        self._image_keys: python_tools.SortedSet[str] = python_tools.SortedSet()
         """keys to display as images"""
-        self._image_lowest_keys: set[str] = set()
+        self._image_lowest_keys: python_tools.SortedSet[str] = python_tools.SortedSet()
         """keys to display images corresponding to lowest loss found so far"""
-        self._plot_keys: set[str] = set()
+        self._plot_keys: python_tools.SortedSet[str] = python_tools.SortedSet()
         """keys to display line charts for"""
 
         self._basis: torch.Tensor | None = None
@@ -183,7 +183,7 @@ class Benchmark(torch.nn.Module, ABC):
         """
         if self._is_perturbed:
             plot = False
-            metric = f'{metric} - perturbed'
+            metric = f'{metric} (perturbed)'
 
         # note - it is possible to log test metrics in train mode
         # for example when both train and test samples are one large batch passed to model in a single pass
@@ -235,7 +235,7 @@ class Benchmark(torch.nn.Module, ABC):
         if not self._make_images: warnings.warn(f'logging image {name} with make_images=False')
         if self._benchmark_mode: warnings.warn(f'logging image {name} in BENCHMARK_MODE')
         if self._is_perturbed:
-            name = f'{name} - perturbed'
+            name = f'{name} (perturbed)'
             log_difference=False; show_best=False
 
         self._image_keys.add(name)
@@ -250,7 +250,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         # difference
         if log_difference:
-            k = f'{name} difference'
+            k = f'{name} (difference)'
 
             if name not in self._previous_images: difference = image
             else: difference = self._previous_images[name] - image
@@ -445,10 +445,10 @@ class Benchmark(torch.nn.Module, ABC):
 
         train_loss = self.logger.numpy('train loss') if 'train loss' in self.logger else None
         test_loss = self.logger.numpy('test loss') if 'test loss' in self.logger else None
-        if self._plot_perturbed and "train loss - perturbed" in self.logger:
-            train_loss_perturbed = self.logger.numpy("train loss - perturbed")
+        if self._plot_perturbed and "train loss (perturbed)" in self.logger:
+            train_loss_perturbed = self.logger.numpy("train loss (perturbed)")
 
-        losses = {"train loss": train_loss, "test loss": test_loss, "train loss - perturbed": train_loss_perturbed}
+        losses = {"train loss": train_loss, "test loss": test_loss, "train loss (perturbed)": train_loss_perturbed}
 
         plt_tools.plot_loss(losses, ylim=ylim, yscale=yscale, smoothing=smoothing, ax=ax)
 

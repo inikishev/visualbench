@@ -27,6 +27,9 @@ def from_algebra(tensor1: "MaybeAlgebraicTensor", tensor2: "MaybeAlgebraicTensor
     if len(torch_tensors) == 1: return torch_tensors[0]
     return torch_tensors
 
+def mul(x, y, algebra):
+    if algebra is None: return x * y
+    return algebra.mul(x, y)
 
 def matmul(x, y, algebra):
     if algebra is None: return x @ y

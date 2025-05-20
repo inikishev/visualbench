@@ -1,7 +1,7 @@
 import torch
 
 from ...benchmark import Benchmark
-from ...utils import from_algebra, get_algebra, to_CHW, to_square, totensor
+from ...utils import algebras, to_CHW, to_square, totensor
 
 
 class MatrixRoot(Benchmark):
@@ -14,7 +14,7 @@ class MatrixRoot(Benchmark):
         self.X = torch.nn.Parameter(self.A / nuc)
         self.p = p
         self.criterion = criterion
-        self.algebra = get_algebra(algebra)
+        self.algebra = algebras.get_algebra(algebra)
 
         self.add_reference_image('A', A, to_uint8=True)
 

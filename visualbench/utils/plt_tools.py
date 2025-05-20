@@ -40,7 +40,7 @@ def plot_loss(losses: dict, ylim: Literal['auto'] | tuple[float,float] | None = 
         if loss is None: continue
         sm = smoothing[i]
         if sm != 0: loss = gaussian_filter1d(loss, sm, mode='nearest')
-        args:dict = {"lw":0.5} if label.endswith(' - perturbed') else {}
+        args:dict = {"lw":0.5} if label.endswith(' (perturbed)') else {}
         ax.plot(loss, label=label, **args)
 
     ax.set_title("loss")
