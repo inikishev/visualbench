@@ -45,8 +45,36 @@ class Sphere(Benchmark):
         # return loss
         return self.criterion(self.x, self.target)
 
-class Quadratic(Benchmark):
-    """Basic convex quadratic objective.
+
+class LeastSquares(Benchmark):
+    """
+
+    Args:
+        dim (int, optional): number of dimensions. Defaults to 512.
+        eps (int, optional): to make sure matrix is positive definite. Defaults to 1e-8.
+        seed (int, optional): rng seed. Defaults to 0.
+    """
+    def __init__(self, dim=512, criterion = F.mse_loss, algebra=None, seed=0):
+        super().__init__(seed=seed)
+        generator = self.rng.torch()
+        self.dim = dim
+
+        self.X = torch.nn.Buffer(torch.randn(dim, dim, generator=generator))
+        self.y = torch.nn.Buffer(torch.randn(dim, generator=generator))
+        self.w = torch.nn.Parameter(torch.randn(dim, generator=generator))
+
+        self.criterion = criterion
+
+        self.algebra = get_algebra(algebra)
+
+    def get_loss(self):
+        matmul = self.algebra.matmul if self.algebra is not None else torch.matmul
+        y_hat = matmul(self.X, self.w)
+        return self.criterion(y_hat, self.y)
+
+
+class QuadraticForm(Benchmark):
+    """Basic convex quadratic objective with linear term.
 
     Args:
         dim (int, optional): number of dimensions. Defaults to 512.
@@ -62,7 +90,7 @@ class Quadratic(Benchmark):
         H = torch.randn(dim, dim, generator=generator)
         self.H = torch.nn.Buffer((H @ H.mT) + torch.eye(dim)*eps) # positive definite matrix
         self.b = torch.nn.Buffer(torch.randn(dim, generator=generator))
-        self.shift = torch.nn.Buffer(torch.randn(dim, generator=generator))
+        self.target = torch.nn.Buffer(torch.randn(dim, generator=generator))
 
         self.x = torch.nn.Parameter(torch.randn(dim, generator=generator))
         self.algebra = get_algebra(algebra)
@@ -83,7 +111,7 @@ class Quadratic(Benchmark):
         H = self.H * 0.5 # before algebra
 
         if self.algebra is not None: x, H = self.algebra.convert(x, H)
-        x = x + self.shift
+        x = x + self.target
 
         term1 = (x @ H).dot(x) # pyright:ignore[reportArgumentType]
         term2 = x.dot(self.b)
