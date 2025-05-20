@@ -8,12 +8,12 @@ from . import linalg_utils
 
 
 class QR(Benchmark):
-    """QR, this doesn't force R diagonal to be positive"""
+    """QR"""
     def __init__(
         self,
         A,
-        ortho: linalg_utils.OrthoMode = 100,
-        exp_diag: bool = True,
+        ortho: linalg_utils.OrthoMode = 1,
+        exp_diag: bool = False,
         mode: Literal["full", "reduced"] = "reduced",
         criterion=torch.nn.functional.mse_loss,
         algebra=None,
