@@ -147,3 +147,4 @@ class SVD(Benchmark):
             self.log_image("USV*", USV, to_uint8=True, show_best=True)
 
         return loss + penalty1 + penalty2
+

@@ -57,7 +57,12 @@ def maybe_tofloat(x):
     return x
 
 
-def to_CHW(x, device=None, dtype=None, clone=None) -> torch.Tensor:
+def to_CHW(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tensor:
+    if isinstance(x, int): return torch.randn(1,x,x, device=device,dtype=dtype, generator=generator)
+    if isinstance(x, (list,tuple)):
+        if len(x) == 2 and all(isinstance(i,int) for i in x): return torch.randn((1,*x), device=device,dtype=dtype, generator=generator)
+        if len(x) == 3 and all(isinstance(i,int) for i in x): return torch.randn(x, device=device,dtype=dtype, generator=generator)
+
     x = totensor(x, device=device, dtype=dtype, clone=clone)
     if x.ndim == 2: return x.unsqueeze(0)
 
@@ -69,11 +74,11 @@ def to_CHW(x, device=None, dtype=None, clone=None) -> torch.Tensor:
     if x.size(0) > x.size(-1): return x.moveaxis(-1, 0)
     return x
 
-def to_HWC(x, device=None, dtype=None, clone=None) -> torch.Tensor:
-    return to_CHW(x, device=device, dtype=dtype, clone=clone).moveaxis(0, -1)
+def to_HWC(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tensor:
+    return to_CHW(x, device=device, dtype=dtype, clone=clone, generator=generator).moveaxis(0, -1)
 
-def to_3HW(x, device=None, dtype=None, clone=None) -> torch.Tensor:
-    x = to_CHW(x, device=device, dtype=dtype, clone=clone)
+def to_3HW(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tensor:
+    x = to_CHW(x, device=device, dtype=dtype, clone=clone, generator=generator)
 
     if x.size(0) == 3:
         return x
@@ -90,14 +95,16 @@ def to_3HW(x, device=None, dtype=None, clone=None) -> torch.Tensor:
 
     raise RuntimeError(f"wtf {x.shape}")
 
-def to_HW3(x, device=None, dtype=None, clone=None) -> torch.Tensor:
-    return to_3HW(x, device=device, dtype=dtype, clone=clone).moveaxis(0, -1)
+def to_HW3(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tensor:
+    return to_3HW(x, device=device, dtype=dtype, clone=clone, generator=generator).moveaxis(0, -1)
 
-def to_HW(x, device=None, dtype=None, clone=None) -> torch.Tensor:
-    return to_CHW(x, device=device, dtype=dtype, clone=clone).mean(0)
+def to_HW(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tensor:
+    return to_CHW(x, device=device, dtype=dtype, clone=clone, generator=generator).mean(0)
 
-def to_square(x, device=None, dtype=None, clone=None) -> torch.Tensor:
+def to_square(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tensor:
     """makes x square among last two dimensions"""
+    if isinstance(x, int): return torch.randn(x,x, device=device,dtype=dtype, generator=generator)
+
     x = totensor(x, device=device, dtype=dtype, clone=clone)
     if x.ndim < 2: raise RuntimeError(f"Not enough dims in {x.shape} to make it square")
     *_, m, n = x.shape
