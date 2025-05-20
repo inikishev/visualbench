@@ -48,29 +48,44 @@ class Sphere(Benchmark):
 
 class LeastSquares(Benchmark):
     """
+    Linear least squares.
 
     Args:
         dim (int, optional): number of dimensions. Defaults to 512.
         eps (int, optional): to make sure matrix is positive definite. Defaults to 1e-8.
         seed (int, optional): rng seed. Defaults to 0.
     """
-    def __init__(self, dim=512, criterion = F.mse_loss, algebra=None, seed=0):
+    def __init__(self, dim=512, criterion = F.mse_loss, l1:float=0, l2:float=0, linf:float=0, multivariate: bool = False, algebra=None, seed=0):
         super().__init__(seed=seed)
         generator = self.rng.torch()
         self.dim = dim
 
         self.X = torch.nn.Buffer(torch.randn(dim, dim, generator=generator))
-        self.y = torch.nn.Buffer(torch.randn(dim, generator=generator))
-        self.w = torch.nn.Parameter(torch.randn(dim, generator=generator))
+
+        if multivariate:
+            self.y = torch.nn.Buffer(torch.randn(dim,dim, generator=generator))
+            self.w = torch.nn.Parameter(torch.zeros(dim,dim))
+        else:
+            self.y = torch.nn.Buffer(torch.randn(dim, generator=generator))
+            self.w = torch.nn.Parameter(torch.zeros(dim))
 
         self.criterion = criterion
+        self.l1 = l1
+        self.l2 = l2
+        self.linf = linf
 
         self.algebra = get_algebra(algebra)
 
     def get_loss(self):
         matmul = self.algebra.matmul if self.algebra is not None else torch.matmul
         y_hat = matmul(self.X, self.w)
-        return self.criterion(y_hat, self.y)
+
+        penalty = 0
+        if self.l1 != 0: penalty = penalty + torch.linalg.vector_norm(self.w, ord=1) # pylint:disable=not-callable
+        if self.l2 != 0: penalty = penalty + torch.linalg.vector_norm(self.w, ord=2) # pylint:disable=not-callable
+        if self.linf != 0: penalty = penalty + torch.linalg.vector_norm(self.w, ord=float('inf')) # pylint:disable=not-callable
+
+        return self.criterion(y_hat, self.y) + penalty
 
 
 class QuadraticForm(Benchmark):
