@@ -64,7 +64,7 @@ class LeastSquares(Benchmark):
             self.add_reference_image('B', B, to_uint8=True)
 
     def get_loss(self):
-        AX = algebras.matmul(self.A, self.X, self.algbera)
+        AX = algebras.matmul(self.A, self.X, self.algebra)
 
         penalty = 0
         if self.l1 != 0: penalty = penalty + torch.linalg.vector_norm(self.X, ord=1) # pylint:disable=not-callable
