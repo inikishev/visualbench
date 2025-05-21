@@ -10,7 +10,7 @@ from . import linalg_utils
 
 
 class QR(Benchmark):
-    """Decompose A into orthonormal Q and upper triangular R.
+    """Decompose rectangular A into QR, where Q is orthonormal and R is upper triangular, optionally with positive diagonal to make factorization unique.
 
     Args:
         A (Any): something to load and use as a matrix.
@@ -81,7 +81,7 @@ class QR(Benchmark):
 
 
 class SVD(Benchmark):
-    """Decompose A into orthonormal unitary S, diagonal V and unitary D
+    """Decompose rectangular A into USV*, where U and V are orthonormal unitary, S is diagonal.
 
     Args:
         A (Any): something to load and use as a matrix.
@@ -150,7 +150,7 @@ class SVD(Benchmark):
         return loss + penalty1 + penalty2
 
 class Eigendecomposition(Benchmark):
-    """Decompose A into QΛQ, where Q is a square matrix of eigenvectors, Λ is a diagonal matrix with eigenvalues.
+    """Decompose square A into QΛQ^-1, where Q is a square matrix of eigenvectors, Λ is a diagonal matrix with eigenvalues.
 
     This uses no complex values (but it is least squares-like).
 
@@ -211,4 +211,305 @@ class Eigendecomposition(Benchmark):
             self.log_image("QLQ^-1", QLQi, to_uint8=True, show_best=True)
 
         return loss
+
+
+class EigenWithInverse(Benchmark):
+    """Decompose square A into QΛQ^-1, where Q is a square matrix of eigenvectors, Λ is a diagonal matrix with eigenvalues.
+
+    This uses no complex values (but it is least squares-like). In this version Q inverse is optimized separately
+    with an extra term for QQ^-1 = Q^-1Q = I
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, self.n, self.n = self.A.shape
+        self.Q = torch.nn.Parameter(torch.linalg.qr(self.A)[0]) # pylint:disable=not-callable
+        self.Q_inv = torch.nn.Parameter(self.Q.clone()) # pylint:disable=not-callable
+        self.L = torch.nn.Parameter(torch.ones(*b, self.n))
+        self.I = torch.nn.Buffer(torch.eye(self.Q.size(-1)).expand_as(self.Q).clone())
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                L, Q = torch.linalg.eigh(self.A) # pylint:disable=not-callable
+                self.add_reference_image('true Q', Q, to_uint8=True)
+            except torch.linalg.LinAlgError as e:
+                warnings.warn(f'true eigh failed for some reason: {e!r}')
+
+
+    def get_loss(self):
+        Q = self.Q
+        Q_inv = self.Q_inv
+        L = self.L
+        I = self.I
+
+        AB = algebras.matmul(Q, Q_inv, self.algebra)
+        BA = algebras.matmul(Q_inv, Q, self.algebra)
+
+        loss1 = self.criterion(AB, BA)
+        loss2 = self.criterion(AB, I)
+        loss3 = self.criterion(BA, I)
+        loss = loss1 + loss2 + loss3
+
+        QL = algebras.mul(Q, L.unsqueeze(-2), self.algebra) # same as Q @ L.diag_embed()
+        QLQi = algebras.matmul(QL, Q_inv, self.algebra)
+
+        loss = loss + self.criterion(QLQi, self.A)
+
+        if self._make_images:
+            indices = torch.argsort(L**2, descending=True)
+            Q_sorted = torch.gather(Q, 2, indices.unsqueeze(1).expand(-1, self.n, -1))
+            Qi_sorted = torch.gather(Q_inv, 1, indices.unsqueeze(-1).expand(-1, -1, self.n))
+
+            self.log_image("Q", Q_sorted, to_uint8=True)
+            self.log_image("Q^-1", Qi_sorted, to_uint8=True)
+            self.log_image("QQ^-1", AB, to_uint8=True)
+            self.log_image("Q^-1 Q", BA, to_uint8=True)
+            self.log_image("QLQ^-1", QLQi, to_uint8=True, show_best=True)
+
+        return loss
+
+
+
+
+class Cholesky(Benchmark):
+    """Decompose square A in LL*, where L is a lower triangular matrix with real and positive diagonal entries.
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        ortho (linalg_utils.OrthoMode, optional): how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        self.L = torch.nn.Parameter(torch.zeros_like(self.A)) # pylint:disable=not-callable
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                L = torch.linalg.cholesky_ex(self.A)[0] # pylint:disable=not-callable
+                self.add_reference_image('true L', L, to_uint8=True)
+            except torch.linalg.LinAlgError as e:
+                warnings.warn(f'PyTorch Cholesky failed: {e!r}')
+
+    def get_loss(self):
+        L = torch.tril(self.L, diagonal=1)
+        L = L + self.L.diagonal(dim1=-2, dim2=-1).exp().diag_embed() # make diagonal positive
+
+        LLh = algebras.matmul(L, L.mH, self.algebra)
+
+        loss = self.criterion(LLh, self.A)
+
+        if self._make_images:
+            self.log_image("L", L, to_uint8=True)
+            self.log_image("LL*", LLh, to_uint8=True, show_best=True)
+
+        return loss
+
+
+
+class LDL(Benchmark):
+    """Decompose square A into lower unit triangular L and diagonal D as LDL.
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        ortho (linalg_utils.OrthoMode, optional): how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, self.n, self.n = self.A.shape
+        self.L = torch.nn.Parameter(torch.zeros_like(self.A)) # pylint:disable=not-callable
+        self.D = torch.nn.Parameter(torch.zeros(*b, self.n))
+        self.I = torch.nn.Buffer(torch.eye(self.L.size(-1)).expand_as(self.L).clone())
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                # this uses pivoting though
+                LD = torch.linalg.ldl_factor_ex(self.A)[0] # pylint:disable=not-callable
+                self.add_reference_image('PyTorch LD', LD, to_uint8=True)
+            except torch.linalg.LinAlgError as e:
+                warnings.warn(f'true LDL failed for some reason: {e!r}')
+
+
+    def get_loss(self):
+        L = self.L.tril(-1) + self.I # lower unit triangular
+        D = self.D
+
+        LD = algebras.mul(L, D.unsqueeze(-2), self.algebra) # same as L @ D.diag_embed()
+        LDLh = algebras.matmul(LD, L.mH, self.algebra)
+
+        loss = self.criterion(LDLh, self.A)
+
+        if self._make_images:
+            self.log_image("L", L, to_uint8=True)
+            self.log_image("LD", LD, to_uint8=True)
+            self.log_image("LDL*", LDLh, to_uint8=True, show_best=True)
+
+        return loss
+
+
+
+class LU(Benchmark):
+    """Decompose rectangular A into LU, where L is a lower triangular matrix and U is an upper triangular matrix. This one has no pivoting.
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        mode = 'reduced',
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, m, n = self.A.shape
+        k = min(m, n) if mode == 'reduced' else m
+        self.L = torch.nn.Parameter(torch.ones(*b, m, k))
+        self.U = torch.nn.Parameter(torch.zeros(*b, k, n))
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                A = self.A.cuda() # LU without pivoting not implemented on CPU
+                P, L, U = torch.linalg.lu(A, pivot=False) # pylint:disable=not-callable
+                self.add_reference_image('true L', L.cpu(), to_uint8=True)
+                self.add_reference_image('true U', U.cpu(), to_uint8=True)
+            except Exception as e:
+                warnings.warn(f'PyTorch LU failed: {e!r}')
+
+
+    def get_loss(self):
+        L = self.L.tril()
+        U = self.U.triu()
+
+        LU_ = algebras.matmul(L, U, self.algebra)
+        loss = self.criterion(LU_, self.A)
+
+        if self._make_images:
+            self.log_image("L", L, to_uint8=True, log_difference=True)
+            self.log_image("U", U, to_uint8=True, log_difference=True)
+            self.log_image("LU", LU_, to_uint8=True, show_best=True)
+
+        return loss
+
+
+
+class LUP(Benchmark):
+    """Decompose rectangular A into PᵀLU, where L is a lower triangular matrix, U is an upper triangular matrix, P is a pivoting permutation matrix.
+
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        sinkhorn_iters: int | None = 5,
+        ortho: linalg_utils.OrthoMode = 1,
+        binary_weight: float = 1,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        mode = 'full',
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.ortho: linalg_utils.OrthoMode = ortho
+        self.binary_weight = binary_weight
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+        self.sinkhorn_iters = sinkhorn_iters
+
+        *b, m, n = self.A.shape
+        k = min(m, n) if mode == 'reduced' else m
+        self.P = torch.nn.Parameter(torch.zeros(*b, m, k))
+        self.L = torch.nn.Parameter(torch.ones(*b, k, k))
+        self.U = torch.nn.Parameter(torch.zeros(*b, k, n))
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                P, L, U = torch.linalg.lu(self.A, pivot=True) # pylint:disable=not-callable
+                self.add_reference_image('true P', P, to_uint8=True)
+                self.add_reference_image('true L', L, to_uint8=True)
+                self.add_reference_image('true U', U, to_uint8=True)
+            except torch.linalg.LinAlgError as e:
+                warnings.warn(f'PyTorch LU failed: {e!r}')
+
+
+    def get_loss(self):
+        P, penalty = linalg_utils.make_permutation(self.P, self.sinkhorn_iters, self.binary_weight, self.ortho, self.algebra)
+
+        if self.binary_weight != 0: loss = torch.mean(P * (1 - P))
+        L = self.L.tril()
+        U = self.U.triu()
+
+        LU_ = algebras.matmul(L, U, self.algebra)
+        PLU = algebras.matmul(P.mT, LU_, self.algebra)
+        loss = self.criterion(PLU, self.A)
+
+        if self._make_images:
+            self.log_image("P raw", self.P, to_uint8=True, log_difference=True)
+            self.log_image("P", P, to_uint8=True, log_difference=True)
+            self.log_image("L", L, to_uint8=True, log_difference=True)
+            self.log_image("U", U, to_uint8=True, log_difference=True)
+            self.log_image("LU", LU_, to_uint8=True)
+            self.log_image("PLU", PLU, to_uint8=True, show_best=True)
+
+        return loss + penalty
+
 

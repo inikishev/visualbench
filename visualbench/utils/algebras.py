@@ -27,18 +27,18 @@ def from_algebra(tensor1: "MaybeAlgebraicTensor", tensor2: "MaybeAlgebraicTensor
     if len(torch_tensors) == 1: return torch_tensors[0]
     return torch_tensors
 
-def mul(x, y, algebra):
+def mul(x:torch.Tensor, y:torch.Tensor, algebra):
     if algebra is None: return x * y
     return algebra.mul(x, y)
 
-def matmul(x, y, algebra):
+def matmul(x:torch.Tensor, y:torch.Tensor, algebra):
     if algebra is None: return x @ y
     return algebra.matmul(x, y)
 
-def dot(x, y, algebra):
+def dot(x:torch.Tensor, y:torch.Tensor, algebra):
     if algebra is None: return x.dot(y)
     return algebra.dot(x, y)
 
-def outer(x, y, algebra):
+def outer(x:torch.Tensor, y:torch.Tensor, algebra):
     if algebra is None: return x.outer(y)
     return algebra.outer(x, y)
