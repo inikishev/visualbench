@@ -184,5 +184,3 @@ class UnivariateVisualizer:
 
                 writer.write(frame)
 
-            writer.release()
-            print(f"Animation saved to {fname}")
