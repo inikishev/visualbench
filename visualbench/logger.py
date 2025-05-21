@@ -1,5 +1,7 @@
+import warnings
 from collections import UserDict
 from typing import Any
+from collections.abc import Mapping
 
 import numpy as np
 import torch
@@ -44,3 +46,33 @@ class Logger(UserDict[str, dict[int, Any]]):
         steps = np.asarray(self.steps(metric), dtype=np.int64)
         idx = np.abs(steps - step).argmin().item()
         return self[metric][int(idx)]
+
+
+    def save(self, fname: str):
+        """Save this logger to a compressed numpy array file (npz)."""
+        arrays = {}
+
+        for k in self.keys():
+            try:
+                arrays[f"__STEPS__.{k}"] = np.asarray(self.steps(k))
+                arrays[f"__VALUES__.{k}"] = self.numpy(k)
+
+            except Exception as e:
+                warnings.warn(f"Failed to save `{k}`: {e}")
+
+        np.savez_compressed(fname, **arrays)
+
+    def load(self, fname: str):
+        """Load data from a compressed numpy array file (npz) to this logger."""
+        arrays: Mapping[str, np.ndarray] = np.load(fname)
+        for k, array in arrays.items():
+            if k.startswith('__STEPS__.'):
+                name = k.replace("__STEPS__.", "")
+                values = arrays[f"__VALUES__.{name}"]
+                self[name] = dict(zip(array, values))
+
+    @classmethod
+    def from_file(cls, fname: str):
+        logger = cls()
+        logger.load(fname)
+        return logger

@@ -143,6 +143,7 @@ class Benchmark(torch.nn.Module, ABC):
 
     def set_benchmark_mode(self, enable: bool = True):
         self._benchmark_mode = enable
+        self._make_images = not enable
         return self
 
     @torch.no_grad

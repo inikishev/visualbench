@@ -7,14 +7,14 @@ import torch
 from ..utils.python_tools import round_significant
 
 
-def tofloatlist(x) -> list[float]:
+def _tofloatlist(x) -> list[float]:
     if isinstance(x, (int,float)): return [x]
     if isinstance(x, np.ndarray) and x.size == 1: return [float(x.item())]
     if isinstance(x, torch.Tensor) and x.numel() == 1: return [float(x.item())]
     return [float(i) for i in x]
 
 class MBS:
-    """Multi-binary multi-objective univariate search, like a more focused grid search, good for plotting.
+    """Univariate optimization via grid search followed by multi-binary search, supports multi-objective functions, good for plotting.
 
     Args:
         gs (Iterable[float], optional): values for initial grid search. Defaults to (2,1,0,-1,-2,-3,-4,-5).
@@ -24,16 +24,16 @@ class MBS:
         num_expansions (int, optional): maximum number of expansions (not counted towards binary search points). Defaults to 7.
         rounding (int, optional): rounding is to significant digits, avoids evaluating points that are too close.
     """
-    def __init__(self, gs: Iterable[float] = (2,1,0,-1,-2,-3,-4,-5), step:float = 1, num_candidates: int = 2, num_binary: int = 7, num_expansions: int = 7, rounding=2):
+    def __init__(self, grid: Iterable[float], step:float, num_candidates: int = 4, num_binary: int = 20, num_expansions: int = 20, rounding=2):
         self.objectives: dict[int, dict[float,float]] = {}
         """dictionary of objectives, each maps point (x) to value (v)"""
 
         self.evaluated: set[float] = set()
         """set of evaluated points (x)"""
 
-        gs = tuple(gs)
-        if len(gs) == 0: raise ValueError("At least one grid search point must be specified")
-        self.gs = gs
+        grid = tuple(grid)
+        if len(grid) == 0: raise ValueError("At least one grid search point must be specified")
+        self.grid = grid
 
         self.step = step
         self.num_candidates = num_candidates
@@ -79,7 +79,7 @@ class MBS:
         if key in self.evaluated: return False
         self.evaluated.add(key)
 
-        vals = tofloatlist(fn(x))
+        vals = _tofloatlist(fn(x))
         for idx, v in enumerate(vals):
             if idx not in self.objectives: self.objectives[idx] = {}
             self.objectives[idx][x] = v
@@ -88,7 +88,7 @@ class MBS:
 
     def run(self, fn):
         # step 1 - grid search
-        for x in self.gs:
+        for x in self.grid:
             self._evaluate(fn, x)
 
         # step 2 - binary search
@@ -139,3 +139,6 @@ class MBS:
 
         return ret
 
+def minimize(fn, grid: Iterable[float], step:float, num_candidates: int = 4, num_binary: int = 20, num_expansions: int = 20, rounding=2):
+    mbs = MBS(grid, step=step, num_candidates=num_candidates, num_binary=num_binary, num_expansions=num_expansions, rounding=rounding)
+    return mbs.run(fn)

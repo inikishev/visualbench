@@ -1,10 +1,11 @@
+import warnings
 from collections.abc import Callable
 from typing import Literal
-import warnings
+
 import torch
 
 from ...benchmark import Benchmark
-from ...utils import format, algebras
+from ...utils import algebras, format
 from . import linalg_utils
 
 
@@ -147,4 +148,67 @@ class SVD(Benchmark):
             self.log_image("USV*", USV, to_uint8=True, show_best=True)
 
         return loss + penalty1 + penalty2
+
+class Eigendecomposition(Benchmark):
+    """Decompose A into QΛQ, where Q is a square matrix of eigenvectors, Λ is a diagonal matrix with eigenvalues.
+
+    This uses no complex values (but it is least squares-like).
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, self.n, self.n = self.A.shape
+        self.Q = torch.nn.Parameter(torch.linalg.qr(self.A)[0]) # pylint:disable=not-callable
+        self.L = torch.nn.Parameter(torch.ones(*b, self.n))
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                L, Q = torch.linalg.eigh(self.A) # pylint:disable=not-callable
+                self.add_reference_image('true Q', Q.real, to_uint8=True)
+            except torch.linalg.LinAlgError as e:
+                warnings.warn(f'true eigh failed for some reason: {e!r}')
+
+
+    def get_loss(self):
+        Q = self.Q
+        L = self.L
+
+        try:
+            Q_inv = torch.linalg.inv(Q) # pylint:disable=not-callable
+        except torch.linalg.LinAlgError:
+            Q_inv = torch.linalg.pinv(Q) # pylint:disable=not-callable
+
+
+        QL = algebras.mul(Q, L.unsqueeze(-2), self.algebra) # same as Q @ L.diag_embed()
+        QLQi = algebras.matmul(QL, Q_inv, self.algebra)
+
+        loss = self.criterion(QLQi, self.A)
+
+        if self._make_images:
+            indices = torch.argsort(L**2, descending=True)
+            Q_sorted = torch.gather(Q, 2, indices.unsqueeze(1).expand(-1, self.n, -1))
+            Qi_sorted = torch.gather(Q_inv, 1, indices.unsqueeze(-1).expand(-1, -1, self.n))
+
+            self.log_image("Q", Q_sorted, to_uint8=True)
+            self.log_image("Q^-1", Qi_sorted, to_uint8=True)
+            self.log_image("QLQ^-1", QLQi, to_uint8=True, show_best=True)
+
+        return loss
 
