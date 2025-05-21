@@ -9,7 +9,15 @@ from ..utils.renderer import OpenCVRenderer
 
 
 class UnivariateVisualizer:
-    """Visualizer for univariate function optimization. For MBGS and line searches."""
+    """
+    Visualizer for univariate function optimization. For HPO and line searches.
+
+    Example:
+
+    .. code:: py
+
+
+    """
     def __init__(
         self,
         fn,
