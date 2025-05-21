@@ -30,5 +30,7 @@ from .synthetic import (
     QuadraticForm,
     Rosenbrock,
     Sphere,
-    PSF,
+    PowellSingular,
+    VariablyDimensional,
+    BroydenTridiagonal,
 )
