@@ -122,5 +122,5 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
 
             # make a collage
             collage = _make_collage([tonumpy(i) for i in images])
-            renderer.add_frame(collage)
+            renderer.write(collage)
 

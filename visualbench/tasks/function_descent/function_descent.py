@@ -195,4 +195,4 @@ class FunctionDescent(Benchmark):
                     cur_frame[y - sp : y + sp, x - sp : x + sp, :] = 0
                     cur_frame[y - sp : y + sp, x - sp : x + sp, 2] = 255
 
-                renderer.add_frame(cur_frame[::-1])
+                renderer.write(cur_frame[::-1])
