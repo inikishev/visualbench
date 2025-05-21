@@ -18,7 +18,7 @@ def orthonormalize_svd(M: torch.Tensor, driver=None):
     return (U @ V.mT)
 
 OrthoMode = float | Literal['svd', 'qr'] | None
-def orthonormality_constraint(M: torch.Tensor, ortho: OrthoMode, algebra, criterion=F.mse_loss) -> tuple[torch.Tensor, float | torch.Tensor]:
+def orthonormality_constraint(M: torch.Tensor, ortho: OrthoMode, algebra, criterion) -> tuple[torch.Tensor, float | torch.Tensor]:
     """either orthonormality penalty or projects onto the Stiefel manifold via svd"""
     if ortho is None: return M, 0
     if not isinstance(M, torch.Tensor): raise TypeError(M)
@@ -56,11 +56,27 @@ def sinkhorn(logits: torch.Tensor, iters: int | None=10) -> torch.Tensor:
     return torch.exp(log_alpha)
 
 
-def make_permutation(logits: torch.Tensor, iters: int | None, binary_weight: float, ortho: OrthoMode, algebra) -> tuple[torch.Tensor, float | torch.Tensor]:
+def make_permutation(logits: torch.Tensor, iters: int | None, binary_weight: float, ortho: OrthoMode, algebra, criterion) -> tuple[torch.Tensor, float | torch.Tensor]:
+    """make permutation tensor and penalize
+
+    Args:
+        logits (torch.Tensor): logits
+        iters (int | None): sinkhorn iters, can be None to not do sinkhorn
+        binary_weight (float): weight for P * (1-P)
+        ortho (OrthoMode): orthogonalization penalty
+        algebra (Any): algebra
+    """
     P = sinkhorn(logits, iters)
     penalty = 0
     if binary_weight != 0: penalty = torch.mean(P * (1 - P))
     if ortho is not None:
-        P, penalty2 = orthonormality_constraint(P, ortho, algebra=algebra)
+        P, penalty2 = orthonormality_constraint(P, ortho=ortho, algebra=algebra, criterion=criterion)
         penalty = penalty + penalty2
     return P, penalty
+
+# https://discuss.pytorch.org/t/polar-decomposition-of-matrices-in-pytorch/188458/2
+def polar(m):   # express polar decomposition in terms of singular-value decomposition
+    U, S, Vh = torch.linalg.svd(m) # pylint:disable=not-callable
+    u = U @ Vh
+    p = Vh.mT.conj() @ S.diag_embed().to(dtype = m.dtype) @ Vh
+    return  u, p

@@ -337,7 +337,7 @@ class Cholesky(Benchmark):
 
 
 class LDL(Benchmark):
-    """Decompose square A into lower unit triangular L and diagonal D as LDL.
+    """Decompose square A into LDL*, where L is a lower unit triangular matrix and D is a diagonal matrix.
 
     Args:
         A (Any): something to load and use as a matrix.
@@ -409,7 +409,7 @@ class LU(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.A = torch.nn.Buffer(format.to_CHW(A).float())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 
@@ -467,7 +467,7 @@ class LUP(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.A = torch.nn.Buffer(format.to_CHW(A).float())
         self.ortho: linalg_utils.OrthoMode = ortho
         self.binary_weight = binary_weight
         self.criterion = criterion
@@ -492,14 +492,16 @@ class LUP(Benchmark):
 
 
     def get_loss(self):
-        P, penalty = linalg_utils.make_permutation(self.P, self.sinkhorn_iters, self.binary_weight, self.ortho, self.algebra)
+        P, penalty = linalg_utils.make_permutation(self.P, iters=self.sinkhorn_iters, binary_weight=self.binary_weight,
+                                                   ortho=self.ortho, algebra=self.algebra, criterion=self.criterion)
 
         if self.binary_weight != 0: loss = torch.mean(P * (1 - P))
         L = self.L.tril()
         U = self.U.triu()
 
         LU_ = algebras.matmul(L, U, self.algebra)
-        PLU = algebras.matmul(P.mT, LU_, self.algebra)
+        #PLU = algebras.matmul(P.mT, LU_, self.algebra)
+        PLU = P.mT @ LU_
         loss = self.criterion(PLU, self.A)
 
         if self._make_images:
@@ -513,3 +515,59 @@ class LUP(Benchmark):
         return loss + penalty
 
 
+
+
+class Polar(Benchmark):
+    """Decompose square A into UP, where U is unitary and P is positive semi-definite Hermitian.
+    In this benchmark P is stored as LL*, where L is a lower triagular matrix with positive diagonal.
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        ortho (linalg_utils.OrthoMode, optional): how to enforce orthogonality of Q (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        ortho: linalg_utils.OrthoMode = 1,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.criterion = criterion
+        self.ortho: linalg_utils.OrthoMode = ortho
+        self.algebra = algebras.get_algebra(algebra)
+
+        self.U = torch.nn.Parameter(torch.nn.init.orthogonal_(torch.zeros_like(self.A), generator=self.rng.torch()))
+        self.L = torch.nn.Parameter(torch.zeros_like(self.A))
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                U, P = linalg_utils.polar(self.A) # pylint:disable=not-callable
+                self.add_reference_image('PyTorch U', U, to_uint8=True)
+                self.add_reference_image('PyTorch P', P, to_uint8=True)
+            except torch.linalg.LinAlgError as e:
+                warnings.warn(f'Polar via PyTorch SVD failed: {e!r}')
+
+    def get_loss(self):
+        L = torch.tril(self.L, diagonal=1)
+        L = L + self.L.diagonal(dim1=-2, dim2=-1).exp().diag_embed() # make diagonal positive
+
+        U, penalty = linalg_utils.orthonormality_constraint(self.U, ortho=self.ortho, algebra=self.algebra, criterion=self.criterion)
+        P = algebras.matmul(L, L.mH, self.algebra)
+        UP = algebras.matmul(U, P, self.algebra)
+
+        loss = self.criterion(UP, self.A)
+
+        if self._make_images:
+            self.log_image("U", U, to_uint8=True)
+            self.log_image("L", L, to_uint8=True)
+            self.log_image("P", P, to_uint8=True)
+            self.log_image("UP", UP, to_uint8=True, show_best=True)
+
+        return loss + penalty
