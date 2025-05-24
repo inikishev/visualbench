@@ -43,17 +43,17 @@ class QR(Benchmark):
 
         *b, m, n = self.A.shape
         k = min(m, n) if mode == 'reduced' else m
-        self.Q = torch.nn.Parameter(torch.nn.init.orthogonal_(torch.zeros(*b, m, k), generator=self.rng.torch()))
-        self.R = torch.nn.Parameter(torch.zeros(*b, k, n))
+        self.Q = torch.nn.Parameter(linalg_utils.orthogonal((*b, m, k), generator=self.rng.torch()))
+        self.R = torch.nn.Parameter(linalg_utils.orthogonal((*b, k, n), generator=self.rng.torch()))
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
             try:
                 Q, R = torch.linalg.qr(self.A, mode=mode) # pylint:disable=not-callable
-                self.add_reference_image('true Q', Q, to_uint8=True)
-                self.add_reference_image('true R', R, to_uint8=True)
+                self.add_reference_image('PyTorch Q', Q, to_uint8=True)
+                self.add_reference_image('PyTorch R', R, to_uint8=True)
             except torch.linalg.LinAlgError as e:
-                warnings.warn(f'true QR failed for some reason: {e!r}')
+                warnings.warn(f'PyTorch QR failed: {e!r}')
 
 
     def get_loss(self):
@@ -110,18 +110,18 @@ class SVD(Benchmark):
         *b, self.m, self.n = self.A.shape
         k = min(self.m, self.n) if mode == 'reduced' else self.m
 
-        self.U = torch.nn.Parameter(torch.nn.init.orthogonal_(torch.zeros(*b, self.m, k), generator=self.rng.torch()))
+        self.U = torch.nn.Parameter(linalg_utils.orthogonal((*b, self.m, k), generator=self.rng.torch()))
         self.S = torch.nn.Parameter(torch.zeros(*b, k))
-        self.V = torch.nn.Parameter(torch.nn.init.orthogonal_(torch.zeros(*b, k, self.n), generator=self.rng.torch()))
+        self.V = torch.nn.Parameter(linalg_utils.orthogonal((*b, k, self.n), generator=self.rng.torch()))
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
             try:
                 U, S, V = torch.linalg.svd(self.A) # pylint:disable=not-callable
-                self.add_reference_image('true U', U, to_uint8=True)
-                self.add_reference_image('true V', V, to_uint8=True)
+                self.add_reference_image('PyTorch U', U, to_uint8=True)
+                self.add_reference_image('PyTorch V', V, to_uint8=True)
             except torch.linalg.LinAlgError as e:
-                warnings.warn(f'true QR failed for some reason: {e!r}')
+                warnings.warn(f'PyTorch SVD failed: {e!r}')
 
 
     def get_loss(self):
@@ -175,15 +175,15 @@ class Eigendecomposition(Benchmark):
 
         *b, self.n, self.n = self.A.shape
         self.Q = torch.nn.Parameter(torch.linalg.qr(self.A)[0]) # pylint:disable=not-callable
-        self.L = torch.nn.Parameter(torch.ones(*b, self.n))
+        self.L = torch.nn.Parameter(torch.zeros(*b, self.n))
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
             try:
                 L, Q = torch.linalg.eigh(self.A) # pylint:disable=not-callable
-                self.add_reference_image('true Q', Q.real, to_uint8=True)
+                self.add_reference_image('PyTorch Q', Q.real, to_uint8=True)
             except torch.linalg.LinAlgError as e:
-                warnings.warn(f'true eigh failed for some reason: {e!r}')
+                warnings.warn(f'PyTorch eigh failed: {e!r}')
 
 
     def get_loss(self):
@@ -241,16 +241,16 @@ class EigenWithInverse(Benchmark):
         *b, self.n, self.n = self.A.shape
         self.Q = torch.nn.Parameter(torch.linalg.qr(self.A)[0]) # pylint:disable=not-callable
         self.Q_inv = torch.nn.Parameter(self.Q.clone()) # pylint:disable=not-callable
-        self.L = torch.nn.Parameter(torch.ones(*b, self.n))
+        self.L = torch.nn.Parameter(torch.zeros(*b, self.n))
         self.I = torch.nn.Buffer(torch.eye(self.Q.size(-1)).expand_as(self.Q).clone())
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
             try:
                 L, Q = torch.linalg.eigh(self.A) # pylint:disable=not-callable
-                self.add_reference_image('true Q', Q, to_uint8=True)
+                self.add_reference_image('PyTorch Q', Q, to_uint8=True)
             except torch.linalg.LinAlgError as e:
-                warnings.warn(f'true eigh failed for some reason: {e!r}')
+                warnings.warn(f'PyTorch eigh failed: {e!r}')
 
 
     def get_loss(self):
@@ -316,7 +316,7 @@ class Cholesky(Benchmark):
         if algebra is None:
             try:
                 L = torch.linalg.cholesky_ex(self.A)[0] # pylint:disable=not-callable
-                self.add_reference_image('true L', L, to_uint8=True)
+                self.add_reference_image('PyTorch L', L, to_uint8=True)
             except torch.linalg.LinAlgError as e:
                 warnings.warn(f'PyTorch Cholesky failed: {e!r}')
 
@@ -370,7 +370,7 @@ class LDL(Benchmark):
                 LD = torch.linalg.ldl_factor_ex(self.A)[0] # pylint:disable=not-callable
                 self.add_reference_image('PyTorch LD', LD, to_uint8=True)
             except torch.linalg.LinAlgError as e:
-                warnings.warn(f'true LDL failed for some reason: {e!r}')
+                warnings.warn(f'PyTorch LDL failed: {e!r}')
 
 
     def get_loss(self):
@@ -417,20 +417,21 @@ class LU(Benchmark):
         k = min(m, n) if mode == 'reduced' else m
         self.L = torch.nn.Parameter(torch.ones(*b, m, k))
         self.U = torch.nn.Parameter(torch.zeros(*b, k, n))
+        self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
             try:
                 A = self.A.cuda() # LU without pivoting not implemented on CPU
                 P, L, U = torch.linalg.lu(A, pivot=False) # pylint:disable=not-callable
-                self.add_reference_image('true L', L.cpu(), to_uint8=True)
-                self.add_reference_image('true U', U.cpu(), to_uint8=True)
+                self.add_reference_image('PyTorch L', L.cpu(), to_uint8=True)
+                self.add_reference_image('PyTorch U', U.cpu(), to_uint8=True)
             except Exception as e:
                 warnings.warn(f'PyTorch LU failed: {e!r}')
 
 
     def get_loss(self):
-        L = self.L.tril()
+        L = self.L.tril(-1) + self.I
         U = self.U.triu()
 
         LU_ = algebras.matmul(L, U, self.algebra)
@@ -476,17 +477,18 @@ class LUP(Benchmark):
 
         *b, m, n = self.A.shape
         k = min(m, n) if mode == 'reduced' else m
-        self.P = torch.nn.Parameter(torch.zeros(*b, m, k))
-        self.L = torch.nn.Parameter(torch.ones(*b, k, k))
+        self.P = torch.nn.Parameter(torch.zeros(*b, m, m))
+        self.L = torch.nn.Parameter(torch.ones(*b, m, k))
         self.U = torch.nn.Parameter(torch.zeros(*b, k, n))
+        self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
             try:
                 P, L, U = torch.linalg.lu(self.A, pivot=True) # pylint:disable=not-callable
-                self.add_reference_image('true P', P, to_uint8=True)
-                self.add_reference_image('true L', L, to_uint8=True)
-                self.add_reference_image('true U', U, to_uint8=True)
+                self.add_reference_image('PyTorch P', P, to_uint8=True)
+                self.add_reference_image('PyTorch L', L, to_uint8=True)
+                self.add_reference_image('PyTorch U', U, to_uint8=True)
             except torch.linalg.LinAlgError as e:
                 warnings.warn(f'PyTorch LU failed: {e!r}')
 
@@ -494,9 +496,7 @@ class LUP(Benchmark):
     def get_loss(self):
         P, penalty = linalg_utils.make_permutation(self.P, iters=self.sinkhorn_iters, binary_weight=self.binary_weight,
                                                    ortho=self.ortho, algebra=self.algebra, criterion=self.criterion)
-
-        if self.binary_weight != 0: loss = torch.mean(P * (1 - P))
-        L = self.L.tril()
+        L = self.L.tril(-1) + self.I
         U = self.U.triu()
 
         LU_ = algebras.matmul(L, U, self.algebra)
@@ -542,7 +542,7 @@ class Polar(Benchmark):
         self.ortho: linalg_utils.OrthoMode = ortho
         self.algebra = algebras.get_algebra(algebra)
 
-        self.U = torch.nn.Parameter(torch.nn.init.orthogonal_(torch.zeros_like(self.A), generator=self.rng.torch()))
+        self.U = torch.nn.Parameter(linalg_utils.orthogonal_like(self.A, generator=self.rng.torch()))
         self.L = torch.nn.Parameter(torch.zeros_like(self.A))
 
         self.add_reference_image('A', self.A, to_uint8=True)
@@ -571,3 +571,113 @@ class Polar(Benchmark):
             self.log_image("UP", UP, to_uint8=True, show_best=True)
 
         return loss + penalty
+
+
+
+class RankFactorization(Benchmark):
+    """Decompose rectangular A into CF, where C is (m, rank) and F is (rank, n).
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        rank (int): rank.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        rank: int,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_CHW(A))
+
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, m, n = self.A.shape
+        self.C = torch.nn.Parameter(linalg_utils.orthogonal((*b, m, rank), generator=self.rng.torch()))
+        self.F = torch.nn.Parameter(linalg_utils.orthogonal((*b, rank, n), generator=self.rng.torch()))
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        # if algebra is None:
+        #     try:
+        #         C, F = linalg_utils.rank_factorization(self.A, rank=rank) # pylint:disable=not-callable
+        #         self.add_reference_image('PyTorch C', C, to_uint8=True)
+        #         self.add_reference_image('PyTorch F', F, to_uint8=True)
+        #         self.add_reference_image('PyTorch CF', C@F, to_uint8=True)
+        #     except torch.linalg.LinAlgError as e:
+        #         warnings.warn(f'Rank factorization via PyTorch SVD failed: {e!r}')
+
+
+    def get_loss(self):
+        C = self.C
+        F = self.F
+
+        CF = algebras.matmul(C, F, self.algebra)
+        loss = self.criterion(CF, self.A)
+
+        if self._make_images:
+            self.log_image("C", C, to_uint8=True, log_difference=True)
+            self.log_image("F", F, to_uint8=True, log_difference=True)
+            self.log_image("CF", CF, to_uint8=True, show_best=True)
+
+        return loss
+
+
+
+class NNMF(Benchmark):
+    """Decompose nonnegtive rectangular V into product of two smaller nonnegative matrices WH.
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        rank (int): rank.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        rank: int,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        A = format.to_CHW(A)
+        self.A = torch.nn.Buffer(A - A.amin().clip(max=0))
+
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, m, n = self.A.shape
+
+        # make H @ W have unit norm
+        W = torch.empty((*b, m, rank)).uniform_(0.1,1, generator=self.rng.torch())
+        H = torch.empty((*b, rank, n)).uniform_(0.1,1, generator=self.rng.torch())
+        norm = torch.linalg.norm(algebras.matmul(W, H, self.algebra)) # pylint:disable=not-callable
+        scale = (1/norm).sqrt()
+
+        self.W = torch.nn.Parameter((W * scale).log())
+        self.H = torch.nn.Parameter((H * scale).log())
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+
+    def get_loss(self):
+        W = self.W.exp()
+        H = self.H.exp()
+
+        WH = algebras.matmul(W, H, self.algebra)
+        loss = self.criterion(WH, self.A)
+
+        if self._make_images:
+            self.log_image("W", W, to_uint8=True, log_difference=True)
+            self.log_image("H", H, to_uint8=True, log_difference=True)
+            self.log_image("WH", WH, to_uint8=True, show_best=True)
+
+        return loss
+

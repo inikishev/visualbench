@@ -2,6 +2,7 @@
 import warnings
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
+import time
 
 import numpy as np
 import torch
@@ -52,7 +53,8 @@ def _print_progress_(self: "Benchmark"):
 
 
 def _print_final_report(self: "Benchmark"):
-    text = f'finished in {self.seconds_passed:.1f}s., reached'
+    if self.seconds_passed is None: text = "finished in a very short time, reached"
+    else: text = f'finished in {self.seconds_passed:.1f}s., reached'
 
     if 'test loss' in self.logger:
         text = f'{text} train loss = {round_significant(self.logger.nanmin("train loss"), 3)},'\

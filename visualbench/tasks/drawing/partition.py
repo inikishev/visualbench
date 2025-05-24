@@ -17,7 +17,7 @@ class PartitionDrawer(Benchmark):
         num_points=100,
         points_init="random",
         colors_init="random",
-        min_softmax_beta=300.0,
+        min_softmax_beta=1000.0,
         loss=F.mse_loss,
         make_images=True,
     ):

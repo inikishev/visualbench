@@ -80,3 +80,20 @@ def polar(m):   # express polar decomposition in terms of singular-value decompo
     u = U @ Vh
     p = Vh.mT.conj() @ S.diag_embed().to(dtype = m.dtype) @ Vh
     return  u, p
+
+
+# def rank_factorization(M: torch.Tensor, rank: int):
+#     U, S, V = torch.linalg.svd(M) # pylint:disable=not-callable
+#     U_truncated = U[:, :rank]
+#     S_truncated = S[:rank].diag_embed().sqrt()
+#     V_truncated = V[:rank, :]
+
+#     return U_truncated @ S_truncated, S_truncated @ V_truncated
+
+def orthogonal(shape, device=None, dtype=None, generator=None) -> torch.Tensor:
+    t = torch.empty(shape,device=device,dtype=dtype)
+    return torch.nn.init.orthogonal_(t, generator=generator)
+
+def orthogonal_like(tensor: torch.Tensor, generator=None) -> torch.Tensor:
+    t = torch.empty_like(tensor)
+    return torch.nn.init.orthogonal_(t, generator=generator)

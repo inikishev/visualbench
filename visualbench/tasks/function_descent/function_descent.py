@@ -108,14 +108,15 @@ class FunctionDescent(Benchmark):
         linewidth=0.5,
         line_alpha=1.,
         linecolor="red",
+        norm=None,
         ax=None,
     ):
-        if ax is None: ax = plt.gca()
+        if ax is None: fig, ax = plt.subplots(figsize=(7,7))
         bounds = self._get_domain()
 
         if self.unpack: f = self.func
         else: f = _UnpackCall(self.func)
-        funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, lib=torch) # type:ignore
+        funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, lib=torch) # type:ignore
 
         if 'params' in self.logger:
             params = self.logger.numpy('params')

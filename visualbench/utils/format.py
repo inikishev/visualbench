@@ -64,12 +64,13 @@ def to_CHW(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tens
         if len(x) == 3 and all(isinstance(i,int) for i in x): return torch.randn(x, device=device,dtype=dtype, generator=generator)
 
     x = totensor(x, device=device, dtype=dtype, clone=clone)
-    if x.ndim == 2: return x.unsqueeze(0)
 
     if x.ndim > 3:
         x = x.squeeze()
         if x.ndim > 3:
             raise RuntimeError(f"Too many dimensions {x.shape}")
+
+    if x.ndim == 2: return x.unsqueeze(0)
 
     if x.size(0) > x.size(-1): return x.moveaxis(-1, 0)
     return x
