@@ -17,6 +17,7 @@ class RNG:
             self.numpy = np.random.default_rng(seed)
 
             self._torch_generators = {}
+
     def copy(self):
         return RNG(self.seed)
 

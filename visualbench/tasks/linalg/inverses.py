@@ -54,15 +54,15 @@ class StochasticInverse(Benchmark):
     def get_loss(self):
         if self.vec:
             *b, n, m = self.A.shape
-            X = torch.randn((self.batch_size, *b, 1, m), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            X = torch.randn((self.batch_size, *b, m, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         else:
             X = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         A = self.A.unsqueeze(0); B = self.B.unsqueeze(0)
 
-        XA = algebras.matmul(X, A, self.algebra)
-        X_hat = algebras.matmul(XA, B, self.algebra)
+        AX = algebras.matmul(A, X, self.algebra)
+        X_hat = algebras.matmul(B, AX, self.algebra)
 
         loss = self.criterion(X, X_hat)
 
