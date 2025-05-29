@@ -66,6 +66,7 @@ def funcplot2d(
     contour_cmap = 'binary',
     contour_lw = 0.5,
     contour_alpha = 0.3,
+    log_contour = False,
     grid_alpha = 0.,
     grid_color = 'gray',
     grid_lw=0.5,
@@ -79,7 +80,14 @@ def funcplot2d(
     X, Y, Z = _make_2d_function_mesh(f, xrange, yrange, num=num, step=step, lib=lib, batched=batched, dtype=dtype,device=device, enable_grad=False)
     X, Y, Z = [tonumpy(i) for i in (X, Y, Z)]
 
+    contour_norm = None
+    if log_contour:
+        Z_min = np.percentile(Z[Z>0], 1).clip(min=1e-2)
+        log_levels = np.logspace(np.log10(Z_min), np.log10(Z.max()), levels)
+        levels = log_levels
+        # contour_norm = 'symlog'
+
     ax.pcolormesh(X, Y, Z, cmap=cmap, alpha = surface_alpha, norm = norm)
-    if levels: ax.contour(X, Y, Z, levels=levels, cmap=contour_cmap, linewidths=contour_lw, alpha=contour_alpha, norm=norm)
+    if levels is not None: ax.contour(X, Y, Z, levels=levels, cmap=contour_cmap, linewidths=contour_lw, alpha=contour_alpha, norm=contour_norm)
     if grid_alpha > 0: ax.grid(alpha=grid_alpha, lw=grid_lw, color=grid_color)
     return ax

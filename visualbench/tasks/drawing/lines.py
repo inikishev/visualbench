@@ -49,10 +49,10 @@ class LinesDrawer(Benchmark):
         self.min_log_sigma = min_log_sigma
 
         # raw coords
-        self.raw_start_points = nn.Parameter(torch.rand(num_lines, 2) * 2 * init_range - init_range)
-        self.raw_end_points = nn.Parameter(torch.rand(num_lines, 2) * 2 * init_range - init_range)
+        self.raw_start_points = nn.Parameter(torch.rand(num_lines, 2, generator=self.rng.torch()) * 2 * init_range - init_range)
+        self.raw_end_points = nn.Parameter(torch.rand(num_lines, 2, generator=self.rng.torch()) * 2 * init_range - init_range)
         # raw colors
-        self.raw_colors = nn.Parameter(torch.randn(num_lines, 3) * 0.5)
+        self.raw_colors = nn.Parameter(torch.randn(num_lines, 3, generator=self.rng.torch()) * 0.5)
         # sigmas
         if self.per_line_thickness:
             self.log_sigmas = nn.Parameter(torch.full((num_lines,), math.log(initial_line_thickness)))

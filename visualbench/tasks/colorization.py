@@ -24,7 +24,7 @@ _INIT = torch.zeros(64, 256)
 
 class Colorization(Benchmark):
     """inspired by https://distill.pub/2017/momentum/"""
-    def __init__(self, init: torch.Tensor = _INIT, mask: torch.Tensor=_get_mask(_INIT, 4, (33, 10, 2)), pull_idxs = ((32, 0),)):
+    def __init__(self, init: torch.Tensor = _INIT, mask: torch.Tensor=_get_mask(_INIT, 4, (33, 10, 2)), pull_idxs = ((32, 0),), order: int = 1,):
         super().__init__(bounds=(0,1))
         image = init * mask
         for idx in pull_idxs:
@@ -33,6 +33,7 @@ class Colorization(Benchmark):
         self.image = nn.Parameter(image)
         self.mask = nn.Buffer(mask.float())
         self.pull_idxs = pull_idxs
+        self.order = order
 
     def get_loss(self):
         w = self.image * self.mask
@@ -41,9 +42,12 @@ class Colorization(Benchmark):
         for idx in self.pull_idxs:
             colorizer = colorizer + (1 - w[*idx])**2
 
-        diff_down = (w[1:, :] - w[:-1, :]) * self.mask[1:] * self.mask[:-1]
-        diff_right = (w[:, 1:] - w[:, :-1]) * self.mask[:, 1:] * self.mask[:, :-1]
-        spreader = torch.sum(diff_down**2) + torch.sum(diff_right**2)
+        diff_ver = torch.diff(w, self.order, 0) * self.mask[self.order:] * self.mask[:-self.order]
+        diff_hor = torch.diff(w, self.order, 1) * self.mask[:, self.order:] * self.mask[:, :-self.order]
+
+        # diff_ver = (w[1:, :] - w[:-1, :]) * self.mask[1:] * self.mask[:-1]
+        # diff_hor = (w[:, 1:] - w[:, :-1]) * self.mask[:, 1:] * self.mask[:, :-1]
+        spreader = torch.sum(diff_ver**2) + torch.sum(diff_hor**2)
 
         if self._make_images:
             with torch.no_grad():

@@ -1,4 +1,5 @@
 """synthetic funcs"""
+import math
 from collections.abc import Callable
 from typing import Any, Literal, cast
 
@@ -190,3 +191,4 @@ class BroydenTridiagonal(Benchmark):
         xm = self.x[:-2]
         xp = self.x[2:]
         return (((3 - 2*x)*x - xm - 2*xp + 1)**2).mean()
+

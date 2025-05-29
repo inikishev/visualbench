@@ -1,5 +1,7 @@
-import torch
 from typing import Literal
+
+import torch
+
 from ...benchmark import Benchmark
 from ...utils import algebras, to_CHW, to_square, totensor
 
@@ -60,14 +62,17 @@ class StochasticMatrixRoot(Benchmark):
 
         self.add_reference_image('A', A, to_uint8=True)
 
-    def get_loss(self):
-        B = self.B
+    def pre_step(self):
         if self.vec:
             *b, n, m = self.A.shape
-            X = torch.randn((self.batch_size, *b, 1, m), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            self.X = torch.randn((self.batch_size, *b, 1, m), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         else:
-            X = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            self.X = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+
+    def get_loss(self):
+        B = self.B
+        X = self.X
 
         powers = []
         if self.algebra is None:
@@ -177,14 +182,17 @@ class StochasticMatrixIdempotent(Benchmark):
 
         self.add_reference_image('A', A, to_uint8=True)
 
-    def get_loss(self):
-        A = self.A; B = self.B
+    def pre_step(self):
+        A = self.A
         if self.vec:
             *b, n, m = A.shape
-            X = torch.randn((self.batch_size, *b, 1, m), device=A.device, dtype=A.dtype, generator=self.rng.torch(A.device))
+            self.X = torch.randn((self.batch_size, *b, 1, m), device=A.device, dtype=A.dtype, generator=self.rng.torch(A.device))
 
         else:
-            X = torch.randn((self.batch_size, *self.A.shape), device=A.device, dtype=A.dtype, generator=self.rng.torch(A.device))
+            self.X = torch.randn((self.batch_size, *self.A.shape), device=A.device, dtype=A.dtype, generator=self.rng.torch(A.device))
+
+    def get_loss(self):
+        A = self.A; B = self.B; X = self.X
 
         powers = []
         B_p = B

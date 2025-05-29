@@ -267,6 +267,8 @@ class Benchmark(torch.nn.Module, ABC):
 
         self.logger.log(self.num_forwards, name, image)
 
+    def pre_step(self):
+        pass
 
     @abstractmethod
     def get_loss(self) -> torch.Tensor:
@@ -361,6 +363,7 @@ class Benchmark(torch.nn.Module, ABC):
     def one_step(self, optimizer):
         """one batch or one step"""
         _benchmark_utils._update_noise_(self)
+        self.pre_step()
 
         if self.training:
             if self._param_noise_alpha != 0: self._is_perturbed = True

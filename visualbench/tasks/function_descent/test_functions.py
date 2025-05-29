@@ -1,3 +1,4 @@
+import math
 import copy
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
@@ -630,18 +631,21 @@ class Tanh(TestFunction):
 tanh = Tanh().shifted(-1, 2).register('tanh')
 
 class IllConditioned(TestFunction):
-    def __init__(self, v = 1.9999):
-        self.v = v
+    def __init__(self, b = 1e-4):
+        self.b = b
 
     def objective(self,x,y):
-        return x**2 + y**2 + self.v * x * y
+        return x**2 + y**2 + (2-self.b) * x * y
 
     def x0(self): return (-9, 2.5)
     def domain(self): return (-10, 10, -10, 10)
     def minima(self): return (0, 0)
 
 ill_conditioned = IllConditioned().shifted(-1, 2).register('ill_conditioned', 'ill')
-very_ill_conditioned = IllConditioned(1.999999).shifted(-1, 2).register('very_ill_conditioned', 'very_ill')
+very_ill_conditioned = IllConditioned(1e-6).shifted(-1, 2).register('very_ill_conditioned', 'very_ill')
+
+
+
 
 class IllValley(TestFunction):
     def __init__(self, v = 1e-4):

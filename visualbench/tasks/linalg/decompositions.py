@@ -593,7 +593,7 @@ class RankFactorization(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_CHW(A))
+        self.A = torch.nn.Buffer(format.to_CHW(A, generator=self.rng.torch()))
 
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)

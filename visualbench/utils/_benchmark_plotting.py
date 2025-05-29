@@ -26,17 +26,24 @@ def plot_trajectory(self: "Benchmark", cmap = 'coolwarm', loss_scale:Any = 'syml
     else: raise RuntimeError("Either params or projections must be logged to plot trajectory")
     assert trajectory.ndim == 2
     ndim = trajectory.shape[1]
-    trajectory = trajectory[np.isfinite(trajectory).any(axis=1)] # remove nans
 
     loss = np.asarray(list(self.logger['train loss'].values()))
+    mask = np.isfinite(trajectory).any(axis=1)
+    mask = np.logical_and(mask, np.isfinite(loss))
+
+    trajectory = trajectory[mask] # remove nans
+    loss = loss[mask]
 
     if ndim > 2:
 
         # use PCA or something else to reduce dimensionality
         if projector == 'pca':
-            from sklearn.decomposition import PCA
-            projector = PCA(n_components=2)
-
+            if len(trajectory) == 1:
+                from sklearn.random_projection import GaussianRandomProjection
+                projector = GaussianRandomProjection(n_components=2)
+            else:
+                from sklearn.decomposition import PCA
+                projector = PCA(n_components=2)
 
         if use_diff: projector.fit(np.gradient(trajectory, axis=0), loss)
         else: projector.fit(trajectory, loss)
@@ -97,8 +104,8 @@ def plot_summary(
             ax.grid(which = 'major', axis='both', alpha=0.3)
             ax.grid(which = 'minor', axis='both', alpha=0.1)
             ax.set_title(k)
-            ax.set_xlabel(k)
-            ax.set_ylabel('num forward/backward passes')
+            ax.set_xlabel('num forward/backward passes')
+            ax.set_ylabel(k)
 
     # -------------------------------- trajectory -------------------------------- #
     if 'params' in self.logger or 'projected' in self.logger:

@@ -116,13 +116,16 @@ class StochasticMatrixRecovery(Benchmark):
         if self._make_images:
             self.add_reference_image('A', A, to_uint8=True)
 
-    def get_loss(self):
+    def pre_step(self):
         if self.vec:
             *b, n, m = self.A.shape
-            X = torch.randn((self.batch_size, *b, m, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            self.X = torch.randn((self.batch_size, *b, m, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         else:
-            X = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            self.X = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+
+    def get_loss(self):
+        X = self.X
 
         AX = algebras.matmul(self.A, X, self.algebra)
         BX = algebras.matmul(self.B, X, self.algebra)

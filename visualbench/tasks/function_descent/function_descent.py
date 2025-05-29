@@ -98,7 +98,7 @@ class FunctionDescent(Benchmark):
     def plot(
         self,
         cmap = 'gray',
-        contour_levels = 12,
+        contour_levels = 25,
         contour_cmap = 'binary',
         marker_cmap="coolwarm",
         contour_lw = 0.5,
@@ -109,6 +109,7 @@ class FunctionDescent(Benchmark):
         line_alpha=1.,
         linecolor="red",
         norm=None,
+        log_contour=False,
         ax=None,
     ):
         if ax is None: fig, ax = plt.subplots(figsize=(7,7))
@@ -116,7 +117,7 @@ class FunctionDescent(Benchmark):
 
         if self.unpack: f = self.func
         else: f = _UnpackCall(self.func)
-        funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, lib=torch) # type:ignore
+        funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, log_contour=log_contour, lib=torch) # type:ignore
 
         if 'params' in self.logger:
             params = self.logger.numpy('params')
