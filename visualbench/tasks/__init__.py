@@ -1,7 +1,7 @@
 from .colorization import Colorization
 from .covering import RigidBoxCovering
 from .datasets import *
-from .drawing import LinesDrawer, PartitionDrawer, RectanglesDrawer
+from .drawing import LinesDrawer, PartitionDrawer, RectanglesDrawer, NeuralDrawer
 from .function_descent import FunctionDescent, test_functions
 from .graph_layout import (
     GraphLayout,

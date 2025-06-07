@@ -211,8 +211,8 @@ class Benchmark(torch.nn.Module, ABC):
         name: str,
         image: np.ndarray | torch.Tensor | Any,
         to_uint8: bool,
-        min: float | None = None,
-        max: float | None = None,
+        min: float | torch.Tensor | None = None,
+        max: float | torch.Tensor | None = None,
         log_difference: bool = False,
         show_best: bool = False,
     ):

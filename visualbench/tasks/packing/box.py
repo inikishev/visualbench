@@ -96,11 +96,12 @@ class BoxPacking(Benchmark):
         if init == 'center':
             init_translations = torch.tensor([[self.container_W / 2, self.container_H / 2]] * self.num_boxes)
         elif init == 'random':
-            init_translations = torch.rand(self.num_boxes, 2) * torch.tensor([self.container_W, self.container_H])
+            init_translations = torch.rand(
+                (self.num_boxes, 2), generator=self.rng.torch()) * torch.tensor([self.container_W, self.container_H])
         elif init == 'random_inside':
             buffer = 0.1
-            rand_w = torch.rand(self.num_boxes, 1) * (self.container_W - buffer*2) + buffer
-            rand_h = torch.rand(self.num_boxes, 1) * (self.container_H - buffer*2) + buffer
+            rand_w = torch.rand((self.num_boxes, 1), generator=self.rng.torch()) * (self.container_W - buffer*2) + buffer
+            rand_h = torch.rand((self.num_boxes, 1), generator=self.rng.torch()) * (self.container_H - buffer*2) + buffer
             init_translations = torch.cat([rand_w, rand_h], dim=1)
         else:
             raise ValueError(f"Unknown init_strategy: {init}")
