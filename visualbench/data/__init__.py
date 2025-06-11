@@ -13,6 +13,7 @@ ATTNGRAD96 = os.path.join(_path, 'attngrad-96.png')
 SANIC96 = os.path.join(_path, 'sanic-96.jpg')
 TEST96 = os.path.join(_path, 'test-96.jpg')
 MAZE96 = os.path.join(_path, 'maze-96.png')
+TEXT96 = os.path.join(_path, 'text-96.png')
 
 def get_qrcode():
     qrcode = to_3HW(_imread(QRCODE96).float()).mean(0)
