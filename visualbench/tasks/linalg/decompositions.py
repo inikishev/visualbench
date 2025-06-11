@@ -603,15 +603,6 @@ class RankFactorization(Benchmark):
         self.F = torch.nn.Parameter(linalg_utils.orthogonal((*b, rank, n), generator=self.rng.torch()))
 
         self.add_reference_image('A', self.A, to_uint8=True)
-        # if algebra is None:
-        #     try:
-        #         C, F = linalg_utils.rank_factorization(self.A, rank=rank) # pylint:disable=not-callable
-        #         self.add_reference_image('PyTorch C', C, to_uint8=True)
-        #         self.add_reference_image('PyTorch F', F, to_uint8=True)
-        #         self.add_reference_image('PyTorch CF', C@F, to_uint8=True)
-        #     except torch.linalg.LinAlgError as e:
-        #         warnings.warn(f'Rank factorization via PyTorch SVD failed: {e!r}')
-
 
     def get_loss(self):
         C = self.C
@@ -681,5 +672,69 @@ class NNMF(Benchmark):
 
         return loss
 
+
+def _brute_find_closest_ab(x: int):
+    """find two closest integers a,b such that a*b=x VIA BRUTEFORCE"""
+    best_ab = None
+    best_diff = float('inf')
+    for a in range(x):
+        for b in range(x):
+            if a*b == x:
+                diff = abs(a-b)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_ab = (a,b)
+
+    if best_ab is None:
+        raise RuntimeError(f"{x} is prime")
+
+    return best_ab
+
+
+class KroneckerFactorization(Benchmark):
+    """Decompose rectangular A into B⊗C, B is m×n, C is p×q and A is pm×qn.
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_CHW(A, generator=self.rng.torch()))
+
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, s1, s2 = self.A.shape
+
+        m, p = _brute_find_closest_ab(s1)
+        n, q = _brute_find_closest_ab(s2)
+
+        self.B = torch.nn.Parameter(linalg_utils.orthogonal((*b, m, n), generator=self.rng.torch()))
+        self.C = torch.nn.Parameter(linalg_utils.orthogonal((*b, p, q), generator=self.rng.torch()))
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+
+    def get_loss(self):
+        B = self.B
+        C = self.C
+
+        rec = torch.stack([algebras.kron(b, c, self.algebra) for b,c in zip(B, C)])
+        loss = self.criterion(rec, self.A)
+
+        if self._make_images:
+            self.log_image("B", B, to_uint8=True, log_difference=True)
+            self.log_image("C", C, to_uint8=True, log_difference=True)
+            self.log_image("B⊗C", rec, to_uint8=True, show_best=True)
+
+        return loss
 
 

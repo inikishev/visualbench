@@ -1,7 +1,8 @@
+from .alpha_evolve_b1 import AlphaEvolveB1
 from .colorization import Colorization
 from .covering import RigidBoxCovering
 from .datasets import *
-from .drawing import LinesDrawer, PartitionDrawer, RectanglesDrawer, NeuralDrawer
+from .drawing import LinesDrawer, NeuralDrawer, PartitionDrawer, RectanglesDrawer
 from .function_descent import FunctionDescent, test_functions
 from .graph_layout import (
     GraphLayout,
@@ -26,11 +27,11 @@ from .smale7 import Smale7
 from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
+    BroydenTridiagonal,
     IllConditioned,
+    PowellSingular,
     QuadraticForm,
     Rosenbrock,
     Sphere,
-    PowellSingular,
     VariablyDimensional,
-    BroydenTridiagonal,
 )

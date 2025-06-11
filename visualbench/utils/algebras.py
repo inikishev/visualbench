@@ -31,14 +31,22 @@ def mul(x:torch.Tensor, y:torch.Tensor, algebra):
     if algebra is None: return x * y
     return algebra.mul(x, y)
 
-def matmul(x:torch.Tensor, y:torch.Tensor, algebra):
+def matmul(x:torch.Tensor, y:torch.Tensor, algebra: "ta.Algebra | None"):
     if algebra is None: return x @ y
     return algebra.matmul(x, y)
 
-def dot(x:torch.Tensor, y:torch.Tensor, algebra):
+def dot(x:torch.Tensor, y:torch.Tensor, algebra: "ta.Algebra | None"):
     if algebra is None: return x.dot(y)
     return algebra.dot(x, y)
 
-def outer(x:torch.Tensor, y:torch.Tensor, algebra):
+def outer(x:torch.Tensor, y:torch.Tensor, algebra: "ta.Algebra | None"):
     if algebra is None: return x.outer(y)
     return algebra.outer(x, y)
+
+def kron(x:torch.Tensor, y:torch.Tensor, algebra: "ta.Algebra | None"):
+    if algebra is None: return x.kron(y)
+    return algebra.kron(x, y)
+
+def sum(x:torch.Tensor, algebra: "ta.Algebra | None", dim=None, keepdim=False):
+    if algebra is None: return torch.sum(x, dim=dim, keepdim=keepdim)
+    return algebra.sum(x, dim=dim, keepdim=keepdim)
