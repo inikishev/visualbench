@@ -612,8 +612,8 @@ class RankFactorization(Benchmark):
         loss = self.criterion(CF, self.A)
 
         if self._make_images:
-            self.log_image("C", C, to_uint8=True, log_difference=True)
-            self.log_image("F", F, to_uint8=True, log_difference=True)
+            self.log_image("C", C, to_uint8=True)
+            self.log_image("F", F, to_uint8=True)
             self.log_image("CF", CF, to_uint8=True, show_best=True)
 
         return loss
@@ -666,8 +666,8 @@ class NNMF(Benchmark):
         loss = self.criterion(WH, self.A)
 
         if self._make_images:
-            self.log_image("W", W, to_uint8=True, log_difference=True)
-            self.log_image("H", H, to_uint8=True, log_difference=True)
+            self.log_image("W", W, to_uint8=True,)
+            self.log_image("H", H, to_uint8=True,)
             self.log_image("WH", WH, to_uint8=True, show_best=True)
 
         return loss

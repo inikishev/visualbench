@@ -1,4 +1,5 @@
 from .alpha_evolve_b1 import AlphaEvolveB1
+from .char_rnn import CharRNN
 from .colorization import Colorization
 from .covering import RigidBoxCovering
 from .datasets import *
@@ -11,6 +12,7 @@ from .graph_layout import (
     grid_graph,
     watts_strogatz_graph,
 )
+from .guassian_processes import GaussianProcesses
 from .hadamard import Hadamard
 from .katos import KatosProblem
 from .lennard_jones_clusters import LennardJonesClusters
@@ -22,16 +24,15 @@ from .packing import BoxPacking, RigidBoxPacking, SpherePacking
 
 # # from .gnn import GraphNN
 from .particles import *
+from .pde import WavePINN
 from .rnn import RNNArgsort
 from .smale7 import Smale7
 from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
-    BroydenTridiagonal,
     IllConditioned,
-    PowellSingular,
     QuadraticForm,
     Rosenbrock,
     Sphere,
-    VariablyDimensional,
 )
+from .tsne import TSNE

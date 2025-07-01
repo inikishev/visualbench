@@ -6,10 +6,13 @@ from typing import Any, TypeVar
 import math
 from decimal import Decimal
 
-def round_significant(x: Any, nsignificant: int):
+def round_significant(x: Any, nsignificant: int, only_fractional:bool=False):
     if x == 0: return 0.0
     if math.isnan(x) or math.isinf(x): return x
     if nsignificant <= 0: raise ValueError("nsignificant must be positive")
+
+    if only_fractional:
+        return float(math.floor(x) + round_significant(x % 1, nsignificant, False))
 
     x = Decimal(x) # otherwise there are rounding errors
     order = Decimal(10) ** math.floor(math.log10(abs(x)))

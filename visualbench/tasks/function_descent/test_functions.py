@@ -1,9 +1,10 @@
-import math
 import copy
+import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from typing import Any
+from typing import Any, Literal
 
+import numpy as np
 import torch
 
 from ...utils import totensor
@@ -108,8 +109,8 @@ class TestFunction(ABC):
     def __call__(self, x:torch.Tensor, y:torch.Tensor):
         return self.objective(x, y)
 
-    def to(self, device=None, dtype=None):
-        return _to(self, device=device, dtype=dtype)
+    def to(self, device=None, dtype=None) -> "TestFunction":
+        return _to(self, device=device, dtype=dtype) # pyright:ignore[reportReturnType]
 
     def transformed(self, transforms: FunctionTransform | Sequence[FunctionTransform]):
         return TransformedFunction(self, transforms=transforms)
@@ -184,11 +185,12 @@ class TransformedFunction(TestFunction):
 
 
 class PowSum(TestFunction):
-    def __init__(self, xpow, ypow, cross_add=1.0, cross_mul=0.0, abs:bool = True, post_pow = 1.0):
+    def __init__(self, xpow, ypow, cross_add=1.0, cross_mul=0.0, abs:bool = True, post_pow = 1.0, x0=(-9,-7)):
         self.xpow, self.ypow = xpow, ypow
         self.cross_add, self.cross_mul = cross_add, cross_mul
         self.abs = abs
         self.post_pow = post_pow
+        self._x0 = x0
 
     def objective(self, x, y):
         x = x ** self.xpow
@@ -201,7 +203,7 @@ class PowSum(TestFunction):
         res = (x + y) * self.cross_add + (x * y * self.cross_mul)
         return res ** self.post_pow
 
-    def x0(self): return (-9, 7)
+    def x0(self): return self._x0
     def domain(self): return (-10, 10, -10, 10)
     def minima(self): return (0, 0)
 
@@ -220,21 +222,33 @@ crosspow2 = PowSum(xpow=0.5, ypow=0.5, post_pow=2).shifted(1,-2).register('cross
 cross25pow4 = PowSum(xpow=0.5, ypow=0.5, post_pow=4).shifted(1,-2).register('cross25pow4')
 convex4pow25 = PowSum(xpow=4, ypow=4, post_pow=0.25).shifted(1,-2).register('convex4pow25')
 convex96pow025 = PowSum(xpow=9, ypow=6, post_pow=0.25).shifted(1,-2).register('convex96pow025')
+stretched_sphere = PowSum(2, 2, x0=(-9, -70)).scaled(1, 10).shifted(1, -2).register('stretched')
 
 
 class Rosenbrock(TestFunction):
-    def __init__(self, a = 1., b = 100.):
+    def __init__(self, a = 1., b = 100, post_fn=torch.square):
         self.a = a
         self.b = b
+        self.post_fn = post_fn
 
     def objective(self, x, y):
-        return (self.a - x) ** 2 + self.b * (y - x ** 2) ** 2
+        return self.post_fn(self.a - x) + self.post_fn(self.b * (y - x**2))
 
     def x0(self): return (-1.1, 2.5)
     def domain(self): return (-2, 2, -1, 3)
     def minima(self): return (1, 1)
 
 rosenbrock = Rosenbrock().register('rosen', 'rosenbrock')
+rosenbrock_abs = Rosenbrock(post_fn=torch.abs).register('rosen_abs', 'rosenbrock_abs')
+
+
+class Rosenmax(Rosenbrock):
+    def objective(self, x, y):
+        return torch.maximum(self.post_fn(self.a - x), self.post_fn(self.b * (y - x**2)))
+
+rosenmax = Rosenmax().register('rosenmax')
+rosenmax_abs = Rosenmax(post_fn=torch.abs).register('rosenmaxabs', 'rosenabsmax')
+
 
 class Rastrigin(TestFunction):
     def __init__(self, A=10):
@@ -696,3 +710,135 @@ class LeastSquares(TestFunction):
     def domain(self): return (-1,3,-1,3)
     def minima(self): return (1, 1)
 least_squares = LeastSquares().register('least_squares', 'lstsq')
+
+
+
+class Star(TestFunction):
+    def __init__(self, post_fn = torch.square, max: bool = False):
+        super().__init__()
+        self.post_fn = post_fn
+        self.max = max
+
+    def objective(self, x, y):
+        f1 = self.post_fn(x - 6)
+        f2 = self.post_fn(y - 2e-1)
+        f3 = self.post_fn(x*y - 2)
+        if self.max: return f1.maximum(f2).maximum(f3)
+        return f1 + f2 + f3
+
+    def x0(self): return (-7, -8)
+    def domain(self): return (-10,10,-10,10)
+    def minima(self): return None
+
+star = Star().register('star')
+star_abs = Star(torch.abs).register('star_abs')
+star_max = Star(torch.abs, max=True).register('star_max')
+
+class CBarriers(TestFunction):
+    def __init__(
+        self,
+        num_barriers: int = 4,
+        outer_radius: float = 4.0,
+        inner_radius: float = 1.0,
+        spacing: Literal['linear', 'geometric', 'reciprocal'] = 'linear',
+        barrier_height: float = 50.0,
+        radial_width: float = 0.2,
+        gap_sharpness: float = 0.6,
+        p = 2,
+    ):
+        """
+        Args:
+            num_barriers (int): The number of nested C-barriers.
+            outer_radius (float): The radius of the outermost barrier.
+            inner_radius (float): The target radius of the innermost barrier.
+            spacing (str): Method for spacing barriers. Can be 'linear', 'geometric',
+                           or 'reciprocal'.
+            barrier_height (float): The height of the potential barriers.
+            radial_width (float): The width (thickness) of the C-rings.
+            gap_sharpness (int): Controls the size of the entrance.
+        """
+        super().__init__()
+
+        self.num_barriers = num_barriers
+        self.outer_radius = outer_radius
+        self.inner_radius = inner_radius
+        self.spacing = spacing
+        self.barrier_height = barrier_height
+        self.radial_width = radial_width
+        self.gap_sharpness = gap_sharpness
+        self.eps = 1e-8 # for numerical stability
+        self.p = p
+
+    def _get_radii(self) -> torch.Tensor:
+        """Calculates the list of radii based on the chosen spacing method."""
+        if self.num_barriers == 1:
+            return torch.tensor([self.outer_radius])
+
+        if self.spacing == 'linear':
+            # Evenly spaced radii from outer to inner
+            return torch.linspace(self.outer_radius, self.inner_radius, self.num_barriers)
+        if self.spacing == 'geometric':
+            # Radii spaced by a constant ratio
+            return torch.from_numpy(np.geomspace(self.outer_radius, self.inner_radius, self.num_barriers)).float()
+        if self.spacing == 'reciprocal':
+            # Original method, scaled to fit the outer radius
+            indices = torch.arange(self.num_barriers)
+            radii = self.outer_radius / (indices + 1)
+            # This method ignores inner_radius, as it's defined by the reciprocal rule
+            return radii
+
+        raise ValueError("spacing must be 'linear', 'geometric', or 'reciprocal'")
+
+    def objective(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        if self.p % 2 != 0: x,y = x.abs(), y.abs()
+        base_potential = x**self.p + y**self.p
+
+        r = torch.sqrt(x**2 + y**2 + self.eps)
+        theta = torch.atan2(y, x)
+
+        total_barriers = torch.zeros_like(x)
+        radii = self._get_radii()
+
+        for i, radius in enumerate(radii):
+            gap_angle = i * torch.pi
+
+            radial_term = torch.exp(-(r - radius)**2 / (2 * self.radial_width**2))
+            angular_term = (torch.sin((theta - gap_angle) / 2)**2)**self.gap_sharpness
+
+            c_barrier = self.barrier_height * radial_term * angular_term
+            total_barriers += c_barrier
+
+        return base_potential + total_barriers
+
+
+
+    def x0(self): return (-4.5, 2)
+    def domain(self): return (-5,5,-5,5)
+    def minima(self): return (0, 0)
+
+cbarriers = CBarriers().shifted(1, -2).register('cbarrier')
+
+
+class Switchback(TestFunction):
+    def __init__(self, narrowness=50, turn_coord=10, turn_sharpness=5):
+        super().__init__()
+        self.narrowness = narrowness
+        self.turn_coord = turn_coord
+        self.turn_sharpness = turn_sharpness
+
+    def objective(self, x, y):
+        self.narrowness = 50.0
+        self.turn_coord = 10.0
+        self.turn_sharpness = 5.0
+
+        f1 = -(x + y) + self.narrowness * (x - y)**2
+        f2 = -(x - y) + self.narrowness * (x + y - self.turn_coord)**2
+        transition_coord = x + y - self.turn_coord
+        sigmoid = 1.0 / (1.0 + torch.exp(-self.turn_sharpness * transition_coord))
+        return (1.0 - sigmoid) * f1 + sigmoid * f2
+
+    def x0(self): return (0, 17)
+    def domain(self): return (-7,13,0,20)
+    def minima(self): return None
+
+switchback = Switchback().register('switchback', 'switch')

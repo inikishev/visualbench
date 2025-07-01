@@ -15,9 +15,11 @@ from .rng import RNG
 from .utils import _benchmark_utils, plt_tools, python_tools, torch_tools, _benchmark_plotting, _benchmark_video
 
 
-class StopCondition(BaseException): pass
+#class StopCondition(BaseException): pass
+class StopCondition(Exception): pass
 
 class Benchmark(torch.nn.Module, ABC):
+    _IS_BENCHMARK = True # for type checking
     num_steps: int
 
     "same as number of batches"
@@ -108,9 +110,12 @@ class Benchmark(torch.nn.Module, ABC):
         if self._initial_state_dict is not None:
             self.load_state_dict(utils.torch_tools.copy_state_dict(self._initial_state_dict, device=self.device), assign=True)
 
+        return self
 
     @property
     def device(self): return next(iter(self.parameters())).device
+    @property
+    def dtype(self): return next(iter(self.parameters())).dtype
 
     @property
     def num_passes(self) -> int: return sum([self.num_forwards, self.num_backwards])
@@ -139,6 +144,10 @@ class Benchmark(torch.nn.Module, ABC):
 
     def set_plot_perturbed(self, enable: bool = True):
         self._plot_perturbed = enable
+        return self
+
+    def set_make_images(self, make_images: bool = False):
+        self._make_images = make_images
         return self
 
     def set_benchmark_mode(self, enable: bool = True):
@@ -409,7 +418,7 @@ class Benchmark(torch.nn.Module, ABC):
         max_forwards: int | None = None,
         max_steps: int | None = None,
         max_epochs: int | None = None,
-        max_seconds: int | None = None,
+        max_seconds: float | None = None,
         test_every_forwards: int | None = None,
         test_every_batches: int | None = None,
         test_every_epochs: int | None = None,
@@ -447,10 +456,10 @@ class Benchmark(torch.nn.Module, ABC):
                   yscale=None, smoothing: float | tuple[float,float,float] = 0, ax=None):
         train_loss = test_loss = train_loss_perturbed = None
 
-        train_loss = self.logger.numpy('train loss') if 'train loss' in self.logger else None
-        test_loss = self.logger.numpy('test loss') if 'test loss' in self.logger else None
+        train_loss = self.logger['train loss'] if 'train loss' in self.logger else None
+        test_loss = self.logger['test loss'] if 'test loss' in self.logger else None
         if self._plot_perturbed and "train loss (perturbed)" in self.logger:
-            train_loss_perturbed = self.logger.numpy("train loss (perturbed)")
+            train_loss_perturbed = self.logger["train loss (perturbed)"]
 
         losses = {"train loss": train_loss, "test loss": test_loss, "train loss (perturbed)": train_loss_perturbed}
 
@@ -470,5 +479,5 @@ class Benchmark(torch.nn.Module, ABC):
     def render(self, file: str, fps: int = 60, scale: int | float = 1, progress=True):
         _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress)
 
-
+        
 

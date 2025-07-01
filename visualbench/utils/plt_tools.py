@@ -27,21 +27,25 @@ def _auto_loss_yrange(*losses, yscale=None):
     return (ymin, ymax)
 
 
-def plot_loss(losses: dict, ylim: Literal['auto'] | tuple[float,float] | None = 'auto', yscale=None, smoothing: float | tuple[float,float, float] = 0, ax=None):
+def plot_loss(losses: dict[str, dict[int,float] | None], ylim: Literal['auto'] | tuple[float,float] | None = 'auto', yscale=None, smoothing: float | tuple[float,float, float] = 0, ax=None):
     if ylim == 'auto':
-        ylim = _auto_loss_yrange(*losses.values(), yscale=yscale)
+        ylim = _auto_loss_yrange(*(list(l.values()) for l in losses.values() if l is not None), yscale=yscale)
 
     if ax is None: ax = plt.gca()
     if yscale is not None: ax.set_yscale(yscale)
     if ylim is not None: ax.set_ylim(*ylim)
     if isinstance(smoothing, (int,float)): smoothing = (smoothing, smoothing, smoothing)
 
-    for i, (label, loss) in enumerate(losses.items()):
-        if loss is None: continue
+    for i, (label, loss_dict) in enumerate(losses.items()):
+        if loss_dict is None: continue
+
+        steps = list(loss_dict.keys())
+        loss = list(loss_dict.values())
+
         sm = smoothing[i]
         if sm != 0: loss = gaussian_filter1d(loss, sm, mode='nearest')
         args:dict = {"lw":0.5} if label.endswith(' (perturbed)') else {}
-        ax.plot(loss, label=label, **args)
+        ax.plot(steps, loss, label=label, **args)
 
     ax.set_title("loss")
     ax.set_xlabel('loss')

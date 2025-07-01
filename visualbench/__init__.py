@@ -1,5 +1,6 @@
 from .tasks import *
 from . import models, data
+from .utils import totensor, tonumpy
 
 def all_benchmarks():
     from .benchmark import Benchmark

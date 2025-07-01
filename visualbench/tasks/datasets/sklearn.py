@@ -1,6 +1,17 @@
 from collections.abc import Callable
+from typing import Any
 
-from sklearn.datasets import fetch_california_housing, make_moons
+import torch
+from sklearn.datasets import (
+    fetch_california_housing,
+    fetch_covtype,
+    fetch_kddcup99,
+    fetch_olivetti_faces,
+    fetch_rcv1,
+    load_digits,
+    make_moons,
+)
+from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 from torch import nn
 from torch.nn import functional as F
 
@@ -70,4 +81,156 @@ class Moons(DatasetBenchmark):
             normalize=(normalize_x, False),
             decision_boundary=True,
             boundary_act=F.sigmoid,
+        )
+
+class OlivettiFaces(DatasetBenchmark):
+    """
+    classification (400 samples)
+
+    input - (B, 4096)
+
+    output - (B, 40)
+    """
+    def __init__(
+        self,
+        model,
+        criterion=F.cross_entropy,
+        batch_size: int | None = None,
+        test_batch_size: int | None = None,
+        test_split=0.75,
+        normalize_x=True,
+    ):
+        x,y = fetch_olivetti_faces(return_X_y=True)
+        super().__init__(
+            data_train = (x, y), # type:ignore
+            model = model,
+            criterion=criterion,
+            batch_size=batch_size,
+            test_batch_size =test_batch_size,
+            test_split=test_split,
+            shuffle_split=True,
+            dtypes = (torch.float32, torch.int64),
+            normalize=(normalize_x, False),
+        )
+
+class OlivettiFacesAutoencoding(DatasetBenchmark):
+    """
+    autoencoding (400 samples)
+
+    input - (B, 4096)
+
+    output - (B, 4096)
+    """
+    def __init__(
+        self,
+        model,
+        criterion=F.mse_loss,
+        batch_size: int | None = None,
+        test_batch_size: int | None = None,
+        test_split=0.75,
+        normalize_x=True,
+    ):
+        x,y = fetch_olivetti_faces(return_X_y=True)
+        super().__init__(
+            data_train = (x, ), # type:ignore
+            model = model,
+            criterion=criterion,
+            batch_size=batch_size,
+            test_batch_size =test_batch_size,
+            test_split=test_split,
+            shuffle_split=True,
+            normalize=(normalize_x,),
+        )
+
+
+class Digits(DatasetBenchmark):
+    """
+    classification (1,797 samples)
+
+    input - (B, 64)
+
+    output - (B, 10)
+    """
+    def __init__(
+        self,
+        model,
+        criterion=F.cross_entropy,
+        batch_size: int | None = None,
+        test_batch_size: int | None = None,
+        test_split=0.75,
+        normalize_x=True,
+    ):
+        x,y = load_digits(return_X_y=True)
+        super().__init__(
+            data_train = (x, y), # type:ignore
+            model = model,
+            criterion=criterion,
+            batch_size=batch_size,
+            test_batch_size =test_batch_size,
+            test_split=test_split,
+            shuffle_split=True,
+            dtypes = (torch.float32, torch.int64),
+            normalize=(normalize_x, False),
+        )
+class Covertype(DatasetBenchmark):
+    """
+    classification (581,012 samples)
+
+    input - (B, 54)
+
+    output - (B, 7)
+    """
+    def __init__(
+        self,
+        model,
+        criterion=F.cross_entropy,
+        batch_size: int | None = None,
+        test_batch_size: int | None = None,
+        test_split=0.8,
+        normalize_x=True,
+    ):
+        x,y = fetch_covtype(return_X_y=True)
+        super().__init__(
+            data_train = (x, y-1), # type:ignore
+            model = model,
+            criterion=criterion,
+            batch_size=batch_size,
+            test_batch_size =test_batch_size,
+            test_split=test_split,
+            shuffle_split=True,
+            dtypes = (torch.float32, torch.int64),
+            normalize=(normalize_x, False),
+        )
+
+class KDDCup1999(DatasetBenchmark):
+    """
+    multi-target regression (4,898,431 samples) but by default loads 10%.
+
+    input - (B, 41)
+
+    output - (B, 23)
+    """
+    def __init__(
+        self,
+        model,
+        criterion=F.cross_entropy,
+        batch_size: int | None = None,
+        test_batch_size: int | None = None,
+        test_split=0.8,
+        normalize_x=True,
+        percent10: bool = True,
+    ):
+        x,y = fetch_kddcup99(return_X_y=True, percent10=percent10)
+        x = OrdinalEncoder().fit_transform(x)
+        y = LabelEncoder().fit_transform(y)
+        super().__init__(
+            data_train = (x, y), # type:ignore
+            model = model,
+            criterion=criterion,
+            batch_size=batch_size,
+            test_batch_size =test_batch_size,
+            test_split=test_split,
+            shuffle_split=True,
+            dtypes = (torch.float32, torch.int64),
+            normalize=(normalize_x, False),
         )

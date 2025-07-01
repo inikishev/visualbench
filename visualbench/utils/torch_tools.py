@@ -35,3 +35,7 @@ def znormalize(x:torch.Tensor, mean=0., std=1.) -> torch.Tensor:
     xstd = x.std()
     if xstd != 0: return ((x - x.mean()).div_(xstd / std)).add_(mean)
     return x - x.mean()
+
+
+def count_learnable_params(module: torch.nn.Module):
+    return sum(p.numel() for p in module.parameters() if p.requires_grad)

@@ -1,5 +1,7 @@
+from functools import partial
 import itertools
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Sequence, Callable
+from typing import Any
 
 import numpy as np
 import torch
@@ -17,14 +19,29 @@ class MBS:
     """Univariate optimization via grid search followed by multi-binary search, supports multi-objective functions, good for plotting.
 
     Args:
-        gs (Iterable[float], optional): values for initial grid search. Defaults to (2,1,0,-1,-2,-3,-4,-5).
+        grid (Iterable[float], optional): values for initial grid search. Defaults to (2,1,0,-1,-2,-3,-4,-5).
         step (float, optional): expansion step size. Defaults to 1.
         num_candidates (int, optional): number of best points to sample new points around on each iteration. Defaults to 2.
         num_binary (int, optional): maximum number of new points sampled via binary search. Defaults to 7.
         num_expansions (int, optional): maximum number of expansions (not counted towards binary search points). Defaults to 7.
         rounding (int, optional): rounding is to significant digits, avoids evaluating points that are too close.
+        only_fractional (bool, optional): whether to only round the fractional part.
+        log_scale (bool, optional):
+            whether to minimize in log10 scale. If true, it is assumed that ``grid`` is given in log10 scale,
+            and evaluated points are also stored in log10 scale.
     """
-    def __init__(self, grid: Iterable[float], step:float, num_candidates: int = 4, num_binary: int = 20, num_expansions: int = 20, rounding=2):
+
+    def __init__(
+        self,
+        grid: Iterable[float],
+        step: float,
+        num_candidates: int = 3,
+        num_binary: int = 20,
+        num_expansions: int = 20,
+        rounding: int| None = 2,
+        only_fractional: bool = True,
+        log_scale: bool = False,
+    ):
         self.objectives: dict[int, dict[float,float]] = {}
         """dictionary of objectives, each maps point (x) to value (v)"""
 
@@ -40,6 +57,8 @@ class MBS:
         self.num_binary = num_binary
         self.num_expansions = num_expansions
         self.rounding = rounding
+        self.only_fractional = only_fractional
+        self.log_scale = log_scale
 
     def _get_best_x(self, n: int, objective: int):
         """n best points"""
@@ -75,11 +94,13 @@ class MBS:
 
     def _evaluate(self, fn, x):
         """Evaluate a point, returns False if point is already in history"""
-        key = round_significant(x, self.rounding)
-        if key in self.evaluated: return False
-        self.evaluated.add(key)
+        if self.rounding is not None: x = round_significant(x, self.rounding, self.only_fractional)
+        if x in self.evaluated: return False
+        self.evaluated.add(x)
 
-        vals = _tofloatlist(fn(x))
+        if self.log_scale: vals = _tofloatlist(fn(10 ** x))
+        else: vals = _tofloatlist(fn(x))
+
         for idx, v in enumerate(vals):
             if idx not in self.objectives: self.objectives[idx] = {}
             self.objectives[idx][x] = v
@@ -93,6 +114,8 @@ class MBS:
 
         # step 2 - binary search
         while True:
+            if (self.num_candidates <= 0) or (self.num_expansions <= 0 and self.num_binary <= 0): break
+
             # suggest candidates
             candidates: list[tuple[float, str]] = []
 
@@ -102,11 +125,17 @@ class MBS:
                 for p in best_points:
                     candidates.extend(self._suggest_points_around(p, objective=objective))
 
+            # filter
+            if self.num_expansions <= 0:
+                candidates = [(x,t) for x,t in candidates if t != 'expansion']
+
+            if self.num_candidates <= 0:
+                candidates = [(x,t) for x,t in candidates if t != 'binary']
+
             # if expansion was suggested, discard anything else
             types = [t for x, t in candidates]
             if any(t == 'expansion' for t in types):
                 candidates = [(x,t) for x,t in candidates if t == 'expansion']
-
 
             # evaluate candidates
             terminate = False
@@ -119,12 +148,15 @@ class MBS:
                 if t == 'expansion': self.num_expansions -= 1
                 elif t == 'binary': self.num_binary -= 1
 
-                if self.num_expansions < 0 or self.num_binary < 0:
+                if self.num_binary < 0:
                     terminate = True
                     break
 
             if terminate: break
-            if not at_least_one_evaluated: self.rounding += 1
+            if not at_least_one_evaluated:
+                if self.rounding is None: break
+                self.rounding += 1
+                if self.rounding == 10: break
 
         # return dict[float, tuple[float,...]]
         ret = {}
@@ -139,6 +171,70 @@ class MBS:
 
         return ret
 
-def minimize(fn, grid: Iterable[float], step:float, num_candidates: int = 4, num_binary: int = 20, num_expansions: int = 20, rounding=2):
-    mbs = MBS(grid, step=step, num_candidates=num_candidates, num_binary=num_binary, num_expansions=num_expansions, rounding=rounding)
+def mbs_minimize(fn, grid: Iterable[float], step:float, num_candidates: int = 3, num_binary: int = 20, num_expansions: int = 20, rounding=2, log_scale=False):
+    mbs = MBS(grid, step=step, num_candidates=num_candidates, num_binary=num_binary, num_expansions=num_expansions, rounding=rounding, log_scale=log_scale)
+    return mbs.run(fn)
+
+def _unpack(x):
+    if isinstance(x, tuple): return x
+    return x,x
+
+def mbs_minimize_2d(
+    fn: Callable[[float, float], Any],
+    grid1: Iterable[float],
+    grid2: Iterable[float],
+    step: float | tuple[float, float],
+    num_candidates: int | tuple[int, int] = 2,
+    num_binary: int | tuple[int, int] = 4,
+    num_expansions: int | tuple[int, int] = 10,
+    rounding: int | None | tuple[int | None, int | None] = 2,
+    only_fractional: bool | tuple[bool, bool] = True,
+    log_scale: bool | tuple[bool, bool] = False,
+):
+    # unpack
+    step1,step2 = _unpack(step)
+    num_candidates1,num_candidates2 = _unpack(num_candidates)
+    num_binary1,num_binary2 = _unpack(num_binary)
+    num_expansions1,num_expansions2 = _unpack(num_expansions)
+    rounding1,rounding2 = _unpack(rounding)
+    only_fractional1,only_fractional2 = _unpack(only_fractional)
+    log_scale1,log_scale2 = _unpack(log_scale)
+
+    history = {}
+    def cached_fn(x: float, y: float):
+        if rounding1 is not None: x = round_significant(x, rounding1, only_fractional1)
+        if rounding2 is not None: y = round_significant(y, rounding2, only_fractional2)
+        if (x, y) in history: return history[x, y]
+
+        x_true = x
+        y_true = y
+        if log_scale1: x_true=10**x
+        if log_scale2: y_true=10**y
+
+        f = fn(x_true, y_true)
+        history[(x, y)] = f
+        return f
+
+    # 1,2
+    def objective12(y: float):
+        mbs1 = MBS(grid1, step=step1, num_candidates=num_candidates1, num_binary=num_binary1, num_expansions=num_expansions1, rounding=rounding1, only_fractional=only_fractional1, log_scale=False)
+        ret = mbs1.run(lambda x: cached_fn(x, y))
+        return [min(v) for v in zip(*ret.values())]
+
+    mbs2 = MBS(grid2, step=step2, num_candidates=num_candidates2, num_binary=num_binary2, num_expansions=num_expansions2, rounding=rounding2, only_fractional=only_fractional2, log_scale=False)
+    mbs2.run(objective12)
+
+    # 2,1
+    def objective21(x: float):
+        mbs1 = MBS(grid2, step=step2, num_candidates=num_candidates2, num_binary=num_binary2, num_expansions=num_expansions2, rounding=rounding2, only_fractional=only_fractional2, log_scale=False)
+        ret = mbs1.run(lambda y: cached_fn(x, y))
+        return [min(v) for v in zip(*ret.values())]
+
+    mbs2 = MBS(grid1, step=step1, num_candidates=num_candidates1, num_binary=num_binary1, num_expansions=num_expansions1, rounding=rounding1, only_fractional=only_fractional1, log_scale=False)
+    mbs2.run(objective21)
+
+    return history
+
+def grid_search(fn, lb:float, ub:float, num:int, num_expansions: int = 20, log_scale=False):
+    mbs = MBS(np.linspace(lb, ub, num), step=(ub-lb)/num, num_candidates=1, num_binary=0, num_expansions=num_expansions, rounding=None, log_scale=log_scale)
     return mbs.run(fn)

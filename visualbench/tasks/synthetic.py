@@ -96,7 +96,7 @@ class Rosenbrock(Benchmark):
     """rosenbrock"""
     def __init__(self, dim=512, variant:Literal[1,2]=1, ):
         super().__init__()
-        self.x = torch.nn.Parameter(torch.tensor([-1.2, 1.]).repeat(dim//4))
+        self.x = torch.nn.Parameter(torch.tensor([-1.2, 1.]).repeat(dim//2))
         self.variant = variant
 
     def get_loss(self):
@@ -143,52 +143,4 @@ class IllConditioned(Benchmark):
         term2 = 0.5 * c
 
         return term1 * susq + term2 * (sum**2)
-
-
-
-class PowellSingular(Benchmark):
-    """powell's singular function"""
-    def __init__(self, dim: int = 128):
-        super().__init__()
-
-        self.x = torch.nn.Parameter(torch.tensor([3., -1., 0., 1.]).repeat(dim//4))
-        self.shift = torch.nn.Buffer(torch.ones_like(self.x))
-
-
-    def get_loss(self):
-        x = self.x + self.shift
-        x1=x[:-3:4]
-        x2=x[1:-2:4]
-        x3=x[2:-1:4]
-        x4=x[3::4]
-
-        return ((x1 + 10*x2)**2 + 5*(x3 - x4)**2 + (x2 - 2*x3)**4 + 10*(x1 - x4)**4).mean()
-
-class VariablyDimensional(Benchmark):
-    """the variably dimensional (VD) function in n variables"""
-    def __init__(self, dim: int = 32):
-        super().__init__()
-        self.i = torch.nn.Buffer(torch.arange(1, dim+1, 1))
-        self.x = torch.nn.Parameter(1 - self.i/dim)
-
-
-    def get_loss(self):
-        x = self.x
-        x_1 = x - 1
-        term1 = (x_1**2).sum()
-        z = (self.i * x_1).sum()
-        return term1 + z**2 + z**4
-
-class BroydenTridiagonal(Benchmark):
-    """the Broyden tridiagonal (BT) function in n variables"""
-    def __init__(self, dim: int = 512):
-        super().__init__()
-        self.x = torch.nn.Parameter(torch.full((dim,), -1.,))
-
-
-    def get_loss(self):
-        x = self.x[1:-1]
-        xm = self.x[:-2]
-        xp = self.x[2:]
-        return (((3 - 2*x)*x - xm - 2*xp + 1)**2).mean()
 

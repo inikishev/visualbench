@@ -105,7 +105,7 @@ class Mnist1d(DatasetBenchmark):
             dtypes = (torch.float32, torch.int64)
         )
 
-class Mnist1dAutoencoder(DatasetBenchmark):
+class Mnist1dAutoencoding(DatasetBenchmark):
     """
     Input - (B, 40)
 

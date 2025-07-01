@@ -165,7 +165,7 @@ def _ensure_stop_criteria_exists_(self) -> None:
 
 
 def _set_stop_criteria_(self: "Benchmark", max_passes: int | None, max_forwards: int | None, max_steps: int | None,
-                        max_epochs: int | None, max_seconds: int | None, target_loss: int | None) -> None:
+                        max_epochs: int | None, max_seconds: float | None, target_loss: int | None) -> None:
     """sets all stop criteria and ensures some criteria is specified"""
     self._max_passes = max_passes; self._max_forwards = max_forwards
     self._max_steps = max_steps; self._max_epochs = max_epochs

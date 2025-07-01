@@ -1,5 +1,7 @@
+
 # pylint: disable=no-member
 import warnings
+import math
 
 import cv2
 import numpy as np
@@ -10,30 +12,50 @@ from ..utils.renderer import OpenCVRenderer
 
 class UnivariateVisualizer:
     """
-    Visualizer for univariate function optimization. For HPO and line searches.
+    Visualizer for univariate function optimization. useful for HPO and line searches.
 
     Example:
-
     .. code:: py
 
+        def objective(x):
+            return (x - 2) ** 2
 
+        vis = UnivariateVisualizer(objective)
+
+        scipy.optimize.minimize_scalar(vis)
+
+        vis.render("minimize_scalar.mp4", fps=5)
+
+    ```
     """
     def __init__(
         self,
         fn,
         width=800,
         height=600,
-        padding_factor=0.1,
-        dense_plot_step_factor=0.005,
+        padding=0.1,
+        num_grid=100,
         margin=60,
+        log_scale:bool=False,
     ):
+        """_summary_
+
+        Args:
+            fn (function): function takes in scalar and returns scalar
+            width (int, optional): frame width. Defaults to 800.
+            height (int, optional): frame height. Defaults to 600.
+            padding (float, optional): expand frame around evaluated points. Defaults to 0.1.
+            num_grid (int, optional): number of points on a grid to evaluate and show. Defaults to 100.
+            margin (int, optional): idk. Defaults to 60.
+        """
         self.fn = fn
         self.history = []
         self.width = width
         self.height = height
-        self.padding_factor = padding_factor
-        self.dense_plot_step_factor = dense_plot_step_factor
+        self.padding = padding
+        self.num_grid = num_grid
         self.margin = margin
+        self.log_scale = log_scale
 
         # Define some colors (BGR format for OpenCV)
         self.COLOR_BACKGROUND = (255, 255, 255) # White
@@ -48,6 +70,7 @@ class UnivariateVisualizer:
 
     def evaluate(self, x: float) -> float:
         y = self.fn(x)
+        if self.log_scale: y = math.log10(y)
         self.history.append((float(x), float(y)))
         return y
 
@@ -75,7 +98,7 @@ class UnivariateVisualizer:
         x_range_hist = max_x_hist - min_x_hist
         if x_range_hist == 0: x_range_hist = abs(min_x_hist) * 0.2 if min_x_hist != 0 else 1.0 # Handle single point case
 
-        padding_x = x_range_hist * self.padding_factor
+        padding_x = x_range_hist * self.padding
         plot_min_x = min_x_hist - padding_x
         plot_max_x = max_x_hist + padding_x
         plot_range_x = plot_max_x - plot_min_x
@@ -86,21 +109,22 @@ class UnivariateVisualizer:
 
 
         # 2. Dense objective evaluation for the background plot
-        num_dense_points = max(100, int(1 / self.dense_plot_step_factor)) # at least 100 points
-        dense_x_coords = np.linspace(plot_min_x, plot_max_x, num_dense_points)
+        grid_x_coords = np.linspace(plot_min_x, plot_max_x, self.num_grid)
         try:
-            dense_y_coords = np.array([self.fn(x) for x in dense_x_coords])
+            grid_y_coords = np.array([self.fn(x) for x in grid_x_coords])
         except Exception as e:
             warnings.warn(f"Warning: Error evaluating objective for dense plot: {e}")
             # Fallback if objective fails on dense points (e.g. discontinuous, problematic outside history)
-            dense_y_coords = np.interp(dense_x_coords, hist_x, hist_y) # simple interp based on history
+            grid_y_coords = np.interp(grid_x_coords, hist_x, hist_y) # simple interp based on history
 
-        all_y_coords = np.concatenate([hist_y, dense_y_coords])
+        if self.log_scale: grid_y_coords = np.log10(grid_y_coords)
+
+        all_y_coords = np.concatenate([hist_y, grid_y_coords])
         min_y_data, max_y_data = np.min(all_y_coords), np.max(all_y_coords)
         y_range_data_overall = max_y_data - min_y_data
         if y_range_data_overall == 0: y_range_data_overall = abs(min_y_data) * 0.2 if min_y_data != 0 else 1.0
 
-        padding_y = y_range_data_overall * self.padding_factor
+        padding_y = y_range_data_overall * self.padding
         plot_min_y = min_y_data - padding_y
         plot_max_y = max_y_data + padding_y
         plot_range_y = plot_max_y - plot_min_y
@@ -133,10 +157,10 @@ class UnivariateVisualizer:
                 cv2.line(frame, (self.margin, self.margin), (self.margin, self.height - self.margin), self.COLOR_AXES, 1)
 
                 # Draw Dense Objective Plot
-                if len(dense_x_coords) > 1:
-                    for i in range(len(dense_x_coords) - 1):
-                        p1_data = (dense_x_coords[i], dense_y_coords[i])
-                        p2_data = (dense_x_coords[i+1], dense_y_coords[i+1])
+                if len(grid_x_coords) > 1:
+                    for i in range(len(grid_x_coords) - 1):
+                        p1_data = (grid_x_coords[i], grid_y_coords[i])
+                        p2_data = (grid_x_coords[i+1], grid_y_coords[i+1])
 
                         # Clip points to be within the plot_min_y and plot_max_y for drawing
                         # This prevents extreme values from making the transform behave badly if they are way out

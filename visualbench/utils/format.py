@@ -92,7 +92,7 @@ def to_3HW(x, device=None, dtype=None, clone=None, generator=None) -> torch.Tens
         return x.repeat_interleave(3, 0)
 
     if x.size(0) == 2:
-        return torch.cat([x, x.mean(0).unsqueeze(0)])
+        return torch.cat([x, x.float().mean(0).type_as(x).unsqueeze(0)])
 
     raise RuntimeError(f"wtf {x.shape}")
 

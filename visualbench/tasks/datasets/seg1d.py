@@ -142,7 +142,7 @@ class SynthSeg1d(DatasetBenchmark):
         test_split=0.8,
         num_samples=4_000,
         seq_length=32,
-        num_classes=8,
+        num_classes=10,
         seed=0,
         device=CUDA_IF_AVAILABLE,
     ):

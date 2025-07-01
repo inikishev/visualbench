@@ -90,13 +90,23 @@ class DatasetBenchmark(Benchmark):
         if isinstance(normalize, bool): normalize = [normalize] * len(data_train)
 
         def _norm(x: torch.Tensor, normalize):
-            if not normalize: return x
-            mean = x.mean(0, keepdim=True); std = x.std(0, keepdim=True)
+            if not normalize: return x, None, None
+            mean = x.mean(0, keepdim=True); std = x.std(0, keepdim=True).clip(min=1e-10)
             x = (x - mean) / std
-            return x
+            return x, mean, std
 
-        data_train = [_norm(i, n) for i,n in zip(data_train, normalize)]
-        if data_test is not None: data_test = [_norm(i, n) for i,n in zip(data_test, normalize)]
+        normalized = []
+        means = []
+        stds = []
+        for i,n in zip(data_train, normalize):
+            d, mean, std = _norm(i, n)
+            normalized.append(d)
+            means.append(mean)
+            stds.append(std)
+
+        data_train = normalized
+        if data_test is not None:
+            data_test = [(i-mean)/std if mean is not None and std is not None else i for i,mean,std in zip(data_test,means,stds)]
 
         if not isinstance(dtypes, Sequence): dtypes = [dtypes] * len(data_train)
 
