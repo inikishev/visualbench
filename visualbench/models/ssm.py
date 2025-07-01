@@ -135,7 +135,6 @@ class SSMNet(torch.nn.Module):
 
         self.layers = nn.Sequential(*layers)
         self.head = nn.Linear(channels[-2], channels[-1])
-        self.linear = torch.nn.Linear(128, 10)
 
     def forward(self, x):
         if x.ndim == 2 and self.in_channels == 1: x = x.unsqueeze(2)
@@ -148,6 +147,6 @@ class SSMNet(torch.nn.Module):
 
             x = x * torch.rsqrt(1 + x*x)
 
-        x = self.linear(x)
+        x = self.head(x)
         return x
 
