@@ -138,8 +138,20 @@ class TestFunction(ABC):
     def sqrt(self):
         return self.value_tfm(torch.sqrt)
 
+    def pow(self, p):
+        return self.value_tfm(lambda x: torch.pow(x, p))
+
     def logexp(self, u=1e-1):
         return self.value_tfm(lambda x: torch.log(u + torch.exp(x)))
+
+    def logadd(self, u=1e-1):
+        return self.value_tfm(lambda x: torch.log(x + u))
+
+    def divadd(self, k=1.):
+        return self.value_tfm(lambda x: x / (x+k))
+
+    def muladd(self, k=-1.):
+        return self.value_tfm(lambda x: x * (x+k))
 
 class TransformedFunction(TestFunction):
     def __init__(self, function: TestFunction, transforms: FunctionTransform | Sequence[FunctionTransform]):
@@ -240,6 +252,7 @@ class Rosenbrock(TestFunction):
 
 rosenbrock = Rosenbrock().register('rosen', 'rosenbrock')
 rosenbrock_abs = Rosenbrock(post_fn=torch.abs).register('rosen_abs', 'rosenbrock_abs')
+rosenbrock10 = Rosenbrock(b=10).register('rosen10', 'rosenbrock10')
 
 
 class Rosenmax(Rosenbrock):
@@ -340,30 +353,15 @@ l3 = Norm(3).shifted(1,-2).register('l3')
 linf = Norm(float('inf')).shifted(1,-2).register('linf')
 l0 = Norm(0).shifted(1,-2).register('l0')
 
-class CrossEntropy(TestFunction):
-    def __init__(self, target:torch.Tensor = torch.tensor([1., 0]), logits=True,):
-        self.target:torch.Tensor = target
-        self.logits = logits
-
-    def objective(self, x, y):
-        preds = torch.stack([x, y])
-        fn = torch.nn.functional.binary_cross_entropy_with_logits if self.logits else torch.nn.functional.binary_cross_entropy
-        return fn(preds, self.target.expand_as(preds), reduction='none').mean(0)
-
-    def x0(self): return (-5, 9)
-    def domain(self): return (-10, 10, -10, 10)
-    def minima(self): return self.target
-
-bce = CrossEntropy().register('ce', 'bce')
-bcer = CrossEntropy(logits=False).register('cer', 'bcer')
-
 class DotProduct(TestFunction):
     def __init__(self, target = (1., -2.)):
         self.target:torch.Tensor = totensor(target)
 
     def objective(self, x, y):
         preds = torch.stack([x, y])
-        return (preds * self.target).abs().sum(0)
+        target = self.target
+        while target.ndim < preds.ndim: target = target.unsqueeze(-1)
+        return (preds * target.expand_as(preds)).abs().sum(0)
 
     def x0(self): return (-9, 7)
     def domain(self): return (-10, 10, -10, 10)
@@ -372,7 +370,7 @@ class DotProduct(TestFunction):
 dot = DotProduct().register('dot')
 
 
-class BaseExp(TestFunction):
+class Exp(TestFunction):
     def __init__(self, base: float = torch.e): # pylint:disable=redefined-outer-name
         self.base = totensor(base)
 
@@ -380,23 +378,12 @@ class BaseExp(TestFunction):
         X = torch.stack([x, y])
         return (self.base.expand_as(X) ** X.abs()).abs().mean(0)
 
-    def x0(self): return (2.5, -5)
-    def domain(self): return (-5, 5, -5, 5)
-    def minima(self): return (0, 0)
-
-baseexp = BaseExp().shifted(1,-2).register('base_exp')
-
-class Exp(TestFunction):
-    def __init__(self, eps = 1.0):
-        self.eps = eps
-    def objective(self, x, y):
-        return ((abs(x) + self.eps) ** (abs(y) + self.eps)) - self.eps
-
-    def x0(self): return (-0.1, -1.8)
-    def domain(self): return (-3, 3, -3, 3)
+    def x0(self): return (-7, -9)
+    def domain(self): return (-10,10,-10,10)
     def minima(self): return (0, 0)
 
 exp = Exp().shifted(1,-2).register('exp')
+
 
 class Eggholder(TestFunction):
     def __init__(self):
@@ -656,23 +643,39 @@ class IllConditioned(TestFunction):
     def minima(self): return (0, 0)
 
 ill_conditioned = IllConditioned().shifted(-1, 2).register('ill_conditioned', 'ill')
+ill_pseudoconvex = IllConditioned().divadd(0.1).shifted(-1, 2).register('ill_pseudoconvex', 'illpc')
 very_ill_conditioned = IllConditioned(1e-6).shifted(-1, 2).register('very_ill_conditioned', 'very_ill')
 
 
 
+class IllPiecewise(TestFunction):
+    def __init__(self, b = 1e-4):
+        self.b = b
 
-class IllValley(TestFunction):
-    def __init__(self, v = 1e-4):
-        self.v = v
-
-    def objective(self,x,y):
-        return (((x+y)**2)/2 + torch.cosh(x+y) + (0.0001/2)*(x**2+y**2)) ** (1/8)
+    def objective(self, x, y):
+        return x.abs().maximum(y.abs()) + (1/self.b)*(x + y).abs()
 
     def x0(self): return (-9, 2.5)
     def domain(self): return (-10, 10, -10, 10)
     def minima(self): return (0, 0)
 
-ill_valley = IllValley().shifted(-1, 2).register('ill_valley', 'valley')
+ill_piecewise = IllPiecewise().shifted(-1, 2).register('ill_piecewise', 'piecewise', 'illp')
+ill_piecewise_pseudoconvex = IllPiecewise().shifted(-1, 2).register('illppc')
+
+class IllSqrt(TestFunction):
+    def __init__(self, b = 1e-4):
+        self.b = b
+
+    def objective(self, x, y):
+        z = (2-self.b)*(x*y)
+        return (x**2+y**2)**0.5 + z.abs().sqrt().copysign(z)
+
+    def x0(self): return (-15,-5)
+    def domain(self): return (-20, 20, -20, 20)
+    def minima(self): return (0, 0)
+
+ill_sqrt = IllSqrt().shifted(-1, 2).register('ill_sqrt', 'ills')
+
 
 class Dice(TestFunction):
     def __init__(self, eps = 1e-8):

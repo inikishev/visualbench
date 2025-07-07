@@ -20,9 +20,11 @@ def _auto_loss_yrange(*losses, yscale=None):
     d = ymax - ymin
     ymin -= d*0.05; ymax += d*0.05
 
+    if isinstance(yscale, dict): yscale = yscale['value']
     if isinstance(yscale, str):
         if yscale == 'symlog': ymin = max(ymin, 0)
         if yscale == 'log': ymin = min(np.nanmin(l) for l in losses)
+
 
     return (ymin, ymax)
 
@@ -118,7 +120,7 @@ def make_axes(
     return axes
 
 
-def legend(
+def legend_(
     ax,
     loc: Literal[
         "upper left",

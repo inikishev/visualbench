@@ -7,7 +7,7 @@ import time
 import numpy as np
 import torch
 
-from .python_tools import round_significant
+from .python_tools import format_number
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
@@ -43,10 +43,10 @@ def _print_progress_(self: "Benchmark"):
             if self._max_epochs is not None: text = f'{text}/{self._max_epochs}'
 
         if self._last_train_loss is not None:
-            text = f'{text}; train loss = {round_significant(self._last_train_loss, 3)}'
+            text = f'{text}; train loss = {format_number(self._last_train_loss, 3)}'
 
         if self._last_test_loss is not None:
-            text = f"{text}; test loss = {round_significant(self._last_test_loss, 3)}"
+            text = f"{text}; test loss = {format_number(self._last_test_loss, 3)}"
 
         print(text, end = '                          \r')
         self._last_print_time = t
@@ -57,11 +57,11 @@ def _print_final_report(self: "Benchmark"):
     else: text = f'finished in {self.seconds_passed:.1f}s., reached'
 
     if 'test loss' in self.logger:
-        text = f'{text} train loss = {round_significant(self.logger.nanmin("train loss"), 3)},'\
-        f' train test = {round_significant(self.logger.nanmin("test loss"), 3)}'
+        text = f'{text} train loss = {format_number(self.logger.nanmin("train loss"), 3)},'\
+        f' test loss = {format_number(self.logger.nanmin("test loss"), 3)}'
 
     elif 'train loss' in self.logger:
-        text = f'{text} loss = {round_significant(self.logger.nanmin("train loss"), 3)}'
+        text = f'{text} loss = {format_number(self.logger.nanmin("train loss"), 3)}'
 
     else:
         text = f'finished in {self.seconds_passed:.1f}s., made 0 steps, something is wrong'

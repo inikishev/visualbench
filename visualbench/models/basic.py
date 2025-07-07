@@ -15,7 +15,7 @@ class MLP(nn.Module):
         in_channels: int,
         out_channels: int,
         hidden: int | Iterable[int] | None,
-        act: Callable | None = F.relu,
+        act_cls: Callable | None = nn.ELU,
         bn: bool = False,
         dropout: float = 0,
         cls: Callable = nn.Linear,
@@ -27,7 +27,7 @@ class MLP(nn.Module):
 
         layers = []
         for i,o in zip(channels[:-2], channels[1:-1]):
-            layer = [cls(i, o, not bn), act if act is not None else nn.Identity(), nn.BatchNorm1d(o) if bn else nn.Identity(), nn.Dropout(dropout) if dropout>0 else nn.Identity()]
+            layer = [cls(i, o, not bn), act_cls() if act_cls is not None else nn.Identity(), nn.BatchNorm1d(o) if bn else nn.Identity(), nn.Dropout(dropout) if dropout>0 else nn.Identity()]
             layers.append(nn_tools.Sequential(*layer))
 
         self.layers = nn_tools.Sequential(*layers)
@@ -45,7 +45,7 @@ class RecurrentMLP(nn.Module):
         width: int,
         n_passes: int,
         merge: bool = True,
-        act: Callable | None = F.leaky_relu,
+        act_cls: Callable | None = nn.ELU,
         dropout: float = 0,
         bn=True,
         cls: Callable = nn.Linear,
@@ -56,7 +56,7 @@ class RecurrentMLP(nn.Module):
         else: self.first = cls(in_channels, width)
 
         linear = cls(width,width, not bn)
-        self.rec = nn_tools.Sequential(linear, act if act is not None else nn.Identity())
+        self.rec = nn_tools.Sequential(linear, act_cls() if act_cls is not None else nn.Identity())
         self.batch_norms = nn.ModuleList([nn.BatchNorm1d(width) if bn else nn.Identity() for _ in range(n_passes)])
         self.drop = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
 

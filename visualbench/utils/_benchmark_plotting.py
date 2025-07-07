@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import matplotlib.pyplot as plt
 import numpy as np
 
-from .plt_tools import legend, make_axes, plot_loss
+from .plt_tools import legend_, make_axes, plot_loss
 from .format import to_HW3
 
 if TYPE_CHECKING:
@@ -100,7 +100,7 @@ def plot_summary(
                 args:dict = {"lw":0.5} if kk.endswith(' (perturbed)') else {}
                 ax.plot(list(x), list(y), label=kk, **args)
 
-            if len(ks) > 1: legend(ax)
+            if len(ks) > 1: legend_(ax)
             ax.grid(which = 'major', axis='both', alpha=0.3)
             ax.grid(which = 'minor', axis='both', alpha=0.1)
             ax.set_title(k)

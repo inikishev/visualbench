@@ -9,7 +9,7 @@ class Inverse(Benchmark):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
         self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
-        self.B = torch.nn.Parameter(torch.zeros_like(self.A))
+        self.B = torch.nn.Parameter(self.I.clone())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 
@@ -43,7 +43,7 @@ class StochasticInverse(Benchmark):
     def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, vec=False, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
-        self.B = torch.nn.Parameter(torch.zeros_like(self.A))
+        self.B = torch.nn.Parameter(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
         self.vec = vec
         self.batch_size = batch_size
         self.criterion = criterion
@@ -81,7 +81,7 @@ class MoorePenrose(Benchmark):
     def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_CHW(A))
-        self.B = torch.nn.Parameter(torch.zeros_like(self.A))
+        self.B = torch.nn.Parameter(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 

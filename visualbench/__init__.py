@@ -15,3 +15,5 @@ def all_benchmarks():
 
     subclasses(Benchmark)
     return ", ".join(sorted(names))
+
+from . import losses

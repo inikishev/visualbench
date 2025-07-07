@@ -7,7 +7,7 @@ from ..utils import to_CHW
 from ..benchmark import Benchmark
 
 
-class KatosProblem(Benchmark):
+class Kato(Benchmark):
     """goal is to find image whose laplacian is target, and that's pretty hard"""
     def __init__(self, target):
         super().__init__()

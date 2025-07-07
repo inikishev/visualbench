@@ -4,21 +4,30 @@ from collections import UserDict, UserList
 from collections.abc import Callable, Iterable
 from typing import Any, TypeVar
 import math
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
-def round_significant(x: Any, nsignificant: int, only_fractional:bool=False):
-    if x == 0: return 0.0
-    if math.isnan(x) or math.isinf(x): return x
-    if nsignificant <= 0: raise ValueError("nsignificant must be positive")
+def format_number(number, n):
+    """Rounds to n significant digits after the decimal point."""
+    if number == 0: return 0
+    if math.isnan(number) or math.isinf(number) or (not math.isfinite(number)): return number
+    if n <= 0: raise ValueError("n must be positive")
 
-    if only_fractional:
-        return float(math.floor(x) + round_significant(x % 1, nsignificant, False))
+    dec = Decimal(str(number))
+    if dec.is_zero(): return 0
+    if number > 10**n or dec % 1 == 0: return int(dec)
 
-    x = Decimal(x) # otherwise there are rounding errors
-    order = Decimal(10) ** math.floor(math.log10(abs(x)))
-    v = round(x / order, nsignificant - 1) * order
-    return float(v)
+    if abs(dec) >= 1:
+        places = n
+    else:
+        frac_str = format(abs(dec), 'f').split('.')[1]
+        leading_zeros = len(frac_str) - len(frac_str.lstrip('0'))
+        places = leading_zeros + n
 
+    quantizer = Decimal('1e-' + str(places))
+    rounded_dec = dec.quantize(quantizer, rounding=ROUND_HALF_UP)
+
+    if rounded_dec % 1 == 0: return int(rounded_dec)
+    return float(rounded_dec)
 
 
 def _flatten_no_check(iterable: Iterable) -> list[Any]:
@@ -48,3 +57,24 @@ class SortedSet[T](UserList[T]):
 
     def union(self, other):
         return SortedSet(list(self) + [v for v in other if v not in self])
+
+
+__invalid_fname_chars = frozenset("'\\?%*:|\"<>'/")
+
+def to_valid_fname(string:str, fallback = '~', empty_fallback = 'empty', maxlen = 127, invalid_chars = __invalid_fname_chars) -> str:
+    """Makes sure filename doesn't have forbidden characters and isn't empty or too long,
+    this does not ensure a valid filename as there are a lot of other rules,
+    but does a fine job most of the time.
+
+    Args:
+        string (str): _description_
+        fallback (str, optional): _description_. Defaults to '-'.
+        empty_fallback (str, optional): _description_. Defaults to 'empty'.
+        maxlen (int, optional): _description_. Defaults to 127.
+
+    Returns:
+        _type_: _description_
+    """
+    assert fallback not in invalid_chars
+    if len(string) == 0: return empty_fallback
+    return ''.join([(c if c not in invalid_chars or c.isalnum() else fallback) for c in string[:maxlen]]).strip()

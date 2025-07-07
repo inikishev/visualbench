@@ -196,22 +196,22 @@ class StochasticMatrixIdempotent(Benchmark):
 
         powers = []
         B_p = B
-        AX = algebras.matmul(A, X, self.algebra)
-        BX = algebras.matmul(B_p, X, self.algebra)
+        XA = algebras.matmul(X, A, self.algebra)
+        XB = algebras.matmul(X, B_p, self.algebra)
         if self.chain == 'last': loss = 0
-        else: loss = self.criterion(BX, AX)
+        else: loss = self.criterion(XB, XA)
 
         for _ in range(1, self.n):
-            BX_prev = BX
+            XB_prev = XB
             B_p = algebras.matmul(B_p, B, self.algebra)
-            BX = algebras.matmul(B_p, X, self.algebra)
-            if self.chain: loss = loss + self.criterion(BX, BX_prev)
-            else: loss = loss + self.criterion(BX, AX)
+            XB = algebras.matmul(X, B_p, self.algebra)
+            if self.chain: loss = loss + self.criterion(XB, XB_prev)
+            else: loss = loss + self.criterion(XB, XA)
 
             if self._make_images: powers.append(B_p)
 
         if self.chain == 'last':
-            loss = loss + self.criterion(BX, AX)
+            loss = loss + self.criterion(XB, XA)
 
         if self._make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)

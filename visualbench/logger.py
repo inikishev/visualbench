@@ -62,9 +62,9 @@ class Logger(UserDict[str, dict[int, Any]]):
 
         np.savez_compressed(fname, **arrays)
 
-    def load(self, fname: str):
+    def load(self, fname: str, allow_pickle=False):
         """Load data from a compressed numpy array file (npz) to this logger."""
-        arrays: Mapping[str, np.ndarray] = np.load(fname)
+        arrays: Mapping[str, np.ndarray] = np.load(fname, allow_pickle=allow_pickle)
         for k, array in arrays.items():
             if k.startswith('__STEPS__.'):
                 name = k.replace("__STEPS__.", "")

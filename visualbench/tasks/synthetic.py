@@ -47,7 +47,7 @@ class Sphere(Benchmark):
         return self.criterion(self.x, self.target)
 
 
-class QuadraticForm(Benchmark):
+class Quadratic(Benchmark):
     """Basic convex quadratic objective with linear term.
 
     Args:
@@ -144,3 +144,31 @@ class IllConditioned(Benchmark):
 
         return term1 * susq + term2 * (sum**2)
 
+
+# this is from https://github.com/konstmish/opt_methods/tree/master/optmethods/loss
+class LogSumExp(Benchmark):
+    def __init__(self, n:int=1024, dim:int=512, smoothing=1, lstsq_term=False, l2=0):
+        super().__init__()
+        self.smoothing = smoothing
+        self.lstsq_term = lstsq_term
+        self.n, self.dim = n, dim
+        self.l2 = l2
+
+        self.x = nn.Parameter(torch.randn(dim, generator=self.rng.torch()))
+
+        self.b = nn.Buffer(torch.normal(-1, 1, size=(n,), generator=self.rng.torch()))
+        A = torch.empty((n, dim)).uniform_(-1, 1, generator=self.rng.torch())
+        self.A = nn.Buffer(A)
+
+    def get_loss(self):
+        Ax = self.A @ self.x
+
+        regularization = 0
+
+        if self.l2 != 0:
+            regularization = self.l2/2 * self.x.dot(self.x)
+
+        if self.lstsq_term:
+            regularization += 1/2 * Ax.dot(Ax)
+
+        return (self.smoothing * torch.logsumexp(((Ax-self.b)/self.smoothing), 0)).abs() + regularization

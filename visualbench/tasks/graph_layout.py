@@ -9,6 +9,111 @@ from torch import nn
 from ..benchmark import Benchmark
 
 
+def _complete_graph(n: int = 20) -> list[list[int]]:
+    """Generates a complete graph K_n."""
+    if n <= 0: return []
+    adj = [[] for _ in range(n)]
+    if n == 1: return adj
+    for i in range(n):
+        for j in range(i + 1, n):
+            adj[i].append(j)
+            adj[j].append(i)
+    return adj
+
+def _grid_graph(rows: int = 8, cols: int = 8) -> list[list[int]]:
+    """Generates an m x n grid graph."""
+    if rows <= 0 or cols <= 0: return []
+    n = rows * cols
+    adj = [[] for _ in range(n)]
+    for r in range(rows):
+        for c in range(cols):
+            index = r * cols + c
+            # connect to right neighbor
+            if c + 1 < cols:
+                right_index = index + 1
+                adj[index].append(right_index)
+                adj[right_index].append(index)
+            # connect to bottom neighbor
+            if r + 1 < rows:
+                bottom_index = index + cols
+                adj[index].append(bottom_index)
+                adj[bottom_index].append(index)
+    return adj
+
+def _barbell_graph(clique_size: int = 10) -> list[list[int]]:
+    """Generates a barbell graph: two K_m cliques connected by a single edge."""
+    if clique_size <= 0: return []
+    if clique_size == 1:
+        return [[1], [0]]
+
+    n = 2 * clique_size
+    adj = [[] for _ in range(n)]
+
+    # first clique (nodes 0 to clique_size - 1)
+    for i in range(clique_size):
+        for j in range(i + 1, clique_size):
+            adj[i].append(j)
+            adj[j].append(i)
+
+    # second clique (nodes clique_size to 2*clique_size - 1)
+    for i in range(clique_size, n):
+        for j in range(i + 1, n):
+            adj[i].append(j)
+            adj[j].append(i)
+
+    # connecting edge (connect last node of first clique to first node of second clique)
+    node1 = clique_size - 1
+    node2 = clique_size
+    adj[node1].append(node2)
+    adj[node2].append(node1)
+
+    return adj
+
+
+def _watts_strogatz_graph(n: int = 30, k: int = 4, p: float = 0.5) -> list[list[int]]:
+    """Generates a Watts-Strogatz small-world graph."""
+    if k % 2 != 0 or k >= n:
+        raise ValueError("k must be an even integer less than n")
+    if not 0 <= p <= 1:
+        raise ValueError("p (rewiring probability) must be between 0 and 1")
+    if n <= 0: return []
+
+    adj = [set() for _ in range(n)]
+
+    # 1. create ring lattice
+    for i in range(n):
+        for j in range(1, k // 2 + 1):
+            neighbor = (i + j) % n
+            adj[i].add(neighbor)
+            adj[neighbor].add(i)
+
+    # 2. rewire edges
+    nodes = list(range(n))
+    for i in range(n):
+        # only rewire edges to the k/2 clockwise neighbors
+        neighbors_to_consider = [(i + j) % n for j in range(1, k // 2 + 1)]
+
+        for neighbor in neighbors_to_consider:
+            if random.random() < p:
+                original_neighbor = neighbor
+                # choose a new node w != i and w not already connected to i
+                possible_new_neighbors = [w for w in nodes if w != i and w not in adj[i]]
+
+                if possible_new_neighbors: # check if there's anyone left to rewire to
+                    new_neighbor = random.choice(possible_new_neighbors)
+
+                    # rewire: remove old edge, add new edge
+                    adj[i].remove(original_neighbor)
+                    adj[original_neighbor].remove(i)
+                    adj[i].add(new_neighbor)
+                    adj[new_neighbor].add(i)
+                # else: cannot rewire this edge as i is connected to everyone else
+
+    # convert sets back to lists
+    adj_list = [sorted(list(neighbors)) for neighbors in adj]
+    return adj_list
+
+
 class GraphLayout(Benchmark):
     """
     Optimize graph layout by edge attraction and node repulsion.
@@ -25,7 +130,10 @@ class GraphLayout(Benchmark):
         node_radius (int): Radius of nodes in visualization.
         line_thickness (int): Thickness of edges in visualization.
     """
-
+    COMPLETE = staticmethod(_complete_graph)
+    GRID = staticmethod(_grid_graph)
+    BARBELL = staticmethod(_barbell_graph)
+    WATTS_STROGATZ = staticmethod(_watts_strogatz_graph)
     def __init__(
         self,
         adj: Sequence[Sequence[int]],
@@ -63,7 +171,7 @@ class GraphLayout(Benchmark):
 
         # node positions
         if init_pos is None:
-            positions = torch.rand(num_nodes, 2, dtype=torch.float32) * canvas_size
+            positions = torch.rand(num_nodes, 2, dtype=torch.float32, generator=self.rng.torch()) * canvas_size
         else:
             positions = torch.as_tensor(init_pos, dtype=torch.float32)
 
@@ -146,108 +254,3 @@ class GraphLayout(Benchmark):
             cv2.circle(canvas, center, self.node_radius, self.node_color, -1, lineType=cv2.LINE_AA) # pylint:disable=no-member
 
         return canvas
-
-
-def complete_graph(n: int = 20) -> list[list[int]]:
-    """Generates a complete graph K_n."""
-    if n <= 0: return []
-    adj = [[] for _ in range(n)]
-    if n == 1: return adj
-    for i in range(n):
-        for j in range(i + 1, n):
-            adj[i].append(j)
-            adj[j].append(i)
-    return adj
-
-def grid_graph(rows: int = 8, cols: int = 8) -> list[list[int]]:
-    """Generates an m x n grid graph."""
-    if rows <= 0 or cols <= 0: return []
-    n = rows * cols
-    adj = [[] for _ in range(n)]
-    for r in range(rows):
-        for c in range(cols):
-            index = r * cols + c
-            # connect to right neighbor
-            if c + 1 < cols:
-                right_index = index + 1
-                adj[index].append(right_index)
-                adj[right_index].append(index)
-            # connect to bottom neighbor
-            if r + 1 < rows:
-                bottom_index = index + cols
-                adj[index].append(bottom_index)
-                adj[bottom_index].append(index)
-    return adj
-
-def barbell_graph(clique_size: int = 10) -> list[list[int]]:
-    """Generates a barbell graph: two K_m cliques connected by a single edge."""
-    if clique_size <= 0: return []
-    if clique_size == 1:
-        return [[1], [0]]
-
-    n = 2 * clique_size
-    adj = [[] for _ in range(n)]
-
-    # first clique (nodes 0 to clique_size - 1)
-    for i in range(clique_size):
-        for j in range(i + 1, clique_size):
-            adj[i].append(j)
-            adj[j].append(i)
-
-    # second clique (nodes clique_size to 2*clique_size - 1)
-    for i in range(clique_size, n):
-        for j in range(i + 1, n):
-            adj[i].append(j)
-            adj[j].append(i)
-
-    # connecting edge (connect last node of first clique to first node of second clique)
-    node1 = clique_size - 1
-    node2 = clique_size
-    adj[node1].append(node2)
-    adj[node2].append(node1)
-
-    return adj
-
-
-def watts_strogatz_graph(n: int = 30, k: int = 4, p: float = 0.5) -> list[list[int]]:
-    """Generates a Watts-Strogatz small-world graph."""
-    if k % 2 != 0 or k >= n:
-        raise ValueError("k must be an even integer less than n")
-    if not 0 <= p <= 1:
-        raise ValueError("p (rewiring probability) must be between 0 and 1")
-    if n <= 0: return []
-
-    adj = [set() for _ in range(n)]
-
-    # 1. create ring lattice
-    for i in range(n):
-        for j in range(1, k // 2 + 1):
-            neighbor = (i + j) % n
-            adj[i].add(neighbor)
-            adj[neighbor].add(i)
-
-    # 2. rewire edges
-    nodes = list(range(n))
-    for i in range(n):
-        # only rewire edges to the k/2 clockwise neighbors
-        neighbors_to_consider = [(i + j) % n for j in range(1, k // 2 + 1)]
-
-        for neighbor in neighbors_to_consider:
-            if random.random() < p:
-                original_neighbor = neighbor
-                # choose a new node w != i and w not already connected to i
-                possible_new_neighbors = [w for w in nodes if w != i and w not in adj[i]]
-
-                if possible_new_neighbors: # check if there's anyone left to rewire to
-                    new_neighbor = random.choice(possible_new_neighbors)
-
-                    # rewire: remove old edge, add new edge
-                    adj[i].remove(original_neighbor)
-                    adj[original_neighbor].remove(i)
-                    adj[i].add(new_neighbor)
-                    adj[new_neighbor].add(i)
-                # else: cannot rewire this edge as i is connected to everyone else
-
-    # convert sets back to lists
-    adj_list = [sorted(list(neighbors)) for neighbors in adj]
-    return adj_list

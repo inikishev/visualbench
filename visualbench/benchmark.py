@@ -340,7 +340,7 @@ class Benchmark(torch.nn.Module, ABC):
             # log params (conditons are in the method)
             _benchmark_utils._log_params_and_projections_(self)
 
-            self.logger.log(self.num_forwards, "seconds", self.seconds_passed)
+            self.logger.log(self.num_forwards, "seconds", self.seconds_passed if self.seconds_passed is not None else 0)
             self.logger.log(self.num_forwards, "num passes", self.num_passes)
             self.logger.log(self.num_forwards, "num batches", self.num_steps)
 
@@ -479,5 +479,5 @@ class Benchmark(torch.nn.Module, ABC):
     def render(self, file: str, fps: int = 60, scale: int | float = 1, progress=True):
         _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress)
 
-        
+
 

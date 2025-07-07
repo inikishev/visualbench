@@ -85,14 +85,14 @@ class Colorization(Benchmark):
         self.power = power
 
     @classmethod
-    def snake(cls, order: int = 1):
+    def snake(cls, order: int = 1, power: int = 2):
         init = torch.zeros(96, 256)
-        return cls(init = init, mask =_better_snake_mask(init, 16), pull_idxs = ((0, 0),), order = order)
+        return cls(init = init, mask =_better_snake_mask(init, 16), pull_idxs = ((0, 0),), order = order, power=power)
 
     @classmethod
-    def small(cls, order: int = 1):
+    def small(cls, order: int = 1, power: int = 2):
         init = torch.zeros(16, 64)
-        return cls(init = init, mask =_better_snake_mask(init, 4), pull_idxs = ((0, 0),), order = order)
+        return cls(init = init, mask =_better_snake_mask(init, 4), pull_idxs = ((0, 0),), order = order, power=power)
 
     def get_loss(self):
         w = self.image * self.mask
@@ -104,8 +104,6 @@ class Colorization(Benchmark):
         diff_ver = torch.diff(w, self.order, 0) * self.mask[self.order:] * self.mask[:-self.order]
         diff_hor = torch.diff(w, self.order, 1) * self.mask[:, self.order:] * self.mask[:, :-self.order]
 
-        # diff_ver = (w[1:, :] - w[:-1, :]) * self.mask[1:] * self.mask[:-1]
-        # diff_hor = (w[:, 1:] - w[:, :-1]) * self.mask[:, 1:] * self.mask[:, :-1]
         if self.power % 2 != 0 or self.power < 0:
             diff_ver = diff_ver.abs()
             diff_hor = diff_hor.abs()

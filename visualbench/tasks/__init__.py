@@ -5,16 +5,11 @@ from .covering import RigidBoxCovering
 from .datasets import *
 from .drawing import LinesDrawer, NeuralDrawer, PartitionDrawer, RectanglesDrawer
 from .function_descent import FunctionDescent, test_functions
-from .graph_layout import (
-    GraphLayout,
-    barbell_graph,
-    complete_graph,
-    grid_graph,
-    watts_strogatz_graph,
-)
+from .gmm import GaussianMixtureNLL
+from .graph_layout import GraphLayout
 from .guassian_processes import GaussianProcesses
 from .hadamard import Hadamard
-from .katos import KatosProblem
+from .kato import Kato
 from .lennard_jones_clusters import LennardJonesClusters
 from .linalg import *
 from .normal_scalar_curvature import NormalScalarCurvature
@@ -31,7 +26,8 @@ from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
     IllConditioned,
-    QuadraticForm,
+    LogSumExp,
+    Quadratic,
     Rosenbrock,
     Sphere,
 )
