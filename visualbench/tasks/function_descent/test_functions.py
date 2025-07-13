@@ -238,13 +238,17 @@ stretched_sphere = PowSum(2, 2, x0=(-9, -70)).scaled(1, 10).shifted(1, -2).regis
 
 
 class Rosenbrock(TestFunction):
-    def __init__(self, a = 1., b = 100, post_fn=torch.square):
+    def __init__(self, a = 1., b = 100, post_fn=torch.square, max=False):
         self.a = a
         self.b = b
         self.post_fn = post_fn
+        self.max = max
 
     def objective(self, x, y):
-        return self.post_fn(self.a - x) + self.post_fn(self.b * (y - x**2))
+        term1 = self.post_fn(self.a - x)
+        term2 = self.post_fn(self.b * (y - x**2))
+        if self.max: return term1.maximum(term2)
+        return term1 + term2
 
     def x0(self): return (-1.1, 2.5)
     def domain(self): return (-2, 2, -1, 3)
@@ -253,14 +257,28 @@ class Rosenbrock(TestFunction):
 rosenbrock = Rosenbrock().register('rosen', 'rosenbrock')
 rosenbrock_abs = Rosenbrock(post_fn=torch.abs).register('rosen_abs', 'rosenbrock_abs')
 rosenbrock10 = Rosenbrock(b=10).register('rosen10', 'rosenbrock10')
+rosenmax = Rosenbrock(max=True).register('rosenmax')
+rosenmax_abs = Rosenbrock(post_fn=torch.abs, max=True).register('rosenmaxabs', 'rosenabsmax')
 
+class ChebushevRosenbrock(TestFunction):
+    def __init__(self, p=8, max=False, x2_fn=torch.square):
+        self.p = p
+        self.x2_fn = x2_fn
+        self.max = max
 
-class Rosenmax(Rosenbrock):
     def objective(self, x, y):
-        return torch.maximum(self.post_fn(self.a - x), self.post_fn(self.b * (y - x**2)))
+        term1 = 1/4 * (x-1)**2
+        term2 = (y - 2*self.x2_fn(x) + 1).abs() ** self.p
+        if self.max: return term1.maximum(term2)
+        return term1 + term2
 
-rosenmax = Rosenmax().register('rosenmax')
-rosenmax_abs = Rosenmax(post_fn=torch.abs).register('rosenmaxabs', 'rosenabsmax')
+    def x0(self): return (-1.2, 1.6)
+    def domain(self): return (-2, 2, -2, 2)
+    def minima(self): return (1, 1)
+crosen8 = ChebushevRosenbrock().register('crosen', 'crosen8')
+crosen8max = ChebushevRosenbrock(max=True).register('crosenmax', 'crosen8max')
+crosen16max = ChebushevRosenbrock(p=16, max=True).register('crosen16max')
+
 
 
 class Rastrigin(TestFunction):
@@ -845,3 +863,4 @@ class Switchback(TestFunction):
     def minima(self): return None
 
 switchback = Switchback().register('switchback', 'switch')
+

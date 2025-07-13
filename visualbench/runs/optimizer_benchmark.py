@@ -15,6 +15,7 @@ from .. import data, models, tasks
 from .. import losses as losses_
 from ..models.ode import NeuralODE
 from ..utils import CUDA_IF_AVAILABLE
+from ..utils.clean_mem import clean_mem
 from ..utils.python_tools import format_number, to_valid_fname
 from .run import Run, Sweep, Task, _target_metrics_to_dict, mbs_search, single_run
 
@@ -55,18 +56,21 @@ class MBSRun:
         self.hyperparam = hyperparam
 
         def run_bench(bench: "Benchmark", task_name: str, passes: int, sec: float, metrics:str | Sequence[str] | dict[str, bool], binary_mul: float = 1, test_every: int | None = None):
-            if max_dim is not None and sum(p.numel() for p in bench.parameters() if p.requires_grad) > max_dim: return
+            clean_mem()
+            dim = sum(p.numel() for p in bench.parameters() if p.requires_grad)
+            if max_dim is not None and dim > max_dim: return
 
             if accelerate and next(bench.parameters()).is_cuda: # skip CPU because accelerator state can't change.
                 accelerator = Accelerator()
                 bench = accelerator.prepare(bench)
 
             def logger_fn(value: float):
+                if dim > 10_000: clean_mem()
                 bench.reset().set_benchmark_mode().set_print_inverval(None)
                 opt = opt_fn(bench.parameters(), value)
                 bench.run(opt, passes, max_seconds=sec, test_every_forwards=test_every)
                 if print_progress and bench.seconds_passed is not None and bench.seconds_passed > sec:
-                    print(f"{sweep_name}: {bench.__class__.__name__} timeout, {bench.seconds_passed} > {sec}!")
+                    print(f"{sweep_name}: '{task_name}' timeout, {bench.seconds_passed} > {sec}!")
                 return bench.logger
 
             if hyperparam is None or no_tuning:
@@ -96,7 +100,7 @@ class MBSRun:
 
         if synthetic:
             self.run_synthetic()
-            if stochastic: self.run_synthetic_stochastic()
+            #if stochastic: self.run_synthetic_stochastic()
 
         if losses:
             self.run_losses()
@@ -141,13 +145,14 @@ class MBSRun:
         bench = tasks.datasets.OlivettiFaces(models.MLP(4096, 40, hidden=None)).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'ML - Olivetti Faces - Logistic Regression', passes=400, sec=30, metrics=LOSSES)
 
-        # ------------------------------ MAE regression ------------------------------ #
-        # ndim = 11
-        # ?
-        bench = tasks.datasets.Friedman1(
-            models.MLP(10, 1, hidden=None), criterion=F.l1_loss, normalize_x=False, normalize_y=False
-        ).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'ML - Friedman 1 - Linear Regression - L1', passes=2000, sec=30, metrics=LOSSES)
+        # # ------------------------------ MAE regression ------------------------------ #
+        # # ndim = 11
+        # # ?
+        # bench = tasks.datasets.Friedman1(
+        #     models.MLP(10, 1, hidden=None), criterion=F.l1_loss, normalize_x=False, normalize_y=False
+        # ).to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, 'ML - Friedman 1 - Linear Regression - L1', passes=2000, sec=30, metrics=LOSSES)
+        # not interpretable
 
         # ---------------------- Small MLP (full-batch MNIST-1D) --------------------- #
         # ndim = 850
@@ -375,7 +380,7 @@ class MBSRun:
         self.run_bench(bench, 'SS - Stochastic matrix idempotent (hard)', passes=4_000, sec=60, metrics='train loss')
 
     def render(self, axsize=(6,3), dpi=300, extra_references: str | Sequence | None = None, n_best:int=1):
-        from .plotting import render_summary_v2, REFERENCE_OPTS
+        from .plotting import REFERENCE_OPTS, render_summary_v2
 
         if extra_references is None: extra_references = []
         if isinstance(extra_references, str): extra_references = [extra_references]

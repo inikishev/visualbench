@@ -113,6 +113,30 @@ class Rosenbrock(Benchmark):
         return (100 * (x2 - x1**2)**2 + (1 - x1)**2).mean()
 
 
+class ChebushevRosenbrock(Benchmark):
+    """https://cs.nyu.edu/~overton/g22_ns_opt/CourseLastLecture.pdf"""
+    def __init__(self, dim=512, p=8, variant:Literal[1,2]=1, max=False):
+        super().__init__()
+        self.x = torch.nn.Parameter(torch.tensor([-1.2, 1.]).repeat(dim//2))
+        self.p = p
+        self.variant = variant
+        self.max = max
+
+    def get_loss(self):
+        x1 = self.x[:-1]
+        x2 = self.x[1:]
+        term1 = 1/4 * (self.x[0] - 1)**2
+
+        if self.variant == 1: xp = x1**2
+        elif self.variant == 2: xp = x1.abs()
+        else: raise ValueError(self.variant)
+
+        term2 = (x2 - 2*xp + 1).abs().pow(self.p).sum()
+
+        if self.max: return term1.maximum(term2)
+        return term1 + term2
+
+
 class IllConditioned(Benchmark):
     """the diabolical hessian looks like this
 

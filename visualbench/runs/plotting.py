@@ -22,15 +22,15 @@ REFERENCE_OPTS = ("SGD", "NAG", "Adagrad", "RMSprop", "Adam", "AdamW", "L-BFGS",
 _YSCALES: dict[str, Any] = {
     # ML
     "ML - Graph layout optimization": "log",
-    # "MLP(10-10-10-10-10) - MNIST-1D full-batch": "log",
-    # "MLP(40-40-40-40-10) - MNIST-1D full-batch": "log",
     "ML - Style Transfer": "log",
     "ML - Olivetti Faces - Logistic Regression": dict(value='symlog', linthresh=1e-12),
     "ML - Friedman 1 - Linear Regression - L1": "log",
     "ML - MNIST-1D FB - NeuralODE": "log",
 
     # Losses
-    # "L-infinity loss linear regression - Friedman 1": "log",
+    "ML - Friedman 1 - Linear Regression - L-Infinity": "log",
+    "ML - Friedman 1 - Linear Regression - L4": "log",
+    "ML - Friedman 1 - Linear Regression - Median": "log",
     "ML - Friedman 1 - Linear Regression - Quartic": "log",
 
 
@@ -53,7 +53,12 @@ _YSCALES: dict[str, Any] = {
 }
 
 _TRAIN_SMOOTHING: dict[str, float] = {
-
+    "SS - Stochastic inverse - L1": 2,
+    "SS - Stochastic inverse - L2": 2,
+    "SS - Stochastic matrix idempotent": 2,
+    "SS - Stochastic matrix idempotent (hard)": 2,
+    "SS - Stochastic matrix recovery": 2,
+    "MLS - Covertype - Online Logistic Regression": 2
 }
 
 
@@ -125,6 +130,7 @@ def plot_train_test_values(
     yscale: Yscale = None,
     ax: Axes | None = None,
 ):
+    if len(sweep) == 0: return ax
     if ax is None: ax = plt.gca()
 
     # --------------------------------- load runs -------------------------------- #
@@ -353,6 +359,7 @@ def plot_train_test_sweep(
     ax: Axes | None = None,
 ):
     if ax is None: ax = plt.gca()
+    if len(sweep) == 0: return ax
 
     # ---------------------------- determine y limits ---------------------------- #
     best_run = sweep.best_runs('test loss', False, 1)[0]
@@ -495,7 +502,14 @@ def render_summary(
     plt.savefig(fname)
     plt.close()
 
-
+def _clean_empty(root):
+    for f in os.listdir(root):
+        path = os.path.join(root, f)
+        if os.path.isdir(path):
+            if len(os.listdir(path)) == 0:
+                os.rmdir(path)
+            else:
+                _clean_empty(path)
 
 def render_summary_v2(
     root:str,
@@ -520,6 +534,7 @@ def render_summary_v2(
     decoder = msgspec.msgpack.Decoder()
 
     # ----------------------------------- plot ----------------------------------- #
+    _clean_empty(root)
     for task_name in os.listdir(root):
 
         task_path = os.path.join(root, task_name)

@@ -30,5 +30,6 @@ from .synthetic import (
     Quadratic,
     Rosenbrock,
     Sphere,
+    ChebushevRosenbrock,
 )
 from .tsne import TSNE

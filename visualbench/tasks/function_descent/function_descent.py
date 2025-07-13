@@ -90,7 +90,8 @@ class FunctionDescent(Benchmark):
     def get_loss(self):
         params = self.params
         if self.unpack:
-            loss = self.func(*params)
+            params = params.clone()
+            loss = self.func(params[0], params[1])
         else:
             loss = self.func(params) # type:ignore
         return loss
