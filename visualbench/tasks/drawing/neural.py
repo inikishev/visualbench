@@ -10,6 +10,7 @@ from ...models.basic import MLP
 from ...utils.padding import pad_to_shape
 
 class NeuralDrawer(Benchmark):
+    """inputs - 2, output - n_channels"""
     def __init__(self, image, model, batch_size: int | None = None, criterion = F.mse_loss, expand: int = 0):
         super().__init__()
         self.image = nn.Buffer(to_CHW(image))
@@ -44,27 +45,28 @@ class NeuralDrawer(Benchmark):
 
     def get_loss(self):
 
-        mask = None
-        idxs = None
-        if self._make_images:
-            if self.expand != 0:
-                inputs = self.expanded_coords
-                targets = self.targets
-                mask = self.loss_mask
+        with torch.no_grad():
+            mask = None
+            idxs = None
+            if self._make_images:
+                if self.expand != 0:
+                    inputs = self.expanded_coords
+                    targets = self.targets
+                    mask = self.loss_mask
+
+                else:
+                    inputs = self.coords
+                    targets = self.targets
+
+                if self.batch_size is not None:
+                    idxs = torch.randperm(self.targets.size(0))[:self.batch_size]
+                    targets = self.targets[idxs]
 
             else:
-                inputs = self.coords
-                targets = self.targets
-
-            if self.batch_size is not None:
-                idxs = torch.randperm(self.targets.size(0))[:self.batch_size]
-                targets = self.targets[idxs]
-
-        else:
-            batch_idxs = torch.randperm(self.targets.size(0))[:self.batch_size]
-            inputs = self.coords[batch_idxs]
-            targets = self.targets[batch_idxs]
-            mask = None
+                batch_idxs = torch.randperm(self.targets.size(0))[:self.batch_size]
+                inputs = self.coords[batch_idxs]
+                targets = self.targets[batch_idxs]
+                mask = None
 
 
         full_preds: torch.Tensor = self.model(inputs) # (pixels, channels)
@@ -74,9 +76,10 @@ class NeuralDrawer(Benchmark):
 
         loss = self.criterion(preds, targets)
 
-        if self._make_images:
-            if self.expand != 0: full_preds = full_preds.view(self.expanded_shape)
-            else: full_preds = full_preds.view(self.shape)
-            self.log_image('prediction', full_preds, to_uint8=True, min=self.min, max=self.max)
+        with torch.no_grad():
+            if self._make_images:
+                if self.expand != 0: full_preds = full_preds.view(self.expanded_shape)
+                else: full_preds = full_preds.view(self.shape)
+                self.log_image('prediction', full_preds, to_uint8=True, min=self.min, max=self.max, show_best=True)
 
         return loss

@@ -72,6 +72,8 @@ def _barbell_graph(clique_size: int = 10) -> list[list[int]]:
 
 def _watts_strogatz_graph(n: int = 30, k: int = 4, p: float = 0.5) -> list[list[int]]:
     """Generates a Watts-Strogatz small-world graph."""
+    generator = random.Random(0)
+
     if k % 2 != 0 or k >= n:
         raise ValueError("k must be an even integer less than n")
     if not 0 <= p <= 1:
@@ -94,13 +96,13 @@ def _watts_strogatz_graph(n: int = 30, k: int = 4, p: float = 0.5) -> list[list[
         neighbors_to_consider = [(i + j) % n for j in range(1, k // 2 + 1)]
 
         for neighbor in neighbors_to_consider:
-            if random.random() < p:
+            if generator.random() < p:
                 original_neighbor = neighbor
                 # choose a new node w != i and w not already connected to i
                 possible_new_neighbors = [w for w in nodes if w != i and w not in adj[i]]
 
                 if possible_new_neighbors: # check if there's anyone left to rewire to
-                    new_neighbor = random.choice(possible_new_neighbors)
+                    new_neighbor = generator.choice(possible_new_neighbors)
 
                     # rewire: remove old edge, add new edge
                     adj[i].remove(original_neighbor)
@@ -241,7 +243,7 @@ class GraphLayout(Benchmark):
     def _make_frame(self, pos: np.ndarray) -> np.ndarray:
         canvas = np.full((self.canvas_size, self.canvas_size, 3), self.bg_color, dtype=np.uint8)
 
-        pos_np_clamped = np.clip(pos, 0, self.canvas_size - 1).astype(int)
+        pos_np_clamped = np.clip(np.nan_to_num(pos), 0, self.canvas_size - 1).astype(int)
 
         if self.edges:
             for u, v in self.edges:

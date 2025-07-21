@@ -10,6 +10,7 @@ class MatrixRoot(Benchmark):
     def __init__(self, A, p: int, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.min = self.A.min().item(); self.max = self.A.max().item()
 
         # this keeps norm at 1 from applying matrix power
         nuc = torch.linalg.matrix_norm(self.A, 'nuc', keepdim=True) # pylint:disable=not-callable
@@ -41,7 +42,8 @@ class MatrixRoot(Benchmark):
                 for i,p in enumerate(powers[:-1]):
                     self.log_image(f'B^{i+2}', p, to_uint8=True)
 
-            self.log_image(f'B^{self.p}', B_p, to_uint8=True, show_best=True)
+            self.log_image(f'B^{self.p}', B_p, to_uint8=True, show_best=True, min=self.min, max=self.max)
+            self.log_image('residual', (B_p-self.A).abs_(), to_uint8=True)
 
         return loss
 
@@ -50,6 +52,7 @@ class StochasticMatrixRoot(Benchmark):
     def __init__(self, A, p: int, batch_size: int = 1, criterion=torch.nn.functional.mse_loss, vec=False, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.min = self.A.min().item(); self.max = self.A.max().item()
 
         # this keeps norm at 1 from applying matrix power
         nuc = torch.linalg.matrix_norm(self.A, 'nuc', keepdim=True) # pylint:disable=not-callable
@@ -87,14 +90,19 @@ class StochasticMatrixRoot(Benchmark):
         XB_p = algebras.matmul(X, B_p, self.algebra)
         loss = self.criterion(XA, XB_p)
 
-        if self._make_images:
-            self.log_image('B', self.B, to_uint8=True, log_difference=True)
+        with torch.no_grad():
+            test_loss = self.criterion(B_p, self.A)
+            self.log('test loss', test_loss)
 
-            if len(powers) > 1:
-                for i,p in enumerate(powers[:-1]):
-                    self.log_image(f'B^{i+2}', p, to_uint8=True)
+            if self._make_images:
+                self.log_image('B', self.B, to_uint8=True, log_difference=True)
 
-            self.log_image(f'B^{self.p}', B_p, to_uint8=True, show_best=True)
+                if len(powers) > 1:
+                    for i,p in enumerate(powers[:-1]):
+                        self.log_image(f'B^{i+2}', p, to_uint8=True)
+
+                self.log_image(f'B^{self.p}', B_p, to_uint8=True, show_best=True, min=self.min, max=self.max)
+                self.log_image('residual', (B_p-self.A).abs_(), to_uint8=True)
 
         return loss
 
@@ -145,7 +153,7 @@ class MatrixIdempotent(Benchmark):
         for _ in range(1, self.n):
             B_prev = B_p
             B_p = algebras.matmul(B_p, B, self.algebra)
-            if self.chain is not None: loss = loss + self.criterion(B_p, B_prev)
+            if self.chain: loss = loss + self.criterion(B_p, B_prev)
             else: loss = loss + self.criterion(B_p, A)
 
             if self._make_images: powers.append(B_p)
@@ -201,17 +209,29 @@ class StochasticMatrixIdempotent(Benchmark):
         if self.chain == 'last': loss = 0
         else: loss = self.criterion(XB, XA)
 
+        if self.chain == 'last': loss = test_loss = 0
+        else: loss = test_loss = self.criterion(B, A)
+
         for _ in range(1, self.n):
+            B_prev = B_p
             XB_prev = XB
             B_p = algebras.matmul(B_p, B, self.algebra)
             XB = algebras.matmul(X, B_p, self.algebra)
-            if self.chain: loss = loss + self.criterion(XB, XB_prev)
-            else: loss = loss + self.criterion(XB, XA)
+
+            if self.chain:
+                loss = loss + self.criterion(XB, XB_prev)
+                with torch.no_grad(): test_loss = test_loss + self.criterion(B_p, B_prev)
+            else:
+                loss = loss + self.criterion(XB, XA)
+                with torch.no_grad(): test_loss = test_loss + self.criterion(B_p, A)
 
             if self._make_images: powers.append(B_p)
 
         if self.chain == 'last':
             loss = loss + self.criterion(XB, XA)
+            with torch.no_grad(): test_loss = test_loss + self.criterion(B_p, A)
+
+        self.log('test loss', test_loss)
 
         if self._make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)

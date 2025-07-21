@@ -28,7 +28,9 @@ def plot_trajectory(self: "Benchmark", cmap = 'coolwarm', loss_scale:Any = 'syml
     ndim = trajectory.shape[1]
 
     loss = np.asarray(list(self.logger['train loss'].values()))
-    mask = np.isfinite(trajectory).any(axis=1)
+    mask: np.ndarray = np.isfinite(trajectory).any(axis=1) # pyright:ignore[reportAssignmentType]
+    if len(loss) > len(mask): loss = loss[:len(mask)] # this rarely happens on KeyboardInterrupt
+    if len(mask) > len(loss): mask = mask[:len(loss)] # this rarely happens on KeyboardInterrupt
     mask = np.logical_and(mask, np.isfinite(loss))
 
     trajectory = trajectory[mask] # remove nans

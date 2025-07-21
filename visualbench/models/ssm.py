@@ -79,7 +79,7 @@ class ComplexStateSpaceModel(torch.nn.Module):
         self.resample_down = resample_down
 
 
-    def forward(self, u: torch.Tensor, x0: torch.Tensor | None = None) -> (torch.Tensor, torch.Tensor):
+    def forward(self, u: torch.Tensor, x0: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Inputs:
             u: the real input tensor with shape [batch, length, input_size].

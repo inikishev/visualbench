@@ -219,6 +219,7 @@ class FunctionDescent(Benchmark):
         contour_thickness: float = 0.1,
         line_alpha: float = 0.5,
         progress: bool = True,
+        scale: int = 1,
     ):
         import cv2
         bounds = self._get_domain()

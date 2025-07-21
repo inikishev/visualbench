@@ -1,6 +1,7 @@
+from . import data, losses, models
 from .tasks import *
-from . import models, data
-from .utils import totensor, tonumpy
+from .utils import tonumpy, totensor
+
 
 def all_benchmarks():
     from .benchmark import Benchmark
@@ -15,5 +16,3 @@ def all_benchmarks():
 
     subclasses(Benchmark)
     return ", ".join(sorted(names))
-
-from . import losses

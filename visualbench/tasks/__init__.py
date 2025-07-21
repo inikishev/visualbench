@@ -12,6 +12,7 @@ from .hadamard import Hadamard
 from .kato import Kato
 from .lennard_jones_clusters import LennardJonesClusters
 from .linalg import *
+from .minpack2 import HumanHeartDipole, PropaneCombustion
 from .normal_scalar_curvature import NormalScalarCurvature
 from .operations import Sorting
 from .optimal_control import OptimalControl
@@ -26,10 +27,8 @@ from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
     IllConditioned,
-    LogSumExp,
     Quadratic,
     Rosenbrock,
     Sphere,
-    ChebushevRosenbrock,
 )
 from .tsne import TSNE

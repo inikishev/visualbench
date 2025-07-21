@@ -68,6 +68,8 @@ def _check_image(image: np.ndarray | torch.Tensor, name=None) -> np.ndarray | to
         raise ValueError(f"Invalid image {name}, must be 2D or 3D but got shape {image.shape}")
     return image
 
+def _isclose(x, y, tol=2):
+    return y-tol <= x <= y+tol
 
 @torch.no_grad
 def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1, progress=True,):
@@ -83,7 +85,11 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
             if (not self._plot_perturbed) and key.endswith(' (perturbed)'): continue
             images_list = logger_images[key] = list(value.values())
             if len(images_list) != 0: _check_image(images_list[0])
-            assert len(logger_images[key]) == length, f'images must be logged on all steps, "{key}" was logged {len(logger_images[key])} times, expected {length} times'
+            assert _isclose(len(logger_images[key]), length), f'images must be logged on all steps, "{key}" was logged {len(logger_images[key])} times, expected {length} times'
+            while len(logger_images[key]) < length:
+                logger_images[key].append(logger_images[key][-1])
+            while len(logger_images[key]) > length:
+                logger_images[key] = logger_images[key][:-1]
 
         if key in self._image_lowest_keys:
             lowest_images[key] = logger_images[key][0]

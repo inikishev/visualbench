@@ -35,6 +35,7 @@ class StochasticMatrixRecovery(Benchmark):
             self._make_images = True
             A = format.to_CHW(A)
         self.A = nn.Buffer(A)
+        self.min = self.A.min().item(); self.max = self.A.max().item()
         self.B = nn.Parameter(torch.randn_like(self.A))
 
         self.batch_size = batch_size
@@ -68,8 +69,13 @@ class StochasticMatrixRecovery(Benchmark):
         if self.l2 != 0: penalty = penalty + torch.linalg.vector_norm(self.B, ord=2) # pylint:disable=not-callable
         if self.linf != 0: penalty = penalty + torch.linalg.vector_norm(self.B, ord=float('inf')) # pylint:disable=not-callable
 
-        if self._make_images:
-            self.log_image("B", self.B, to_uint8=True, log_difference=True)
+        with torch.no_grad():
+            test_loss = self.criterion(self.B, self.A)
+            self.log('test loss', test_loss + penalty)
+
+            if self._make_images:
+                self.log_image("B", self.B, to_uint8=True, log_difference=True, show_best=True, min=self.min, max=self.max)
+                self.log_image('residual', (self.B - self.A).abs_(), to_uint8=True)
 
         return self.criterion(AX, BX) + penalty
 

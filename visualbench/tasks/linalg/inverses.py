@@ -4,10 +4,13 @@ from ...benchmark import Benchmark
 from ...utils import algebras, to_CHW, to_square, totensor
 
 
+
 class Inverse(Benchmark):
     def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.min = self.A.min(); self.max = self.A.max()
+
         self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
         self.B = torch.nn.Parameter(self.I.clone())
         self.criterion = criterion
@@ -28,13 +31,14 @@ class Inverse(Benchmark):
         loss = loss1+loss2+loss3
 
         if self._make_images:
-            self.log_image('B', self.B, to_uint8=True, log_difference=True)
-            self.log_image('AB', AB, to_uint8=True)
-            self.log_image('BA', BA, to_uint8=True)
-            if self.algebra is None:
-                A_inv_inv = torch.linalg.inv_ex(self.B)[0] # pylint:disable=not-callable
-                self.log_image('B inverse', A_inv_inv, to_uint8=True)
-
+            with torch.no_grad():
+                self.log_image('B', self.B, to_uint8=True, log_difference=True)
+                self.log_image('AB', AB, to_uint8=True)
+                self.log_image('BA', BA, to_uint8=True)
+                if self.algebra is None:
+                    B_inv = torch.linalg.inv_ex(self.B)[0] # pylint:disable=not-callable
+                    self.log_image('B inverse', B_inv, to_uint8=True, show_best=True, min=self.min, max=self.max)
+                    self.log_image('residual', (B_inv - self.A).abs_(), to_uint8=True)
         return loss
 
 
@@ -43,6 +47,9 @@ class StochasticInverse(Benchmark):
     def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, vec=False, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.min = self.A.min().item(); self.max = self.A.max().item()
+
+        self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
         self.B = torch.nn.Parameter(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
         self.vec = vec
         self.batch_size = batch_size
@@ -63,16 +70,32 @@ class StochasticInverse(Benchmark):
         X = self.X
         A = self.A.unsqueeze(0); B = self.B.unsqueeze(0)
 
+        # ------------------------------ stochastic loss ----------------------------- #
         AX = algebras.matmul(A, X, self.algebra)
         X_hat = algebras.matmul(B, AX, self.algebra)
 
         loss = self.criterion(X, X_hat)
 
-        if self._make_images:
-            self.log_image('B', self.B, to_uint8=True, log_difference=True)
-            if self.algebra is None:
-                A_inv_inv = torch.linalg.inv_ex(self.B)[0] # pylint:disable=not-callable
-                self.log_image('B inverse', A_inv_inv, to_uint8=True)
+        with torch.no_grad():
+            # --------------------------------- test loss -------------------------------- #
+            AB = algebras.matmul(self.A, self.B, self.algebra)
+            BA = algebras.matmul(self.B, self.A, self.algebra)
+
+            loss1 = self.criterion(AB, BA)
+            loss2 = self.criterion(AB, self.I)
+            loss3 = self.criterion(BA, self.I)
+            self.log('test loss', loss1+loss2+loss3)
+
+            # ---------------------------------- images ---------------------------------- #
+            if self._make_images:
+                with torch.no_grad():
+                    self.log_image('B', self.B, to_uint8=True, log_difference=True)
+                    self.log_image('AB', AB, to_uint8=True)
+                    self.log_image('BA', BA, to_uint8=True)
+                    if self.algebra is None:
+                        B_inv = torch.linalg.inv_ex(self.B)[0] # pylint:disable=not-callable
+                        self.log_image('B inverse', B_inv, to_uint8=True, show_best=True) # removed min and max due to inexact inverse
+                        self.log_image('residual', (B_inv - self.A).abs_(), to_uint8=True)
 
         return loss
 

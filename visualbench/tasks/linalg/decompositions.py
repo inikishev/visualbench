@@ -34,7 +34,7 @@ class QR(Benchmark):
 
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(format.to_CHW(A))
-
+        self.min, self.max = self.A.min().item(), self.A.max().item()
         self.mode = mode
         self.criterion = criterion
         self.ortho: linalg_utils.OrthoMode = ortho
@@ -72,9 +72,11 @@ class QR(Benchmark):
         loss = self.criterion(QR_, A)
 
         if self._make_images:
-            self.log_image("Q", Q, to_uint8=True, log_difference=True)
-            self.log_image("R", R, to_uint8=True, log_difference=True)
-            self.log_image("QR", QR_, to_uint8=True, show_best=True)
+            with torch.no_grad():
+                self.log_image("Q", Q, to_uint8=True, log_difference=True)
+                self.log_image("R", R, to_uint8=True, log_difference=True)
+                self.log_image("QR", QR_, to_uint8=True, show_best=True, min=self.min, max=self.max)
+                self.log_image("residual", (QR_ - A).abs_(), to_uint8=True)
 
         return loss + penalty
 

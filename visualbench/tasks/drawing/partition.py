@@ -38,7 +38,7 @@ class PartitionDrawer(Benchmark):
 
         # init points
         if points_init == 'random':
-            points_init = torch.rand(self.num_points, 2, device=self.device)
+            points_init = torch.rand(self.num_points, 2, device=self.device, generator=self.rng.torch())
         elif points_init == 'uniform_grid':
             grid_size = int(np.ceil(np.sqrt(num_points)))
             x = torch.linspace(0.05, 0.95, grid_size, device=self.device)
@@ -46,7 +46,7 @@ class PartitionDrawer(Benchmark):
             grid_y, grid_x = torch.meshgrid(y, x, indexing='ij')
             points_init = torch.stack([grid_x.flatten(), grid_y.flatten()], dim=1)
             points_init = points_init[:num_points]
-            points_init += (torch.rand_like(points_init) - 0.5) * (1.0 / grid_size) * 0.5
+            points_init += (torch.rand(points_init.size(), generator=self.rng.torch()) - 0.5) * (1.0 / grid_size) * 0.5
             points_init.clamp_(0, 1)
         else:
             raise ValueError(f"Unknown init_points_strategy: {points_init}")
@@ -54,13 +54,13 @@ class PartitionDrawer(Benchmark):
 
         # init colors
         if colors_init == 'random':
-            colors_init = torch.rand(self.num_points, 3, device=self.device)
+            colors_init = torch.rand(self.num_points, 3, device=self.device, generator=self.rng.torch())
         elif colors_init == 'target_sample':
             points_pixel = (points_init.data.clamp(0, 1) * torch.tensor([self.width - 1, self.height - 1], device=self.device)).round().long()
             points_pixel[:, 0].clamp_(0, self.width - 1)
             points_pixel[:, 1].clamp_(0, self.height - 1)
             colors_init = self.target[points_pixel[:, 1], points_pixel[:, 0]]
-            colors_init += torch.randn_like(colors_init) * 0.01
+            colors_init += torch.randn(colors_init.size(), generator=self.rng.torch()) * 0.01
             colors_init.clamp_(0, 1)
         else:
             raise ValueError(f"Unknown init_colors_strategy: {colors_init}")
@@ -94,5 +94,6 @@ class PartitionDrawer(Benchmark):
         if self._make_images:
             with torch.no_grad():
                 self.log_image('reconstructed', render, to_uint8=True, show_best=True)
+                self.log_image('residual', (render - self.target).abs_(), to_uint8=True)
 
         return loss

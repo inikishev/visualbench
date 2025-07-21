@@ -3,7 +3,7 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Callable, Sequence
 from typing import Any, Literal, final
 
 import numpy as np
@@ -13,10 +13,13 @@ from . import utils
 from .logger import Logger
 from .rng import RNG
 from .utils import _benchmark_utils, plt_tools, python_tools, torch_tools, _benchmark_plotting, _benchmark_video
-
+from .utils.autograd_counter import AutogradCounter
 
 #class StopCondition(BaseException): pass
 class StopCondition(Exception): pass
+
+def _sum_of_squares(x: torch.Tensor):
+    return x.pow(2).sum()
 
 class Benchmark(torch.nn.Module, ABC):
     _IS_BENCHMARK = True # for type checking
@@ -45,6 +48,8 @@ class Benchmark(torch.nn.Module, ABC):
         self._seed: int | None | RNG = seed
         self.bounds: tuple[float, float] | None = bounds
         self._make_images: bool = make_images
+        self._multiobjective = False
+        self._multiobjective_func = _sum_of_squares
 
         self._initial_state_dict = None
 
@@ -72,8 +77,10 @@ class Benchmark(torch.nn.Module, ABC):
         # --------------------------------- trackers --------------------------------- #
         self.num_forwards: int = 0
         self.num_backwards: int = 0
-        # self.num_hvps: int = 0
-        # self.num_jvps: int = 0
+        self.num_extra: int = 0
+
+        self._extra_passes_per_step: int = 0 # anything not counted
+        self._post_step_callbacks: "list[Callable[[Benchmark], Any]]" = [] # runs after each optimizer step
 
         self.num_steps: int = 0
         self.num_epochs: int = 0
@@ -118,12 +125,18 @@ class Benchmark(torch.nn.Module, ABC):
     def dtype(self): return next(iter(self.parameters())).dtype
 
     @property
-    def num_passes(self) -> int: return sum([self.num_forwards, self.num_backwards])
+    def num_passes(self) -> int:
+        return sum([self.num_forwards, self.num_backwards, self.num_extra])
 
     @property
     def seconds_passed(self):
         if self.start_time is None: return None
         return self._current_time - self.start_time
+
+    @property
+    def ndim(self):
+        """number of learnable parameters"""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
     def set_noise(self, p: float | None = None, g: float | None = None):
         if p is not None: self._param_noise_alpha = p
@@ -155,6 +168,14 @@ class Benchmark(torch.nn.Module, ABC):
         self._make_images = not enable
         return self
 
+    def set_multiobjective(self, multiobjective: bool = True):
+        self._multiobjective = multiobjective
+        return self
+
+    def set_multiobjective_func(self, func = _sum_of_squares):
+        self._multiobjective_func = func
+        return self
+
     @torch.no_grad
     def add_reference_image(self, name: str, image, to_uint8: bool, min: float | None = None, max: float | None = None):
         """Add an image to be always displayed, for example the target image for image reconstruction.
@@ -180,7 +201,7 @@ class Benchmark(torch.nn.Module, ABC):
     def log(self, metric: str, value: Any, plot: bool = True):
         """
         Log `value` under `metric` key.
-        Either "train " or "test " prefix will be added to "metric" automatically but it can be specified manually too.
+        Either "train " or "test " prefix will be added to "metric" automatically unless it is specified manually.
 
         Note that if value is a scalar (single element tensor, array or python number),
         test value is calculated as mean of values obtained during test epoch.
@@ -300,18 +321,23 @@ class Benchmark(torch.nn.Module, ABC):
             if self._is_perturbed: _benchmark_utils._add_param_noise_(self, sub=False)
 
         # get loss and log it
-        with torch.enable_grad(): loss = self.get_loss()
+        with torch.enable_grad():
+            ret = self.get_loss()
+            if ret.numel() > 1: loss = self._multiobjective_func(ret)
+            else: loss = ret
+
         cpu_loss = utils.format.tofloat(loss)
         self.log('loss', cpu_loss)
 
         if self._is_perturbed:
             _benchmark_utils._add_param_noise_(self, sub=True)
+            if self._multiobjective: return ret
             return loss
 
         if self.training:
             self._last_train_loss = cpu_loss
 
-            # start timer right after forward pass before 3rd optimizer step to let things compile and warn up.
+            # start timer right after forward pass before 3rd optimizer step to let things compile and warm up.
             # plus it runs the 1st test epoch
             if self.num_forwards == 2:
                 self.start_time = time.time()
@@ -319,6 +345,7 @@ class Benchmark(torch.nn.Module, ABC):
         else:
             self._last_test_loss = cpu_loss
 
+        if self._multiobjective: return ret
         return loss
 
     @torch.no_grad
@@ -380,6 +407,8 @@ class Benchmark(torch.nn.Module, ABC):
 
             optimizer.step(self.closure)
             self.num_steps += 1
+            self.num_extra += self._extra_passes_per_step
+            for cb in self._post_step_callbacks: cb(self)
             self._is_perturbed = False
 
         else:
@@ -424,13 +453,25 @@ class Benchmark(torch.nn.Module, ABC):
         test_every_epochs: int | None = None,
         test_every_seconds: float | None = None,
         target_loss: int | None = None,
+
+        # stuff
+        num_extra_passes: int | Callable[[int], int] = 0,
+        step_callbacks: "Callable[[Benchmark], Any] | Sequence[Callable[[Benchmark], Any]] | None" = None,
     ):
-        _benchmark_utils._set_stop_criteria_(self, max_passes=max_passes,max_forwards=max_forwards,max_steps=max_steps,
-                                             max_epochs=max_epochs,max_seconds=max_seconds,target_loss=target_loss)
+        self._max_passes = max_passes; self._max_forwards = max_forwards
+        self._max_steps = max_steps; self._max_epochs = max_epochs
+        self._max_seconds = max_seconds; self._target_loss = target_loss
+        self._extra_passes_per_step = num_extra_passes if isinstance(num_extra_passes, int) else num_extra_passes(self.ndim)
+        _benchmark_utils._ensure_stop_criteria_exists_(self)
 
-        _benchmark_utils._set_test_intervals_(self, test_every_forwards=test_every_forwards, test_every_batches=test_every_batches,
-                                             test_every_epochs=test_every_epochs, test_every_seconds=test_every_seconds)
+        if callable(step_callbacks): step_callbacks = [step_callbacks, ]
+        if step_callbacks is None: step_callbacks = []
+        self._post_step_callbacks = list(step_callbacks)
 
+        self._test_every_forwards = test_every_forwards; self._test_every_steps = test_every_batches
+        self._test_every_epochs = test_every_epochs; self._test_every_seconds = test_every_seconds
+
+        # make sure to store initial state dict
         if self._initial_state_dict is None:
             _benchmark_utils._update_noise_(self)
             self._initial_state_dict = torch_tools.copy_state_dict(self.state_dict(), device='cpu')
@@ -441,8 +482,7 @@ class Benchmark(torch.nn.Module, ABC):
             for _ in range(max_epochs) if max_epochs is not None else itertools.count():
                 self.train_epoch(optimizer)
 
-        except (StopCondition, KeyboardInterrupt):# pass
-        # finally:
+        except (StopCondition, KeyboardInterrupt):
             if self._dltest is not None: self.test_epoch()
             if self._print_interval_s: _benchmark_utils._print_final_report(self)
 
@@ -478,6 +518,5 @@ class Benchmark(torch.nn.Module, ABC):
 
     def render(self, file: str, fps: int = 60, scale: int | float = 1, progress=True):
         _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress)
-
 
 

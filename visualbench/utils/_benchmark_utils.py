@@ -164,20 +164,6 @@ def _ensure_stop_criteria_exists_(self) -> None:
     if all(i is None for i in criteria): warnings.warn("No stopping criteria specified, benchmark will run forever!")
 
 
-def _set_stop_criteria_(self: "Benchmark", max_passes: int | None, max_forwards: int | None, max_steps: int | None,
-                        max_epochs: int | None, max_seconds: float | None, target_loss: int | None) -> None:
-    """sets all stop criteria and ensures some criteria is specified"""
-    self._max_passes = max_passes; self._max_forwards = max_forwards
-    self._max_steps = max_steps; self._max_epochs = max_epochs
-    self._max_seconds = max_seconds; self._target_loss = target_loss
-    _ensure_stop_criteria_exists_(self)
-
-def _set_test_intervals_(self: "Benchmark", test_every_forwards: int | None,test_every_batches: int | None,test_every_epochs: int | None,test_every_seconds: float | None) -> None:
-    self._test_every_forwards = test_every_forwards
-    self._test_every_steps = test_every_batches
-    self._test_every_epochs = test_every_epochs
-    self._test_every_seconds = test_every_seconds
-
 
 def _should_stop(self: "Benchmark") -> str | None:
     """returns True if any stopping criteria is satisfied"""

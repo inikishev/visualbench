@@ -33,6 +33,7 @@ class LeastSquares(Benchmark):
             self._make_images = True
             A = to_CHW(A)
         self.A = nn.Buffer(A)
+        self.min, self.max = self.A.min().item(), self.A.max().item()
         *b, m, n = self.A.shape
 
         if isinstance(B, int): B = torch.randn(B, generator=generator)
@@ -72,8 +73,11 @@ class LeastSquares(Benchmark):
         if self.linf != 0: penalty = penalty + torch.linalg.vector_norm(self.X, ord=float('inf')) # pylint:disable=not-callable
 
         if self._make_images:
-            self.log_image("X", self.X, to_uint8=True, log_difference=True)
-            if self.k is not None: self.log_image("AX", AX, to_uint8=True, show_best=True)
+            with torch.no_grad():
+                self.log_image("X", self.X, to_uint8=True, log_difference=True)
+                if self.k is not None:
+                    self.log_image("AX", AX, to_uint8=True, show_best=True, min=self.min, max=self.max)
+                    self.log_image("residual", (AX - self.B).abs_(), to_uint8=True)
 
         return self.criterion(AX, self.B) + penalty
 

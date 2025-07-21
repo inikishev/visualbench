@@ -17,15 +17,25 @@ if TYPE_CHECKING:
     from ..logger import Logger
     from ..runs.run import Run, Sweep, Task
 
-REFERENCE_OPTS = ("SGD", "NAG", "Adagrad", "RMSprop", "Adam", "AdamW", "L-BFGS", "BFGS", "Newton")
+REFERENCE_OPTS = ("SGD", "NAG", "Adagrad", "RMSprop", "Adam", "AdamW", "L-BFGS", "BFGS-Backtracking", "Newton")
 
 _YSCALES: dict[str, Any] = {
     # ML
-    "ML - Graph layout optimization": "log",
-    "ML - Style Transfer": "log",
-    "ML - Olivetti Faces - Logistic Regression": dict(value='symlog', linthresh=1e-12),
+    "ML - Olivetti Faces FB - Logistic Regression": dict(value='symlog', linthresh=1e-12),
     "ML - Friedman 1 - Linear Regression - L1": "log",
     "ML - MNIST-1D FB - NeuralODE": "log",
+    "ML - Wave PDE - TinyFLS": "log",
+    "ML - Wave PDE - FLS": "log",
+
+    # 2D
+    # "2D - booth": "symlog",
+    # "2D - ill": "symlog",
+    "2D - star": "log",
+    # "2D - rosenbrock": "symlog",
+    "2D - rosenbrock abs": "log",
+    "2D - spiral": "log",
+    "2D - illppc": "log",
+    "2D - oscillating": "log",
 
     # Losses
     "ML - Friedman 1 - Linear Regression - L-Infinity": "log",
@@ -33,32 +43,49 @@ _YSCALES: dict[str, Any] = {
     "ML - Friedman 1 - Linear Regression - Median": "log",
     "ML - Friedman 1 - Linear Regression - Quartic": "log",
 
-
     # Synthetic
     "S - Ill conditioned quadratic": dict(value='symlog', linthresh=1e-12),
-    "S - Colorization": dict(value='symlog', linthresh=1e-12),
-    "S - Colorization (2nd order)": dict(value='symlog', linthresh=1e-12),
     "S - Rosenbrock": "log",
     "S - LogSumExp": "log",
+    "S - Least Squares": "log",
     "S - Inverse - L1": "log",
-    "S - Inverse - L2": "log",
+    "S - Inverse - MSE": "log",
     "S - Matrix idempotent": "log",
-    "S - Normal scalar curvature": "log",
-    "S - Kato problem": "log",
+    "S - Tropical QR - L1": "log",
+    "S - Tropical QR - MSE": "log",
 
     # synthetic stochastic
     "SS - Stochastic inverse - L1": "log",
-    "SS - Stochastic inverse - L2": "log",
-    "SS - Stochastic matrix recovery": "log",
+    "SS - Stochastic inverse - MSE": "log",
+    "SS - Stochastic matrix root - L1": "log",
+    "SS - Stochastic matrix root - MSE": "log",
+    "SS - Stochastic matrix recovery - L1": "log",
+    "SS - Stochastic matrix recovery - MSE": "log",
+
+
+    # visual
+    "Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ELU": "log",
+    "Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ReLU+bn": "log",
+    "Visual - PartitionDrawer": "log",
+    "Visual - Moons BS-16 - MLP(2-2-2-2-2-2-2-2-1)-ELU": "log",
+    "Visual - Colorization": dict(value='symlog', linthresh=1e-12),
+    "Visual - Colorization (2nd order)": dict(value='symlog', linthresh=1e-12),
+    "Visual - Graph layout optimization": "log",
+    "Visual - Style Transfer": "log",
+
+    # real
+    "Real - Human heart dipole": "log",
+    "Real - Propane combustion": "log",
 }
 
 _TRAIN_SMOOTHING: dict[str, float] = {
     "SS - Stochastic inverse - L1": 2,
-    "SS - Stochastic inverse - L2": 2,
+    "SS - Stochastic inverse - MSE": 2,
+    "SS - Stochastic matrix recovery - L1": 2,
+    "SS - Stochastic matrix recovery - MSE": 2,
     "SS - Stochastic matrix idempotent": 2,
     "SS - Stochastic matrix idempotent (hard)": 2,
-    "SS - Stochastic matrix recovery": 2,
-    "MLS - Covertype - Online Logistic Regression": 2
+    "MLS - Covertype Online - Logistic Regression": 2
 }
 
 
@@ -72,10 +99,11 @@ def _maybe_format_number(x):
     if isinstance(x, (int,float)): return format_number(x, 3)
     return x
 
-def _make_label(run: "Run", best_value: float, hyperparams: Sequence[str] | None):
+def _make_label(run: "Run", best_value: float, hyperparams: str | Sequence[str] | None):
     name = run.run_name
     assert name is not None
-    if hyperparams is None: return name
+    if hyperparams is None: return f"{name}: {format_number(best_value, 5)}"
+    if isinstance(hyperparams, str): hyperparams = [hyperparams, ]
 
     for h in hyperparams:
         if h in run.hyperparams:
@@ -124,7 +152,6 @@ def _xaxis_settings_(ax:Axes, yscale: Yscale):
 
     return ax
 
-
 def plot_train_test_values(
     sweep: "Sweep",
     yscale: Yscale = None,
@@ -150,15 +177,15 @@ def plot_train_test_values(
     _set_yscale_(ax, yscale)
 
     # ---------------------------- plot ---------------------------- #
-    ax.plot(bte_train_steps, bte_train_values, label=f"te - train: {format_number(bte_train_values.min(), 5)}", c='darkgreen', lw=0.5, alpha=0.5)
+    ax.plot(bte_train_steps, bte_train_values, label=f"te - train: {format_number(np.nanmin(bte_train_values), 5)}", c='darkgreen', lw=0.5, alpha=0.5)
 
     if best_train != best_test:
-        ax.plot(btr_train_steps, btr_train_values, label=f"tr - train: {format_number(btr_train_values.min(), 5)}", c='darkred', lw=0.5, alpha=0.5)
+        ax.plot(btr_train_steps, btr_train_values, label=f"tr - train: {format_number(np.nanmin(btr_train_values), 5)}", c='darkred', lw=0.5, alpha=0.5)
 
-    ax.plot(bte_test_steps, bte_test_values, label=f"te - test: {format_number(bte_test_values.min(), 5)}", c='lime', lw=1.0, alpha=0.5)
+    ax.plot(bte_test_steps, bte_test_values, label=f"te - test: {format_number(np.nanmin(bte_test_values), 5)}", c='lime', lw=1.0, alpha=0.5)
 
     if best_train != best_test:
-        ax.plot(btr_test_steps, btr_test_values, label=f"tr - test: {format_number(btr_test_values.min(), 5)}", c='red', lw=1.0, alpha=0.5)
+        ax.plot(btr_test_steps, btr_test_values, label=f"tr - test: {format_number(np.nanmin(btr_test_values), 5)}", c='red', lw=1.0, alpha=0.5)
 
 
     # ------------------------------- axes and grid ------------------------------ #
@@ -171,12 +198,25 @@ def plot_train_test_values(
     return ax
 
 
+def _find_different(*d:dict):
+    if len(d) == 0: return None
+    if len(d) == 1: return _get_1st_key(d[0])
+    d0 = d[0]
+    d1 = d[1]
+    for k, v0 in d0.items():
+        v1 = d1[k]
+        if v0 != v1: return k
+    return _get_1st_key(d[0])
+
+def _get_1st_key(d: dict):
+    if len(d) == 0: return None
+    return next(iter(d.keys()))
+
 def _plot_metric(
     ax: Axes,
     runs: "Sequence[Run]",
     metric: str,
     maximize: bool,
-    hyperparams: Sequence[str] | None,
     smoothing: float,
     colors: Sequence,
     **plot_kwargs,
@@ -188,10 +228,10 @@ def _plot_metric(
 
     for r,c in zip(runs,colors):
         steps, values = _load_steps_values(r.load_logger(), metric)
-        best = values.max() if maximize else values.min()
+        best = np.nanmax(values) if maximize else np.nanmin(values)
 
         if smoothing != 0: values = gaussian_filter1d(values, smoothing, mode='nearest')
-        ax.plot(steps, values, label=_make_label(r, best, hyperparams), c=c, **plot_kwargs)
+        ax.plot(steps, values, label=_make_label(r, best, _get_1st_key(r.hyperparams)), c=c, **plot_kwargs)
 
     return ax
 
@@ -202,7 +242,6 @@ def plot_values(
     main: str | Sequence[str] | None,
     references: str | Sequence[str] | None,
     n_best: int,
-    hyperparams: str | Sequence[str] | None,
     yscale = None,
     smoothing: float = 0,
     ax: Axes | None = None
@@ -214,8 +253,6 @@ def plot_values(
 
     if references is None: references = []
     if isinstance(references, str): references = [references]
-
-    if isinstance(hyperparams, str): hyperparams = [hyperparams]
 
     # --------------------------------- load runs -------------------------------- #
     main_runs = [task[r].best_runs(metric, maximize, 1)[0] for r in main]
@@ -233,9 +270,9 @@ def plot_values(
     _set_yscale_(ax, yscale)
 
     # ----------------------------------- plot ----------------------------------- #
-    _plot_metric(ax, reference_runs, metric, maximize, hyperparams, smoothing, _COLORS_REFERENCES, lw=0.5)
-    _plot_metric(ax, best_runs, metric, maximize, hyperparams, smoothing, _COLORS_BEST, lw=0.5)
-    _plot_metric(ax, main_runs, metric, maximize, hyperparams, smoothing, _COLORS_MAIN)
+    _plot_metric(ax, reference_runs, metric, maximize, smoothing, _COLORS_REFERENCES, lw=0.5)
+    _plot_metric(ax, best_runs, metric, maximize, smoothing, _COLORS_BEST, lw=0.5)
+    _plot_metric(ax, main_runs, metric, maximize, smoothing, _COLORS_MAIN)
 
     name = task.task_name
     if len(main) == 1: name = f'{main[0]} - {name}'
@@ -254,7 +291,6 @@ def _plot_sweep(
     sweeps: "list[Sweep]",
     metric: str,
     maximize: bool,
-    hyperparam: str,
     colors: Sequence,
     lw,
     marker_size,
@@ -268,6 +304,8 @@ def _plot_sweep(
         if len(s) == 1:
             ax.axhline(s[0].stats[metric][key], c=c, lw=lw, ls='--', label=s.run_name)
         else:
+            hyperparam = _find_different(*(r.hyperparams for r in s))
+            if hyperparam is None: continue
             values = [(run.hyperparams[hyperparam], run.stats[metric][key]) for run in s]
             values.sort(key=lambda x: x[0])
             ax.plot(*zip(*values), label=s.run_name, c=c, lw=lw)
@@ -302,7 +340,6 @@ def plot_sweeps(
     task: "Task",
     metric: str,
     maximize: bool,
-    hyperparam: str,
     main: str | Sequence[str] | None,
     references: str | Sequence[str] | None,
     n_best: int,
@@ -336,16 +373,16 @@ def plot_sweeps(
     reference_sweeps = [task[r] for r in references if r in task and task[r].run_name not in names]
 
     # ----------------------------------- plot ----------------------------------- #
-    _plot_sweep(ax, reference_sweeps, metric, maximize, hyperparam, _COLORS_REFERENCES, 0.5, 5)
-    _plot_sweep(ax, best_sweeps,  metric, maximize, hyperparam, _COLORS_BEST, 0.5, 5)
-    _plot_sweep(ax, main_sweeps, metric, maximize, hyperparam, _COLORS_MAIN, 1., 10)
+    _plot_sweep(ax, reference_sweeps, metric, maximize, _COLORS_REFERENCES, 0.5, 5)
+    _plot_sweep(ax, best_sweeps,  metric, maximize, _COLORS_BEST, 0.5, 5)
+    _plot_sweep(ax, main_sweeps, metric, maximize, _COLORS_MAIN, 1., 10)
 
     # -------------------------------- ax settings ------------------------------- #
     name = task.task_name
     if len(main) == 1: name = f'{main[0]} - {name}'
     if name is not None: ax.set_title(name)
     ax.set_ylabel(metric)
-    ax.set_xlabel(hyperparam)
+    ax.set_xlabel("hyperparameter")
     legend_(ax)
     _sweep_xyaxes(ax, xscale, yscale)
 
@@ -353,13 +390,14 @@ def plot_sweeps(
 
 def plot_train_test_sweep(
     sweep: "Sweep",
-    hyperparam: str,
     xscale: Any = 'log',
     yscale: Yscale = None,
     ax: Axes | None = None,
 ):
+
     if ax is None: ax = plt.gca()
     if len(sweep) == 0: return ax
+
 
     # ---------------------------- determine y limits ---------------------------- #
     best_run = sweep.best_runs('test loss', False, 1)[0]
@@ -371,11 +409,14 @@ def plot_train_test_sweep(
     _set_yscale_(ax, yscale)
 
     # -------------------------------- plot -------------------------------- #
+    hyperparam = None
     if len(sweep) == 1:
         ax.axhline(sweep[0].stats['train loss']['min'], c='red', lw=0.5, ls='--', label='train loss')
         ax.axhline(sweep[0].stats['test loss']['min'], c='blue', lw=1.5, ls='--', label='test loss')
 
     else:
+        hyperparam = _find_different(*(r.hyperparams for r in sweep))
+        if hyperparam is None: return ax
         train_values = [(run.hyperparams[hyperparam], run.stats['train loss']['min']) for run in sweep]
         test_values = [(run.hyperparams[hyperparam], run.stats['test loss']['min']) for run in sweep]
 
@@ -391,7 +432,7 @@ def plot_train_test_sweep(
     # -------------------------------- ax settings ------------------------------- #
     ax.set_title(f'{sweep.run_name} - {sweep.task_name}')
     ax.set_ylabel('loss')
-    ax.set_xlabel(hyperparam)
+    if hyperparam is not None: ax.set_xlabel(hyperparam)
     legend_(ax)
     _sweep_xyaxes(ax, xscale, yscale)
 
@@ -403,7 +444,6 @@ def render_summary(
     root:str,
     fname: str,
     main: str | Sequence[str] | None,
-    hyperparams: str | Sequence[str] | None,
     n_best: int = 1,
     references: str | Sequence[str] | None = REFERENCE_OPTS,
 
@@ -416,8 +456,6 @@ def render_summary(
 
     if references is None: references = []
     if isinstance(references, str): references = [references]
-
-    if isinstance(hyperparams, str): hyperparams = [hyperparams]
 
     decoder = msgspec.msgpack.Decoder()
 
@@ -459,7 +497,6 @@ def render_summary(
 
 
     # --------------------------------- make axes -------------------------------- #
-    if hyperparams is None: nrows = int(nrows / 2)
     axes = make_axes(n=nrows*2, ncols=2, nrows=nrows, axsize=axsize, dpi=dpi)
     axes_iter = iter(axes)
 
@@ -480,9 +517,8 @@ def render_summary(
             plot_train_test_values(sweep, yscale, ax)
 
             # plot train/test sweep of current opt
-            if hyperparams is not None:
-                ax = next(axes_iter)
-                plot_train_test_sweep(sweep, hyperparams[0], xscale='log', yscale=yscale, ax=ax)
+            ax = next(axes_iter)
+            plot_train_test_sweep(sweep, xscale='log', yscale=yscale, ax=ax)
 
         # plot all metrics
         for metric, maximize in task.target_metrics.items():
@@ -490,12 +526,11 @@ def render_summary(
             ax = next(axes_iter)
             smoothing = 0
             if metric == 'train loss': smoothing = _TRAIN_SMOOTHING.get(task.task_name, 0)
-            plot_values(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, hyperparams=hyperparams, yscale=yscale, smoothing=smoothing, ax=ax)
+            plot_values(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, yscale=yscale, smoothing=smoothing, ax=ax)
 
             # plot sweep
-            if hyperparams is not None:
-                ax = next(axes_iter)
-                plot_sweeps(task, metric=metric, maximize=maximize, hyperparam=hyperparams[0], main=main, references=references, n_best=n_best, xscale='log', yscale=yscale, ax=ax)
+            ax = next(axes_iter)
+            plot_sweeps(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, xscale='log', yscale=yscale, ax=ax)
 
     # ---------------------------------- save ts --------------------------------- #
     # for fn in queue: fn()
@@ -511,11 +546,11 @@ def _clean_empty(root):
             else:
                 _clean_empty(path)
 
+
 def render_summary_v2(
     root:str,
     dirname: str,
     main: str | Sequence[str] | None,
-    hyperparams: str | Sequence[str] | None,
     n_best: int = 1,
     references: str | Sequence[str] | None = REFERENCE_OPTS,
 
@@ -528,8 +563,6 @@ def render_summary_v2(
 
     if references is None: references = []
     if isinstance(references, str): references = [references]
-
-    if isinstance(hyperparams, str): hyperparams = [hyperparams]
 
     decoder = msgspec.msgpack.Decoder()
 
@@ -574,9 +607,8 @@ def render_summary_v2(
                 plot_train_test_values(sweep, yscale, ax)
 
                 # plot train/test sweep of current opt
-                if hyperparams is not None:
-                    ax = next(axes_iter)
-                    plot_train_test_sweep(sweep, hyperparams[0], xscale='log', yscale=yscale, ax=ax)
+                ax = next(axes_iter)
+                plot_train_test_sweep(sweep, xscale='log', yscale=yscale, ax=ax)
 
             # plot all metrics
             for metric, maximize in task.target_metrics.items():
@@ -584,12 +616,11 @@ def render_summary_v2(
                 ax = next(axes_iter)
                 smoothing = 0
                 if metric == 'train loss': smoothing = _TRAIN_SMOOTHING.get(task.task_name, 0)
-                plot_values(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, hyperparams=hyperparams, yscale=yscale, smoothing=smoothing, ax=ax)
+                plot_values(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, yscale=yscale, smoothing=smoothing, ax=ax)
 
                 # plot sweep
-                if hyperparams is not None:
-                    ax = next(axes_iter)
-                    plot_sweeps(task, metric=metric, maximize=maximize, hyperparam=hyperparams[0], main=main, references=references, n_best=n_best, xscale='log', yscale=yscale, ax=ax)
+                ax = next(axes_iter)
+                plot_sweeps(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, xscale='log', yscale=yscale, ax=ax)
 
             # ---------------------------------- save ts --------------------------------- #
             # for fn in queue: fn()

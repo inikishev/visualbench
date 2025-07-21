@@ -31,8 +31,8 @@ class LinesDrawer(Benchmark):
         per_line_thickness: bool = False,
         initial_line_thickness: float = 1.5,
         thinkness_penalty_weight: float = 0.01,
-        min_log_sigma = 0,
-        init_range: float = 0.1,
+        min_log_sigma:float = 0.,
+        init_range: float = 2,
     ):
         super().__init__()
 
@@ -52,7 +52,8 @@ class LinesDrawer(Benchmark):
         self.raw_start_points = nn.Parameter(torch.rand(num_lines, 2, generator=self.rng.torch()) * 2 * init_range - init_range)
         self.raw_end_points = nn.Parameter(torch.rand(num_lines, 2, generator=self.rng.torch()) * 2 * init_range - init_range)
         # raw colors
-        self.raw_colors = nn.Parameter(torch.randn(num_lines, 3, generator=self.rng.torch()) * 0.5)
+        #self.raw_colors = nn.Parameter(torch.randn(num_lines, 3, generator=self.rng.torch()) * 0)
+        self.raw_colors = nn.Parameter(torch.full((num_lines, 3), -2, dtype=torch.float32))
         # sigmas
         if self.per_line_thickness:
             self.log_sigmas = nn.Parameter(torch.full((num_lines,), math.log(initial_line_thickness)))
@@ -130,7 +131,7 @@ class LinesDrawer(Benchmark):
         if self._make_images:
             with torch.no_grad():
                 img = rendered_image.detach() * 255
-                self.log_image('reconstructed', img.cpu().to(torch.uint8), to_uint8=False, log_difference=False, show_best=True)
-
+                self.log_image('reconstructed', img.cpu().to(torch.uint8), to_uint8=False, show_best=True)
+                self.log_image('residual', ((rendered_image - target_image).abs_() * 255).cpu().to(torch.uint8), to_uint8=False)
         return loss
 

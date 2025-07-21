@@ -333,6 +333,7 @@ class Search:
         if load_existing and self.sweep_path is not None:
             sweep = Sweep.load(self.sweep_path, load_loggers=False, decoder=None)
             for run in sweep:
+                self.runs.append(run)
                 hyperparams = frozenset(run.hyperparams.items())
                 self.existing_runs[hyperparams] = []
                 for metric, maximize in metrics.items():

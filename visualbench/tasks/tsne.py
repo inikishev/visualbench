@@ -65,15 +65,14 @@ def _calculate_P(X: torch.Tensor, perplexity: float) -> torch.Tensor:
 class TSNE(Benchmark):
     """
     Args:
-        inputs (torch.Tensor): The high-dimensional data, shape (n_samples, n_features).
-        targets (Optional[Union[torch.Tensor, np.ndarray]]):
+        inputs (torch.Tensor | np.ndarray | Any): The high-dimensional data, shape (n_samples, n_features).
+        targets (torch.Tensor | np.ndarray | Any | None):
             Labels for visualization. Can be integer class labels or float regression targets.
         n_components (int): Dimensionality of the embedded space (usually 2).
         perplexity (float): The perplexity is related to the number of nearest neighbors
                             that is taken into account for each point.
         exaggeration_factor (float): Factor to multiply P by during early optimization.
         exaggeration_iters (int): The iteration number to stop early exaggeration.
-        device (Optional[str]): The device to run computations on ('cpu' or 'cuda').
     """
     def __init__(
         self,

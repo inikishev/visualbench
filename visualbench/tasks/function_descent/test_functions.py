@@ -205,12 +205,12 @@ class PowSum(TestFunction):
         self._x0 = x0
 
     def objective(self, x, y):
-        x = x ** self.xpow
-        y = y ** self.ypow
-
         if self.abs:
             x = torch.abs(x)
             y = torch.abs(y)
+
+        x = x ** self.xpow
+        y = y ** self.ypow
 
         res = (x + y) * self.cross_add + (x * y * self.cross_mul)
         return res ** self.post_pow
@@ -450,7 +450,7 @@ class DipoleField(TestFunction):
         return term1 + term2 + 0.1*(x**2 + y**2)
 
 
-    def x0(self): return (0., 1.)
+    def x0(self): return (0.3, 1.8)
     def domain(self): return (-2, 2, -2, 2)
     def minima(self): return None
 dipole_field = DipoleField().register('dipole_field', 'dipole')
@@ -633,7 +633,7 @@ class Around(TestFunction):
     def domain(self): return (-20, 10, -15, 15)
     def minima(self): return None
 
-around = Around().register('around')
+around = Around().value_tfm(lambda x: x+1.6).register('around')
 
 
 class Tanh(TestFunction):
@@ -864,3 +864,36 @@ class Switchback(TestFunction):
 
 switchback = Switchback().register('switchback', 'switch')
 
+
+class Oscillating(TestFunction):
+    def __init__(self, a=1, b=8*torch.pi, c=1e-2, d=100.0):
+        """
+        Args:
+            a (float): The constant amplitude of the oscillation.
+            b (float): Controls the frequency of the oscillation.
+            c (float): Controls the steepness of the valley floor, guiding towards x=0.
+            d (float): Controls the height of the barrier for x <= 0.
+        """
+        super().__init__()
+        self.a = a
+        self.b = b
+        self.c = c
+        self.d = d
+        self.epsilon = 1e-9
+
+    def x0(self): return (-2.6, -0.1)
+    def domain(self): return (-3,0.025,-1.5,1.5)
+    def minima(self): return (0,0)
+
+    def objective(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        x = -x # left to right
+        mask = x > 0
+        angle = self.b / (x + self.epsilon)
+        path_y = self.a * torch.sin(angle)
+        term1_pos = (y - path_y)**2
+        term2_pos = self.c * x**2
+        val_pos = term1_pos + term2_pos
+        val_neg = self.d * x**2 + y**2
+        return torch.where(mask, val_pos, val_neg)
+
+oscillating = Oscillating().shifted(1, -2).register('oscillating', 'osc')

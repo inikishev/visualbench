@@ -4,16 +4,24 @@ import numpy as np
 import torch
 from torch.nn import functional as F
 
-from ..utils import to_3HW
+from ..utils import to_3HW, normalize
 from ..utils.image import _imread
 _path = os.path.dirname(__file__)
 
 QRCODE96 = os.path.join(_path, 'qr-96.jpg')
 ATTNGRAD96 = os.path.join(_path, 'attngrad-96.png')
 SANIC96 = os.path.join(_path, 'sanic-96.jpg')
+FROG96 = os.path.join(_path, 'frog-96.png')
+WEEVIL96 = os.path.join(_path, 'weevil-96.png')
 TEST96 = os.path.join(_path, 'test-96.jpg')
 MAZE96 = os.path.join(_path, 'maze-96.png')
 TEXT96 = os.path.join(_path, 'text-96.png')
+GEOM96 = os.path.join(_path, 'geometry-96.png')
+RUBIC96 = os.path.join(_path, 'rubic-96.png')
+SPIRAL96 = os.path.join(_path, 'spiral-96.png')
+BIANG96 = os.path.join(_path, 'biang-96.png')
+EMOJIS96 = os.path.join(_path, 'emojis-96.png')
+GRID96 = os.path.join(_path, 'grid-96.png')
 
 def get_qrcode():
     qrcode = to_3HW(_imread(QRCODE96).float()).mean(0)
@@ -22,6 +30,18 @@ def get_qrcode():
 def get_maze():
     qrcode = to_3HW(_imread(MAZE96).float()).mean(0)
     return torch.where(qrcode > 128, 1, 0).float().contiguous()
+
+def get_grid():
+    grid = to_3HW(_imread(GRID96).float()).mean(0)
+    return torch.where(grid > 128, 1, 0).float().contiguous()
+
+def get_text():
+    qrcode = to_3HW(_imread(TEXT96).float()).mean(0)
+    return normalize(qrcode.float().contiguous(), 0, 1)
+
+def get_biang():
+    biang = to_3HW(_imread(BIANG96).float()).mean(0)
+    return normalize(biang.float().contiguous(), 0, 1)
 
 def get_randn(size:int = 64):
     return torch.randn(size, size, generator = torch.Generator('cpu').manual_seed(0))
