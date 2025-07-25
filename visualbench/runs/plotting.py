@@ -566,7 +566,7 @@ def render_summary(
 
             n_metrics = len(task.target_metrics)
             nrows = n_metrics + has_test
-            axes = make_axes(n=nrows*2+n_metrics, nrows=nrows, ncols=2, axsize=axsize, dpi=dpi)
+            axes = make_axes(n=nrows*2+n_metrics, nrows=nrows+1, ncols=2, axsize=axsize, dpi=dpi)
             axes_iter = iter(axes)
 
             if has_test:
