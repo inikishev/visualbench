@@ -3,7 +3,7 @@ from typing import Any
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from PIL import Image, ImageDraw
 from sklearn.datasets import make_blobs
 
@@ -33,6 +33,11 @@ def _default_X(n_samples: int, n_components: int, n_features: int, seed: int | N
 
 
 class GaussianMixtureNLL(Benchmark):
+    """Fitting a gaussian mixture.
+
+    Renders:
+        ellipsoids corresponding to 95% confidence interval. If X has more than 2 features, renders in a pre-computed PCA projection.
+    """
     blobs = staticmethod(_default_X)
     def __init__(self, X: Any, n_components: int, eps: float = 1e-6, resolution:int|tuple[int,int]=(384,384), padding = 40):
         super().__init__()

@@ -195,7 +195,16 @@ def _make_frame(frame_size, heights, autoconv_values, max_val, max_idx, knots_t,
 
 
 class AlphaEvolveB1(Benchmark):
-    """Largely based on https://github.com/damek/alpha_evolve_problem_B1"""
+    """Alpha Evolve's B1 problem.
+
+    The objective is to minimize maximum value of autoconvolution of a vector with positive values and of a fixed norm.
+    The lowest known value is something like 1.502.
+
+    Renders:
+        The vector at the top and the autoconvolution at the bottom.
+        The vector also shows another vector shifted by the largest index, although a bit janky.
+
+    Code is based on https://github.com/damek/alpha_evolve_problem_B1."""
     def __init__(self, P=600, frame_size=(960, 540)):
         super().__init__()
 

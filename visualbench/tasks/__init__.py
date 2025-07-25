@@ -4,7 +4,8 @@ from .colorization import Colorization
 from .covering import RigidBoxCovering
 from .datasets import *
 from .drawing import LinesDrawer, NeuralDrawer, PartitionDrawer, RectanglesDrawer
-from .function_descent import FunctionDescent, test_functions
+from .function_approximator import FunctionApproximator
+from .function_descent import FunctionDescent, test_functions, SimultaneousFunctionDescent
 from .gmm import GaussianMixtureNLL
 from .graph_layout import GraphLayout
 from .guassian_processes import GaussianProcesses
@@ -13,6 +14,7 @@ from .kato import Kato
 from .lennard_jones_clusters import LennardJonesClusters
 from .linalg import *
 from .minpack2 import HumanHeartDipole, PropaneCombustion
+from .muon_coeffs import MuonCoeffs
 from .normal_scalar_curvature import NormalScalarCurvature
 from .operations import Sorting
 from .optimal_control import OptimalControl

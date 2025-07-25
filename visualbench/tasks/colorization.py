@@ -71,35 +71,49 @@ def _better_snake_mask(init: torch.Tensor, width):
 
 
 class Colorization(Benchmark):
-    """inspired by https://distill.pub/2017/momentum/"""
-    def __init__(self, init: torch.Tensor, mask: torch.Tensor, pull_idxs, order: int = 1, power: int = 2):
+    """The goal is to minimize difference between each pixel and it's neighbours, while one pixel is fixed at value of one.
+
+    Renders:
+        pixels.
+
+    Tip: for some presets use this: ``vb.Colorization.snake()`` or ``vb.Colorization.small()``
+
+    Inspired by https://distill.pub/2017/momentum/"""
+    def __init__(self, init: torch.Tensor, mask: torch.Tensor, white_idxs, order: int = 1, power: float = 2):
         super().__init__(bounds=(0,1))
+        mask = mask.float()
+        white_mask = torch.zeros_like(mask)
         image = init * mask
-        for idx in pull_idxs:
+        for idx in white_idxs:
             image[*idx] = 1
+            white_mask[*idx] = 1
 
         self.image = nn.Parameter(image)
-        self.mask = nn.Buffer(mask.float())
-        self.pull_idxs = pull_idxs
+        self.mask = nn.Buffer(mask)
+        self.white_mask = nn.Buffer(white_mask)
+        self.white_mask_inverse = nn.Buffer(1-white_mask)
+
+
+        self.white_idxs = white_idxs
         self.order = order
         self.power = power
 
     @classmethod
-    def snake(cls, order: int = 1, power: int = 2):
+    def snake(cls, order: int = 1, power: float = 2):
         init = torch.zeros(96, 256)
-        return cls(init = init, mask =_better_snake_mask(init, 16), pull_idxs = ((0, 0),), order = order, power=power)
+        return cls(init = init, mask =_better_snake_mask(init, 16), white_idxs = ((0, 0),), order = order, power=power)
 
     @classmethod
-    def small(cls, order: int = 1, power: int = 2):
+    def small(cls, order: int = 1, power: float = 2):
         init = torch.zeros(16, 64)
-        return cls(init = init, mask =_better_snake_mask(init, 4), pull_idxs = ((0, 0),), order = order, power=power)
+        return cls(init = init, mask =_better_snake_mask(init, 4), white_idxs = ((0, 0),), order = order, power=power)
 
     def get_loss(self):
-        w = self.image * self.mask
+        w = (self.image * self.mask * self.white_mask_inverse) + self.white_mask
 
-        colorizer = 0
-        for idx in self.pull_idxs:
-            colorizer = colorizer + (1 - w[*idx])**2
+        # colorizer = 0
+        # for idx in self.white_idxs:
+        #     colorizer = colorizer + (1 - w[*idx])**2
 
         diff_ver = torch.diff(w, self.order, 0) * self.mask[self.order:] * self.mask[:-self.order]
         diff_hor = torch.diff(w, self.order, 1) * self.mask[:, self.order:] * self.mask[:, :-self.order]
@@ -118,6 +132,7 @@ class Colorization(Benchmark):
                 blue_overflow = - frame.clip(max=0)
                 blue_overflow[:,:,2] *= 2
                 frame = ((frame - red_overflow + blue_overflow) * 255).clip(0,255).to(torch.uint8).detach().cpu()
-                self.log_image('image', frame, to_uint8=False)
+                self.log_image('image', frame, to_uint8=False, show_best=True)
 
-        return 0.5*colorizer + 0.5*spreader
+        return spreader
+        #return 0.5*colorizer + 0.5*spreader

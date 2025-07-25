@@ -1,14 +1,19 @@
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
-from ..utils import to_CHW
 from ..benchmark import Benchmark
+from ..utils import to_CHW
 
 
 class Kato(Benchmark):
-    """goal is to find image whose laplacian is target, and that's pretty hard"""
+    """goal is to find image whose laplacian is target, and that's pretty hard.
+
+    Renders:
+        image and its laplacian.
+
+    """
     def __init__(self, target):
         super().__init__()
         self.target = nn.Buffer(to_CHW(target).float().unsqueeze(0))

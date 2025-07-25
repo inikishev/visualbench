@@ -23,7 +23,7 @@ class FunctionTransform(ABC):
     def transform_parameters(self, x:torch.Tensor, y:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         return x, y
 
-    def transform_value(self, value: torch.Tensor) -> torch.Tensor:
+    def transform_value(self, value: torch.Tensor, x:torch.Tensor, y:torch.Tensor) -> torch.Tensor:
         return value
 
     def transform_point(self, x: torch.Tensor, y: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor] | None:
@@ -69,7 +69,7 @@ class Lambda(FunctionTransform):
     def __init__(
         self,
         xy: Callable[[torch.Tensor,torch.Tensor],tuple[torch.Tensor,torch.Tensor]] | None = None,
-        v: Callable[[torch.Tensor],torch.Tensor] | None = None
+        v: Callable[[torch.Tensor,torch.Tensor,torch.Tensor],torch.Tensor] | None = None
     ):
         self.xy = xy
         self.v = v
@@ -78,9 +78,9 @@ class Lambda(FunctionTransform):
         if self.xy is None: return x, y
         return self.xy(x, y)
 
-    def transform_value(self, value):
+    def transform_value(self, value, x, y):
         if self.v is None: return value
-        return self.v(value)
+        return self.v(value, x, y)
 
     def transform_domain(self, xmin, xmax, ymin, ymax):
         return xmin, xmax, ymin, ymax
@@ -133,6 +133,9 @@ class TestFunction(ABC):
         return self.transformed(Lambda(xy=xy_fn))
 
     def value_tfm(self, fn: Callable[[torch.Tensor], torch.Tensor]):
+        return self.transformed(Lambda(v=lambda l, x, y: fn(l)))
+
+    def xy_value_tfm(self, fn: Callable[[torch.Tensor,torch.Tensor,torch.Tensor], torch.Tensor]):
         return self.transformed(Lambda(v=fn))
 
     def sqrt(self):
@@ -165,7 +168,7 @@ class TransformedFunction(TestFunction):
 
         value = self.function(x, y)
         for tfm in self.transforms:
-            value = tfm.transform_value(value)
+            value = tfm.transform_value(value, x, y)
 
         return value
 
@@ -293,8 +296,7 @@ class Rastrigin(TestFunction):
     def domain(self): return (-5.12, 5.12, -5.12, 5.12)
     def minima(self): return (0, 0)
 
-rastrigin = Rastrigin().register('rastrigin')
-rastrigin_shifted = Rastrigin().shifted(0.5, -1.33).register('rastrigin_shifted')
+rastrigin = Rastrigin().shifted(0.5, -1.33).register('rastrigin')
 
 class Ackley(TestFunction):
     def __init__(self, a=20., b=0.2, c=2 * torch.pi, domain=6):
@@ -312,8 +314,7 @@ class Ackley(TestFunction):
     def domain(self): return (-self.domain_, self.domain_, -self.domain_, self.domain_)
     def minima(self): return (0,0)
 
-ackley = Ackley().register('ackley')
-ackley_shifted = Ackley().shifted(0.5, -1.33).register('ackley_shifted')
+ackley = Ackley().shifted(0.5, -1.33).register('ackley')
 
 class Beale(TestFunction):
     def __init__(self, a=1.5, b=2.25, c=2.625):
@@ -417,29 +418,6 @@ class Eggholder(TestFunction):
 eggholder = Eggholder().register('eggholder')
 
 
-class PotentialWell(TestFunction):
-    def objective(self, x, y):
-        return (x**2 + y**2) * (1 + 0.5 * torch.sin(10 * x) * torch.sin(10 * y)) + 10 * torch.relu(x + y - 2)
-
-    def x0(self): return (1, 3.3)
-    def domain(self): return (-4, 2, -1, 5)
-    def minima(self): return None
-potential_well = PotentialWell().shifted(1,-2).register('potential_well')
-
-
-class DoubleWell(TestFunction):
-    def __init__(self,a=1.5, b=0.5):
-        super().__init__()
-        self.a = a; self.b = b
-
-    def objective(self, x, y):
-        return (x**2 - self.a**2)**2 + 0.5*x*y + (y**2 - self.b**2)**2
-
-    def x0(self): return (-0.01, 0.01)
-    def domain(self): return (-2.5, 2.5, -2.5, 2.5)
-    def minima(self): return None
-double_well = DoubleWell().register('double_well')
-
 
 class DipoleField(TestFunction):
     """Magnetic Dipole Interaction Field"""
@@ -469,78 +447,6 @@ class ChaoticPotential(TestFunction):
     def minima(self): return None
 chaotic_potential = ChaoticPotential().register('chaotic_potential')
 
-
-class PlasmaSurface(TestFunction):
-    def objective(self, x,y):
-        return (x**4 + y**4) - 3*(x**2 + y**2) + 2*torch.abs(x*y) + 0.5*torch.sin(8*x)*torch.sin(8*y)
-
-    def x0(self): return (-0.1, 0.1)
-    def domain(self): return (-2, 2, -2, 2)
-    def minima(self): return None
-plasma_surface = PlasmaSurface().register('plasma_surface')
-
-
-class QuantumTunneling(TestFunction):
-    def objective(self, x, y):
-        base = (x**2 - 1)**2 + (y**2 - 1)**2
-        noise = 0.2*torch.sin(15*x)*torch.sin(15*y)
-        barrier = 2*torch.relu(x**2 + y**2 - 0.5)
-        return base + noise + barrier
-
-    def x0(self): return (-1.2, 2.)
-    def domain(self): return (-2, 2, -2, 2)
-    def minima(self): return None
-quantum_tunneling = QuantumTunneling().register('quantum_tunneling')
-
-
-class ChemicalPotential(TestFunction):
-    def objective(self, x, y):
-        terms = [
-            (-200, -1, 0, -10, 1, 0),
-            (-100, -1, 0, -10, 0, 0.5),
-            (-170, -6.5, 11, -6.5, -0.5, 1.5),
-            (15, 0.7, 0.6, 0.7, -1, 1)
-        ]
-        V = torch.zeros_like(x)
-        for A, a, b, c, x0, y0 in terms:
-            V += A * torch.exp(a*(x-x0)**2 + b*(x-x0)*(y-y0) + c*(y-y0)**2)
-        return V
-
-    def x0(self): return (-1.25, -0.25)
-    def domain(self): return (-1.5, 1.0, -0.5, 2.0)
-    def minima(self): return None
-chemical_potential = ChemicalPotential().register('chemical_potential')
-
-
-
-class FitnessLandscape(TestFunction):
-    def objective(self, x, y):
-        return (x**2 - 4*x + y**2 - 6*y +
-                torch.cos(3*x) + torch.sin(2*y) +
-                0.5*x*y + 13)
-
-    def x0(self): return (4, 0.)
-    def domain(self): return (-3, 6, -2, 7)
-    def minima(self): return None
-fitness_landscape = FitnessLandscape().register('fitness_landscape', 'fitness')
-
-
-class ArmError(TestFunction):
-    """Minimize positioning error for a 2-link robotic arm reaching a target."""
-    def __init__(self):
-        super().__init__()
-        self.l1, self.l2 = 2.0, 1.0  # Link lengths
-        self.target = torch.tensor([2.0, 1.0])  # Target position
-
-    def objective(self, x, y):
-        x = self.l1 * torch.cos(x) + self.l2 * torch.cos(x + y)
-        y = self.l1 * torch.sin(x) + self.l2 * torch.sin(x + y)
-        return (x - self.target[0])**2 + (y - self.target[1])**2
-
-    def x0(self): return (-2, 0.)
-    def domain(self): return (-torch.pi, torch.pi, -torch.pi, torch.pi)
-    def minima(self): return None
-arm_error = ArmError().register('arm_error')
 
 
 class Spiral(TestFunction):
@@ -607,25 +513,6 @@ class LogSumExp(TestFunction):
 
 logsumexp = LogSumExp().shifted(1, -2).register('logsumexp')
 
-class Stadium(TestFunction):
-    def __init__(self, half_width: float = 10, alpha: float = 0.5):
-        super().__init__()
-        self.half_width = half_width
-        self.alpha = alpha
-
-    def objective(self, x, y):
-        x_clamped = torch.clamp(x, min=-self.half_width, max=self.half_width)
-        dist_sq = torch.pow(x - x_clamped, 2) + torch.pow((y+1.5), 2)
-        gradient_term = -self.alpha * x
-        value = dist_sq + gradient_term
-        return value
-
-    def x0(self): return (-4, 2.5)
-    def domain(self): return (-5,15, -10,10)
-    def minima(self): return None
-
-stadium = Stadium().register('stadium')
-
 class Around(TestFunction):
     def objective(self,x,y):
         return torch.atan2(x,abs(y)) + (0.02*x)**2
@@ -635,19 +522,6 @@ class Around(TestFunction):
 
 around = Around().value_tfm(lambda x: x+1.6).register('around')
 
-
-class Tanh(TestFunction):
-    def __init__(self, xpow=2, ypow=2):
-        self.xpow = xpow
-        self.ypow = ypow
-    def objective(self,x,y):
-        return (x.tanh()**self.xpow) + (y.tanh()**self.ypow)
-
-    def x0(self): return (4, -2.5)
-    def domain(self): return (-5, 5, -5, 5)
-    def minima(self): return None
-
-tanh = Tanh().shifted(-1, 2).register('tanh')
 
 class IllConditioned(TestFunction):
     def __init__(self, b = 1e-4):
@@ -665,7 +539,6 @@ ill_pseudoconvex = IllConditioned().divadd(0.1).shifted(-1, 2).register('ill_pse
 very_ill_conditioned = IllConditioned(1e-6).shifted(-1, 2).register('very_ill_conditioned', 'very_ill')
 
 
-
 class IllPiecewise(TestFunction):
     def __init__(self, b = 1e-4):
         self.b = b
@@ -679,49 +552,6 @@ class IllPiecewise(TestFunction):
 
 ill_piecewise = IllPiecewise().shifted(-1, 2).register('ill_piecewise', 'piecewise', 'illp')
 ill_piecewise_pseudoconvex = IllPiecewise().shifted(-1, 2).register('illppc')
-
-class IllSqrt(TestFunction):
-    def __init__(self, b = 1e-4):
-        self.b = b
-
-    def objective(self, x, y):
-        z = (2-self.b)*(x*y)
-        return (x**2+y**2)**0.5 + z.abs().sqrt().copysign(z)
-
-    def x0(self): return (-15,-5)
-    def domain(self): return (-20, 20, -20, 20)
-    def minima(self): return (0, 0)
-
-ill_sqrt = IllSqrt().shifted(-1, 2).register('ill_sqrt', 'ills')
-
-
-class Dice(TestFunction):
-    def __init__(self, eps = 1e-8):
-        self.eps = eps
-
-    def objective(self, x, y):
-        _dice = lambda x, y: 1 - (2 * (x.sigmoid() * y.sigmoid()) + self.eps) / (x.sigmoid() + y.sigmoid() + self.eps)
-        return _dice(x,y) + _dice(-x,-y) + _dice(x, -y) + _dice(-x, y)
-
-    def x0(self): return (-9, 8.5)
-    def domain(self): return (-10, 10, -10, 10)
-    def minima(self): return (0, 0)
-
-dice = Dice().shifted(-1,2).register('dice')
-
-class IOU(TestFunction):
-    def __init__(self, eps = 1e-8):
-        self.eps = eps
-
-    def objective(self, x, y):
-        _iou = lambda x, y: 1 - ((x.sigmoid() * y.sigmoid()) + self.eps) / (((x.sigmoid() + y.sigmoid()) -( x.sigmoid() * y.sigmoid())) + self.eps)
-        return _iou(x,y) + _iou(-x,-y) + _iou(x, -y) + _iou(-x, y)
-
-    def x0(self): return (-9, 5)
-    def domain(self): return (-10, 10, -10, 10)
-    def minima(self): return (0, 0)
-
-iou = IOU().shifted(-1,2).register('iou')
 
 class LeastSquares(TestFunction):
     def objective(self, x, y):
@@ -754,115 +584,6 @@ class Star(TestFunction):
 star = Star().register('star')
 star_abs = Star(torch.abs).register('star_abs')
 star_max = Star(torch.abs, max=True).register('star_max')
-
-class CBarriers(TestFunction):
-    def __init__(
-        self,
-        num_barriers: int = 4,
-        outer_radius: float = 4.0,
-        inner_radius: float = 1.0,
-        spacing: Literal['linear', 'geometric', 'reciprocal'] = 'linear',
-        barrier_height: float = 50.0,
-        radial_width: float = 0.2,
-        gap_sharpness: float = 0.6,
-        p = 2,
-    ):
-        """
-        Args:
-            num_barriers (int): The number of nested C-barriers.
-            outer_radius (float): The radius of the outermost barrier.
-            inner_radius (float): The target radius of the innermost barrier.
-            spacing (str): Method for spacing barriers. Can be 'linear', 'geometric',
-                           or 'reciprocal'.
-            barrier_height (float): The height of the potential barriers.
-            radial_width (float): The width (thickness) of the C-rings.
-            gap_sharpness (int): Controls the size of the entrance.
-        """
-        super().__init__()
-
-        self.num_barriers = num_barriers
-        self.outer_radius = outer_radius
-        self.inner_radius = inner_radius
-        self.spacing = spacing
-        self.barrier_height = barrier_height
-        self.radial_width = radial_width
-        self.gap_sharpness = gap_sharpness
-        self.eps = 1e-8 # for numerical stability
-        self.p = p
-
-    def _get_radii(self) -> torch.Tensor:
-        """Calculates the list of radii based on the chosen spacing method."""
-        if self.num_barriers == 1:
-            return torch.tensor([self.outer_radius])
-
-        if self.spacing == 'linear':
-            # Evenly spaced radii from outer to inner
-            return torch.linspace(self.outer_radius, self.inner_radius, self.num_barriers)
-        if self.spacing == 'geometric':
-            # Radii spaced by a constant ratio
-            return torch.from_numpy(np.geomspace(self.outer_radius, self.inner_radius, self.num_barriers)).float()
-        if self.spacing == 'reciprocal':
-            # Original method, scaled to fit the outer radius
-            indices = torch.arange(self.num_barriers)
-            radii = self.outer_radius / (indices + 1)
-            # This method ignores inner_radius, as it's defined by the reciprocal rule
-            return radii
-
-        raise ValueError("spacing must be 'linear', 'geometric', or 'reciprocal'")
-
-    def objective(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        if self.p % 2 != 0: x,y = x.abs(), y.abs()
-        base_potential = x**self.p + y**self.p
-
-        r = torch.sqrt(x**2 + y**2 + self.eps)
-        theta = torch.atan2(y, x)
-
-        total_barriers = torch.zeros_like(x)
-        radii = self._get_radii()
-
-        for i, radius in enumerate(radii):
-            gap_angle = i * torch.pi
-
-            radial_term = torch.exp(-(r - radius)**2 / (2 * self.radial_width**2))
-            angular_term = (torch.sin((theta - gap_angle) / 2)**2)**self.gap_sharpness
-
-            c_barrier = self.barrier_height * radial_term * angular_term
-            total_barriers += c_barrier
-
-        return base_potential + total_barriers
-
-
-
-    def x0(self): return (-4.5, 2)
-    def domain(self): return (-5,5,-5,5)
-    def minima(self): return (0, 0)
-
-cbarriers = CBarriers().shifted(1, -2).register('cbarrier')
-
-
-class Switchback(TestFunction):
-    def __init__(self, narrowness=50, turn_coord=10, turn_sharpness=5):
-        super().__init__()
-        self.narrowness = narrowness
-        self.turn_coord = turn_coord
-        self.turn_sharpness = turn_sharpness
-
-    def objective(self, x, y):
-        self.narrowness = 50.0
-        self.turn_coord = 10.0
-        self.turn_sharpness = 5.0
-
-        f1 = -(x + y) + self.narrowness * (x - y)**2
-        f2 = -(x - y) + self.narrowness * (x + y - self.turn_coord)**2
-        transition_coord = x + y - self.turn_coord
-        sigmoid = 1.0 / (1.0 + torch.exp(-self.turn_sharpness * transition_coord))
-        return (1.0 - sigmoid) * f1 + sigmoid * f2
-
-    def x0(self): return (0, 17)
-    def domain(self): return (-7,13,0,20)
-    def minima(self): return None
-
-switchback = Switchback().register('switchback', 'switch')
 
 
 class Oscillating(TestFunction):

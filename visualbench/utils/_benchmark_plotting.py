@@ -52,6 +52,7 @@ def plot_trajectory(self: "Benchmark", cmap = 'coolwarm', loss_scale:Any = 'syml
 
         trajectory = projector.transform(trajectory)
 
+    if trajectory.shape[1] == 1: trajectory = np.concat([trajectory, trajectory], 1)
     assert trajectory.shape[1] == 2
     if ax is None: ax = plt.gca()
     ax.scatter(x=trajectory[:,0], y=trajectory[:,1], alpha=0.4, s=4, c=loss, cmap=cmap, norm=loss_scale)

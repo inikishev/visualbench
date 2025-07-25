@@ -9,10 +9,13 @@ def _zeros(size, generator):
     return torch.zeros(size, dtype=torch.float32)
 
 class Sorting(Benchmark):
-    """differentiable sorting objective via sinkhorn iteration
+    """differentiable sorting objective via sinkhorn iteration.
+
+    Renders:
+        raw logits and permutatation matrix generated from them via sinkhorn iteration.
 
     Args:
-        vec (_type_): vector to optimize argsort for
+        vec (Any): vector to sort.
         sinkhorn_iters (int, optional): sinkhorn iterations. Defaults to 10.
         binary_weight (float, optional): weight for loss to nudge values to 0 or 1. Defaults to 0.2.
         ortho_weight (float, optional): weight for loss to nudge sums of rows and columns to 0 or 1. Defaults to 0.2.

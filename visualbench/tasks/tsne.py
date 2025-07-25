@@ -3,10 +3,10 @@ from typing import Any, Literal
 import imageio
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 
 from ..benchmark import Benchmark
-from ..utils import totensor
+from ..utils import totensor, tonumpy
 
 
 def _calculate_P(X: torch.Tensor, perplexity: float) -> torch.Tensor:
@@ -63,7 +63,11 @@ def _calculate_P(X: torch.Tensor, perplexity: float) -> torch.Tensor:
 
 
 class TSNE(Benchmark):
-    """
+    """t-distributed Stochastic Neighbor Embedding dimensionality reduction.
+
+    Renders:
+        if ``n_components`` is 2, renders the reduced dataset.
+
     Args:
         inputs (torch.Tensor | np.ndarray | Any): The high-dimensional data, shape (n_samples, n_features).
         targets (torch.Tensor | np.ndarray | Any | None):
@@ -113,10 +117,9 @@ class TSNE(Benchmark):
             self._colors = np.array([[0, 0, 0]] * self.n_samples) # Black for all points
 
         else:
-            if isinstance(targets, torch.Tensor):
-                targets = targets.cpu().numpy()
+            targets = tonumpy(targets)
 
-            if targets.dtype == int or targets.dtype == np.int64 or targets.dtype == np.int32: # Categorical
+            if targets.dtype in (int, np.int64, np.int32): # Categorical
                 unique_classes = np.unique(targets)
                 n_classes = len(unique_classes)
                 # Generate a consistent color for each class
@@ -182,7 +185,7 @@ class TSNE(Benchmark):
 
         if self._make_images:
             with torch.no_grad():
-                frame = self._make_frame(self.Y.detach().cpu().numpy(), self.resolution)
+                frame = self._make_frame(self.Y.detach().cpu().numpy(), self.resolution) # pylint:disable=not-callable
                 self.log_image('data', frame, to_uint8=False)
 
         self.iteration += 1

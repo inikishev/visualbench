@@ -25,6 +25,9 @@ WALLS1 = (
 class OptimalControl(Benchmark):
     """Optimize controls of an agent solving a maze.
 
+    Renders:
+        trajectory of the agent.
+
     Args:
         walls(Sequence, optional):
             a sequence of tuples of 4 values: (x_start, x_end, y_start, y_end).

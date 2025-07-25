@@ -44,7 +44,7 @@ def totensor(x, device=None, dtype=None, clone=None) -> torch.Tensor:
 def tonumpy(x) -> np.ndarray:
     if isinstance(x, str): x = _imread_normalize(x)
     if isinstance(x, np.ndarray): return x
-    if isinstance(x, torch.Tensor): return x.detach().cpu().numpy()
+    if isinstance(x, torch.Tensor): return x.numpy(force=True)
     return np.asarray(x)
 
 def tofloat(x) -> float:

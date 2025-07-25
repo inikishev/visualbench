@@ -61,6 +61,13 @@ def _target_metrics_to_dict(metrics:str | Sequence[str] | dict[str, bool]):
     if isinstance(metrics, Sequence): return {k:False for k in metrics}
     return metrics
 
+def _maybe_format(x):
+    if isinstance(x, float): return format_number(x, 3)
+    return x
+
+def _dict_to_str(d: dict):
+    return ' '.join([f"{k}={_maybe_format(v)}" for k,v in d.items()])
+
 # region Run
 class Run:
     """A finished run"""
@@ -125,6 +132,18 @@ class Run:
         assert id == run.id
         run.run_path = folder
         return run
+
+    def string(self, metric) -> str:
+        if len(self.hyperparams) == 0: s = self.run_name
+        else: s = f"{self.run_name} ({_dict_to_str(self.hyperparams)})"
+        if s is None: s = "unknown"
+
+        if metric not in self.target_metrics:
+            return s
+
+        maximize = self.target_metrics[metric]
+        key = 'max' if maximize else 'min'
+        return f'{s} {str(format_number(self.stats[metric][key], 5)).ljust(7)}"'
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Run): raise TypeError(f"Can't check equality because {type(other)} is not a Run!")

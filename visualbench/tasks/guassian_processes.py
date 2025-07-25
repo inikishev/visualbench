@@ -1,17 +1,20 @@
-from typing import Any
 import math
 from collections.abc import Callable, Sequence
-import gpytorch
+from typing import Any
+
 import cv2
+import gpytorch
 import imageio
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
+from linear_operator.utils.errors import NanError, NotPSDError
+from torch import nn
 from torch.nn import functional as F
-from linear_operator.utils.errors import NotPSDError, NanError
+
 from ..benchmark import Benchmark
 from .function_descent.test_functions import TEST_FUNCTIONS, TestFunction
+
 
 def _tomodule(x, *args, **kwargs) -> Any:
     if isinstance(x, nn.Module): return x
@@ -43,6 +46,30 @@ class ExactGPModel(gpytorch.models.ExactGP):
 
 
 class GaussianProcesses(Benchmark):
+    """Optimize a GP model to approximate a given function.
+
+    Renders:
+        current approximation and the points.
+
+    Args:
+        func (Callable[..., torch.Tensor] | str | TestFunction): test function, can be the name of one of the test functions.
+        n_points (int): _description_
+        domain (tuple[float,float,float,float] | Sequence[float] | None, optional): _description_. Defaults to None.
+        mean (Callable | nn.Module, optional): _description_. Defaults to gpytorch.means.ConstantMean.
+        covar (_type_, optional): _description_. Defaults to lambda:gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()).
+        distribution (Callable, optional): _description_. Defaults to gpytorch.distributions.MultivariateNormal.
+        likelihood (Callable | nn.Module, optional): _description_. Defaults to gpytorch.likelihoods.GaussianLikelihood.
+        mll (Callable, optional): _description_. Defaults to gpytorch.mlls.ExactMarginalLogLikelihood.
+        fallback_mll (_type_, optional): _description_. Defaults to gpytorch.mlls.LeaveOneOutPseudoLikelihood.
+        maximize (bool, optional): _description_. Defaults to True.
+        normalize (bool, optional): _description_. Defaults to True.
+        noise (float, optional): _description_. Defaults to 0.01.
+        resolution (int, optional): _description_. Defaults to 128.
+        grid (bool, optional): _description_. Defaults to False.
+
+    Raises:
+        ValueError: _description_
+    """
     def __init__(
         self,
         func: Callable[..., torch.Tensor] | str | TestFunction,

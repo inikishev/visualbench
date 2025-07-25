@@ -1,10 +1,13 @@
 from collections.abc import Callable
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
-import numpy as np
+
 import cv2
+import numpy as np
+import torch
+from torch import nn
+from torch.nn import functional as F
+
 from ..benchmark import Benchmark
+
 
 class SinAct(nn.Module):
     def forward(self, x): return torch.sin(x)
@@ -84,7 +87,11 @@ class _QRes(nn.Module):
 
 
 class WavePINN(Benchmark):
-    """
+    """Solving a wave PDE with a PINN.
+
+    Renders:
+        predicted solution, true solution and the error.
+
     Args:
         net (nn.Module): model, input size is 2, output size is 1.
         c (float): wave speed.
@@ -162,7 +169,7 @@ class WavePINN(Benchmark):
             normalized_grid = normalized_grid.detach().cpu().numpy()
 
         img = normalized_grid.astype(np.uint8)
-        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)[:,:,::-1]
+        img = cv2.applyColorMap(img, cv2.COLORMAP_JET)[:,:,::-1] # pylint:disable=no-member
         return img
 
 
@@ -210,7 +217,7 @@ class WavePINN(Benchmark):
                 error_grid /= self.vmax_error / 255
                 error_grid.clip_(0, 255)
                 img = error_grid.detach().cpu().numpy().astype(np.uint8)
-                self.log_image("error", cv2.applyColorMap(img, cv2.COLORMAP_JET)[:,:,::-1], to_uint8=False)
+                self.log_image("error", cv2.applyColorMap(img, cv2.COLORMAP_JET)[:,:,::-1], to_uint8=False) # pylint:disable=no-member
 
             self.net.train()
 

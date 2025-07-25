@@ -1,3 +1,4 @@
+import math
 from collections.abc import Sequence
 from itertools import zip_longest
 from typing import Any, Literal
@@ -13,7 +14,9 @@ from .format import tonumpy
 def _auto_loss_yrange(*losses, yscale=None):
     losses = [tonumpy(l) for l in losses if l is not None]
     ymin = min(np.nanmin(l) for l in losses)
-    ymax = max(l[0] for l in losses)
+    finite_first = [l[0] for l in losses if math.isfinite(l[0])]
+    if len(finite_first) == 0: return None
+    ymax = max(finite_first)
     if ymin >= ymax: return None
 
     # expand range a little

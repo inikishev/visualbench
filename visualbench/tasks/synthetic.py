@@ -16,6 +16,9 @@ class Sphere(Benchmark):
 
     Directly minimizes `criterion` between `target` and `init`.
 
+    Renders:
+        if target is an image, renders the current solution and the error.
+
     Args:
         target (Any): if int, used as number of dims, otherwise is the target itself.
         init (Any, optional): initial values same shape as target, if None initializes to zeros. Defaults to None.
@@ -41,7 +44,9 @@ class Sphere(Benchmark):
     def get_loss(self):
         # log current recreated image if target is an image
         if self._make_images and len(self._reference_images) != 0:
-            self.log_image('preds', self.x, to_uint8=True, log_difference=True)
+            with torch.no_grad():
+                self.log_image('preds', self.x, to_uint8=True, log_difference=True)
+                self.log_image('residual', (self.x-self.target).abs_(), to_uint8=True, log_difference=True)
 
         # return loss
         return self.criterion(self.x, self.target)
@@ -49,6 +54,8 @@ class Sphere(Benchmark):
 
 class Quadratic(Benchmark):
     """Basic convex quadratic objective with linear term.
+
+    Doesn't support rendering.
 
     Args:
         dim (int, optional): number of dimensions. Defaults to 512.
@@ -93,7 +100,7 @@ class Quadratic(Benchmark):
 
 
 class Rosenbrock(Benchmark):
-    """rosenbrock"""
+    """Rosenbrock"""
     def __init__(self, dim=512, variant:Literal[1,2]=1, ):
         super().__init__()
         self.x = torch.nn.Parameter(torch.tensor([-1.2, 1.]).repeat(dim//2))

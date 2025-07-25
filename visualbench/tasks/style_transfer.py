@@ -2,20 +2,18 @@
 from typing import Any, cast
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-
+from torch import nn
 from torchvision import models
 from torchvision.transforms import v2
 
 from ..benchmark import Benchmark
-from ..utils import to_HW3, normalize, znormalize
-
+from ..utils import normalize, to_HW3, znormalize
 
 
 class VGG(nn.Module):
     def __init__(self, content_layers, style_layers):
-        super(VGG, self).__init__()
+        super().__init__()
         self.content_features = content_layers
         self.style_features = style_layers
         self.vgg = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features[:29] # Up to layer 28 (index 28 is layer 29 actually) # type:ignore
@@ -45,7 +43,11 @@ def _vgg_normalize(x):
     return v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(znormalize(x))
 
 class StyleTransfer(Benchmark):
-    """VGG style transfer"""
+    """VGG style transfer.
+
+    Renders:
+        style transferred image.
+    """
     def __init__(
         self,
         content: Any,

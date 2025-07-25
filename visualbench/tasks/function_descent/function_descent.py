@@ -10,10 +10,11 @@ import torch
 
 from ...benchmark import Benchmark
 from ...utils._benchmark_video import _maybe_progress
-from ...utils.renderer import OpenCVRenderer
 from ...utils.format import tonumpy, totensor
-from .test_functions import TEST_FUNCTIONS, TestFunction
 from ...utils.funcplot import funcplot2d
+from ...utils.renderer import OpenCVRenderer
+from .test_functions import TEST_FUNCTIONS, TestFunction
+
 
 class _UnpackCall:
     __slots__ = ("f", )
@@ -27,6 +28,21 @@ def _safe_flatten(x):
     return x
 
 class FunctionDescent(Benchmark):
+    """descend a function.
+
+    Args:
+        func (Callable | str):
+            function or string name of one of the test functions.
+        x0 (ArrayLike): initial parameters
+        bounds:
+            Only used for 2D functions. Either `(xmin, xmax, ymin, ymax)`, or `((xmin, xmax), (ymin, ymax))`.
+            This is only used for plotting and defines the extent of what is plotted. If None,
+            bounds are determined from minimum and maximum values of coords that have been visited.
+        minima (_type_, optional): optinal coords of the minima. Defaults to None.
+        dtype (torch.dtype, optional): dtype. Defaults to torch.float32.
+        device (torch.types.Device, optional): device. Defaults to "cuda".
+        unpack (bool, optional): if True, function is called as `func(*x)`, otherwise `func(x)`. Defaults to True.
+    """
     def __init__(
         self,
         func: Callable[..., torch.Tensor] | str | TestFunction,
@@ -36,21 +52,6 @@ class FunctionDescent(Benchmark):
         dtype: torch.dtype = torch.float32,
         unpack=True,
     ):
-        """descend a function.
-
-        Args:
-            func (Callable | str):
-                function or string name of one of the test functions.
-            x0 (ArrayLike): initial parameters
-            bounds:
-                Only used for 2D functions. Either `(xmin, xmax, ymin, ymax)`, or `((xmin, xmax), (ymin, ymax))`.
-                This is only used for plotting and defines the extent of what is plotted. If None,
-                bounds are determined from minimum and maximum values of coords that have been visited.
-            minima (_type_, optional): optinal coords of the minima. Defaults to None.
-            dtype (torch.dtype, optional): dtype. Defaults to torch.float32.
-            device (torch.types.Device, optional): device. Defaults to "cuda".
-            unpack (bool, optional): if True, function is called as `func(*x)`, otherwise `func(x)`. Defaults to True.
-        """
         if isinstance(func,str): f = TEST_FUNCTIONS[func].to(device = 'cpu', dtype = dtype)
         else: f = func
 

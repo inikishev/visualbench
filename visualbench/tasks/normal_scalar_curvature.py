@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 import torch.nn.functional as F
 
 from ..benchmark import Benchmark
@@ -20,7 +20,11 @@ def _get_derivative_kernels(dtype=torch.float32):
     }
 
 class NormalScalarCurvature(Benchmark):
-    """Creates cool images on some optimizers"""
+    """TODO
+
+    Renders:
+        z field and solution.
+    """
     def __init__(self, grid_size=128, domain=16.0, target_curvature=0.3, cmap='coolwarm'):
         super().__init__()
         self.grid_size = grid_size

@@ -9,7 +9,7 @@ from ..benchmark import Benchmark
 
 
 class SteinerSystem(Benchmark):
-    """inspired by https://www.youtube.com/watch?v=kLBPZ6hro5c"""
+    """Steiner system objective inspired by https://www.youtube.com/watch?v=kLBPZ6hro5c"""
     def __init__(self, n=31, lambda_=1.0):
         super().__init__()
         self.n = n

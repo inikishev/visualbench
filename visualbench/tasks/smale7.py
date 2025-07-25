@@ -7,10 +7,13 @@ from torch import nn
 from ..benchmark import Benchmark
 
 class Smale7(Benchmark):
-    """
-    Smale's 7th problem - minimizes the potential energy V = sum_{i<j} -log(||x_i - x_j||^2), where x_i
+    """Smale's 7th problem - minimizes the potential energy V = sum_{i<j} -log(||x_i - x_j||^2), where x_i
     are points on the unit sphere S^2.
+
     Points are parameterized by spherical coordinates (theta, phi).
+
+    Renders:
+        points.
 
     Args:
         num_points (int): The number of points (N) on the sphere.

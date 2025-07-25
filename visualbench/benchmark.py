@@ -176,6 +176,14 @@ class Benchmark(torch.nn.Module, ABC):
         self._multiobjective_func = func
         return self
 
+    def best_params(self, metric:str = "train loss", maximize:bool=False):
+        if maximize: v = self.logger.closest(metric, self.logger.stepmax(metric))
+        else: v = self.logger.closest("params", self.logger.stepmin(metric))
+
+        params = [p.detach().clone().cpu() for p in self.parameters()]
+        torch.nn.utils.vector_to_parameters(v, params)
+        return params
+
     @torch.no_grad
     def add_reference_image(self, name: str, image, to_uint8: bool, min: float | None = None, max: float | None = None):
         """Add an image to be always displayed, for example the target image for image reconstruction.
@@ -395,6 +403,24 @@ class Benchmark(torch.nn.Module, ABC):
         self.post_closure(backward)
 
         return loss
+
+    def get_x0(self):
+        return torch.nn.utils.parameters_to_vector(p for p in self.parameters() if p.requires_grad)
+
+    def loss_at(self, x: Any):
+        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
+        torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
+        return utils.tofloat(self.closure(backward=False))
+
+    def loss_grad_at(self, x:Any):
+        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
+        torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
+        loss = utils.tofloat(self.closure(backward=True))
+        grad = torch.cat(
+            [p.grad.ravel() if p.grad is not None else torch.zeros_like(p) for p in self.parameters() if p.requires_grad]
+        )
+        if isinstance(x, torch.Tensor): return loss, grad.to(x)
+        return loss, utils.tonumpy(grad)
 
     def one_step(self, optimizer):
         """one batch or one step"""

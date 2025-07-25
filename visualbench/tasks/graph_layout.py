@@ -117,8 +117,10 @@ def _watts_strogatz_graph(n: int = 30, k: int = 4, p: float = 0.5) -> list[list[
 
 
 class GraphLayout(Benchmark):
-    """
-    Optimize graph layout by edge attraction and node repulsion.
+    """Optimize graph layout by edge attraction and node repulsion/
+
+    Renders:
+        current graph layout.
 
     Args:
         adj (List[List[int]]): Adjacency list representation of the graph.

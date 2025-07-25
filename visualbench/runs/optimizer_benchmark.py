@@ -2,11 +2,12 @@ import os
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
-from kornia.losses import ssim_loss
+
 import gpytorch
 import gpytorch.kernels as gk
 import torch
 from accelerate import Accelerator
+from kornia.losses import ssim_loss
 from sklearn.datasets import load_breast_cancer, make_swiss_roll
 from torch import nn
 from torch.nn import functional as F
@@ -44,7 +45,7 @@ class MBSRun:
         rounding=1,
         fixed_hyperparams: dict | None = None,
         max_dim: int | None = None,
-        no_tuning: bool = False,
+        tune: bool = True,
 
         # storage
         root: str = "optimizers",
@@ -80,7 +81,7 @@ class MBSRun:
                     print(f"{sweep_name}: '{task_name}' timeout, {bench.seconds_passed} > {sec}!")
                 return bench.logger
 
-            if hyperparam is None or no_tuning:
+            if hyperparam is None or (not tune):
                 sweep = single_run(logger_fn, metrics=metrics, fixed_hyperparams=fixed_hyperparams, root=root, task_name=task_name, run_name=sweep_name, print_records=print_records, print_progress=print_progress, save=save, load_existing=load_existing)
 
             else:
@@ -94,8 +95,8 @@ class MBSRun:
 
                     best_run = sweep.best_runs(metric, maximize, 1)[0]
                     value = 0
-                    if hyperparam is not None and not no_tuning: value = best_run.hyperparams[hyperparam]
-                    bench.reset().set_benchmark_mode(False)
+                    if tune and hyperparam is not None: value = best_run.hyperparams[hyperparam]
+                    bench.reset().set_benchmark_mode(False).set_print_inverval(None)
                     opt = opt_fn(bench.parameters(), value)
                     bench.run(opt, passes, max_seconds=sec, test_every_forwards=test_every)
                     if not os.path.exists(self.summaries_root): os.mkdir(self.summaries_root)
@@ -128,57 +129,63 @@ class MBSRun:
     def run_visual(self):
         # ------------------------------- neural drawer ------------------------------ #
         bench = tasks.NeuralDrawer(data.SPIRAL96, models.MLP(2, 3, [16,16,16,16,16,16,16], act_cls=nn.ReLU, bn=True), expand=48).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=30)
+        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2000, sec=60, metrics='train loss', vid_scale=2, fps=30)
 
         bench = tasks.NeuralDrawer(data.SPIRAL96, models.MLP(2, 3, [16,16,16,16,16,16,16], act_cls=nn.ELU), expand=48).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - NeuralDrawer - ELU', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=30)
+        self.run_bench(bench, 'Visual - NeuralDrawer - ELU', passes=2000, sec=60, metrics='train loss', vid_scale=2, fps=30)
 
         bench = tasks.NeuralDrawer(data.SPIRAL96, models.MLP(2, 3, [16,16,16,16,16,16,16], act_cls=models.act.Sine), expand=48).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - NeuralDrawer - Sine', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=30)
+        self.run_bench(bench, 'Visual - NeuralDrawer - Sine', passes=2000, sec=60, metrics='train loss', vid_scale=2, fps=30)
 
         # ------------------------------- lines drawer ------------------------------- #
         bench = tasks.LinesDrawer(data.WEEVIL96, 100, loss=_unbatched_ssim).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - LinesDrawer SSIM', passes=2000, sec=30, metrics='train loss', vid_scale=4, fps=30)
+        self.run_bench(bench, 'Visual - LinesDrawer SSIM', passes=2000, sec=60, metrics='train loss', vid_scale=4, fps=30)
 
         # ----------------------------- partition drawer ----------------------------- #
         bench = tasks.PartitionDrawer(data.WEEVIL96, 100).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - PartitionDrawer', passes=2000, sec=30, metrics='train loss', vid_scale=4, fps=30)
+        self.run_bench(bench, 'Visual - PartitionDrawer', passes=2000, sec=60, metrics='train loss', vid_scale=4, fps=30)
 
         # ----------------------------------- moons ---------------------------------- #
         bench = tasks.Moons(models.MLP(2,1,[2,2,2,2,2,2,2]),).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ELU', passes=2_000, sec=60, metrics="train loss", vid_scale=2)
+        self.run_bench(bench, 'Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ELU', passes=2_000, sec=90, metrics="train loss", vid_scale=2)
 
         bench = tasks.Moons(models.MLP(2,1,[2,2,2,2,2,2,2], act_cls=nn.ReLU, bn=True)).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ReLU+bn', passes=2_000, sec=60, metrics="train loss", vid_scale=2)
+        self.run_bench(bench, 'Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ReLU+bn', passes=2_000, sec=90, metrics="train loss", vid_scale=2)
 
         bench = tasks.Moons(models.MLP(2,1,[2,2,2,2,2,2,2]), batch_size=16, n_samples=2048, test_split=1024).to(CUDA_IF_AVAILABLE)
         bench_name= "Visual - Moons BS-16 - MLP(2-2-2-2-2-2-2-2-1)-ELU"
-        self.run_bench(bench, bench_name, passes=2_000, sec=60, metrics='test loss', vid_scale=2, test_every=1)
+        self.run_bench(bench, bench_name, passes=2_000, sec=90, metrics='test loss', vid_scale=2, test_every=1)
 
         # ------------------------------- Colorization ------------------------------- #
         # ndim  = 24,576
         # 2.7s. ~ 54s.
         bench = tasks.Colorization.snake().to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Colorization', passes=2_000, sec=30, metrics='train loss', vid_scale=3)
+        self.run_bench(bench, 'Visual - Colorization', passes=2_000, sec=90, metrics='train loss', vid_scale=3)
 
         # ------------------------- Colorization (2nd order) ------------------------- #
         # ndim  = 1024
         # 3.2s. ~ 1m. 4s.
         bench = tasks.Colorization.small(order=2).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Colorization (2nd order)', passes=2_000, sec=30, metrics='train loss', vid_scale=8)
+        self.run_bench(bench, 'Visual - Colorization (2nd order)', passes=2_000, sec=60, metrics='train loss', vid_scale=8)
+
+        # ------------------------- Colorization (1.3th power) ------------------------- #
+        # ndim  = 1024
+        # 3.2s. ~ 1m. 4s.
+        bench = tasks.Colorization.small(power=1.3).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Visual - Colorization (1.3th power)', passes=2_000, sec=60, metrics='train loss', vid_scale=8)
 
         # ------------------------------ Alpha Evolve B1 ----------------------------- #
         # ndim = 600
         # 4.4s. ~ 1m. 30s.
         bench = tasks.AlphaEvolveB1().to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Alpha Evolve B1', passes=4_000, sec=60, metrics='train loss', vid_scale=1)
+        self.run_bench(bench, 'Visual - Alpha Evolve B1', passes=4_000, sec=90, metrics='train loss', vid_scale=1)
 
         # ----------------------------------- t-SNE ---------------------------------- #
         # ndim = 1,138
         # 3.7s. ~ 1m. 12s.
         X, y = make_swiss_roll(1000, noise=0.1, hole=True, random_state=0)
         bench = tasks.TSNE(X, y).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - t-SNE', passes=2_000, sec=60, metrics='train loss', vid_scale=1) # 4.4s. ~ 1m. 30s.
+        self.run_bench(bench, 'Visual - t-SNE', passes=2_000, sec=90, metrics='train loss', vid_scale=1) # 4.4s. ~ 1m. 30s.
 
         # ------------------------------- Graph layout ------------------------------- #
         # ndim = 128
@@ -193,6 +200,36 @@ class MBSRun:
         # 9+4=13 ~ 3m.
         bench = tasks.StyleTransfer(data.FROG96, data.GEOM96).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - Style Transfer', passes=2_000, sec=120, metrics='train loss', binary_mul=0.4, vid_scale=2)
+
+        # -------------------------------- Muon coeffs ------------------------------- #
+        # ndim = 15
+        # 9.1s. ~ 3m. 3s.
+        bench = tasks.MuonCoeffs(resolution=(512, 512)) # NO CUDA
+        self.run_bench(bench, 'Visual - Muon coefficients', passes=2_000, sec=120, metrics='train loss', vid_scale=1)
+
+        # ----------------------- Sine Approximator - Tanh 7-4 ---------------------- #
+        # ndim = 15
+        # 4.2s ~ 1m. 24s.
+        bench = tasks.FunctionApproximator(
+            tasks.FunctionApproximator.SINE(8), n_skip=4, depth=7, resolution=(384,768),
+        ) # NO CUDA
+
+        self.run_bench(bench, 'Visual - Sine Approximator - Tanh 7-4', passes=2_000, sec=120, metrics='train loss', vid_scale=1)
+
+        # ----------------------- Sine Approximator - LeakyReLU 10-4 ---------------------- #
+        # ndim = 15
+        # 6.4s ~ 2m. 8s.
+        bench = tasks.FunctionApproximator(
+            tasks.FunctionApproximator.SINE(8), n_skip=4, depth=10, act=F.leaky_relu, resolution=(384,768),
+        ) # NO CUDA
+        self.run_bench(bench, 'Visual - Sine Approximator - LeakyReLU 10-4', passes=2_000, sec=120, metrics='train loss', vid_scale=1)
+
+        # ----------------------- Particle minmax ---------------------- #
+        # ndim = 64
+        # 2s ~ 40s
+        bench = tasks.ClosestFurthestParticles(32, spread=0.75) # NO CUDA
+        self.run_bench(bench, 'Visual - Particle min-max', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
+
 
     def run_real(self):
         # ---------------------------- Human heart dipole ---------------------------- #
@@ -461,6 +498,9 @@ class MBSRun:
         bench = tasks.FunctionDescent('rastrigin')
         self.run_bench(bench, '2D - rastrigin', passes=1000, sec=30, metrics='train loss', vid_scale=1, fps=30)
 
+        bench = tasks.FunctionDescent('rosen10')
+        self.run_bench(bench, '2D - rosenbrock-10', passes=1000, sec=30, metrics='train loss', vid_scale=1, fps=30)
+
         bench = tasks.FunctionDescent('rosen')
         self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1, fps=30)
 
@@ -473,19 +513,40 @@ class MBSRun:
         bench = tasks.FunctionDescent('oscillating')
         self.run_bench(bench, '2D - oscillating', passes=2000, sec=30, metrics='train loss', vid_scale=1, fps=30)
 
+        # ------------------------------- simultaneous ------------------------------- #
+        bench = tasks.SimultaneousFunctionDescent('rosen', log_scale=True).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, '2D simultaneous - rosenbrock', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+
+        bench = tasks.SimultaneousFunctionDescent('rosenabs', log_scale=True).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, '2D simultaneous - rosenbrock abs', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+
+        bench = tasks.SimultaneousFunctionDescent('dipole').to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, '2D simultaneous - dipole', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+
+        bench = tasks.SimultaneousFunctionDescent('rastrigin').to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, '2D simultaneous - rastrigin', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+
+        bench = tasks.SimultaneousFunctionDescent('around', log_scale=True).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, '2D simultaneous - around', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+
+        bench = tasks.SimultaneousFunctionDescent('spiral', log_scale=True).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, '2D simultaneous - spiral', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+
+        bench = tasks.SimultaneousFunctionDescent('oscillating', log_scale=True).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, '2D simultaneous - oscillating', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+
 
     def render(self, axsize=(6,3), dpi=300, extra_references: str | Sequence | None = None, n_best:int=1):
-        from .plotting import REFERENCE_OPTS, render_summary_v2
+        from .plotting import REFERENCE_OPTS, render_summary
 
         if extra_references is None: extra_references = []
         if isinstance(extra_references, str): extra_references = [extra_references]
         reference_opts = list(REFERENCE_OPTS) + [r for r in extra_references if r not in REFERENCE_OPTS]
 
-
         dir = self.summaries_root
         if not os.path.exists(dir): os.mkdir(dir)
 
-        render_summary_v2(
+        render_summary(
             self.root,
             dirname=os.path.join(dir, f"{to_valid_fname(self.sweep_name)}"),
             main=self.sweep_name,
@@ -494,13 +555,23 @@ class MBSRun:
             axsize=axsize, dpi=dpi,
         )
 
-    def render_single_image(self, axsize=(6,3), dpi=300, format='png'):
-        if format.startswith('.'): format = format[1:]
-        from .plotting import render_summary
 
-        render_summary(
-            self.root,
-            fname=f"{to_valid_fname(self.sweep_name)}.{format}",
-            main=self.sweep_name,
-            axsize=axsize, dpi=dpi,
-        )
+
+def _maybe_format(x):
+    if isinstance(x, float): return format_number(x, 3)
+    return x
+
+def _dict_to_str(d: dict):
+    return ' '.join([f"{k}={_maybe_format(v)}" for k,v in d.items()])
+
+def print_task_summary(task_name:str, metric: str = "train loss", maximize=False, root: str = "optimizers",) -> None:
+    task = Task.load(os.path.join(root, task_name), load_loggers=False, decoder=None)
+    sweeps = task.best_sweeps(metric, maximize, n=1000)
+    runs = [s.best_runs(metric, maximize, n=1)[0] for s in sweeps]
+
+    for i, r in enumerate(runs):
+        key = 'max' if maximize else 'min'
+        if len(r.hyperparams) == 0: n = f"{i}: {r.run_name}"
+        else: n = f"{i}: {r.run_name} ({_dict_to_str(r.hyperparams)})"
+        print(n.ljust(100)[:100], f"{format_number(r.stats[metric][key], 5)}")
+

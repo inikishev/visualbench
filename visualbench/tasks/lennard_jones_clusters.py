@@ -153,6 +153,9 @@ class LennardJonesClusters(Benchmark):
     """Lennard-Jones atom cluster potential minimisation. Notoriously difficult.
     I have not been able to find a point where gradients are not nan, so you probably need gradient free methods for this.
 
+    Renders:
+        visualization of the cluster.
+
     Here are some known minima https://doye.chem.ox.ac.uk/jon/structures/LJ.html"""
     def __init__(self, n):
         super().__init__()

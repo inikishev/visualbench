@@ -1,13 +1,17 @@
 from collections.abc import Callable
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 from ..benchmark import Benchmark
 
 
 class RNNArgsort(Benchmark):
+    """Very fast RNN training on an argsort objective.
+
+    Doesn't support rendering.
+    """
     def __init__(self, seq_len=10, hidden_size=32, batch_size=128, num_layers=1, rnn_cls: Callable[..., nn.Module] = nn.LSTM):
         super().__init__()
         self.seq_len = seq_len
@@ -35,3 +39,4 @@ class RNNArgsort(Benchmark):
     def reset(self):
         super().reset()
         if hasattr(self, 'rnn'): self.rnn.flatten_parameters() # type:ignore
+        return self

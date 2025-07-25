@@ -60,6 +60,15 @@ def _human_heart_dipole_data(variant: Literal[1,2,3,4,5]):
 
 
 class HumanHeartDipole(Benchmark):
+    """Human heart dipole objective from MINPACK2.
+
+    The are 5 variants, of which 4th is the hardest and is selected as the default one.
+
+    This is a least squares objective, it can be set to return a vector of residuals by calling ``benchmark.set_multiobjective()``.
+    A function to combine residuals can be set via ``benchmark.set_multiobjective_func``. It is sum of squares by default.
+
+    Doesn't support rendering.
+    """
     def __init__(self, variant:Literal[1,2,3,4,5]=4):
         super().__init__(seed=0)
         self.x = nn.Parameter(torch.randn(8, generator=self.rng.torch()))
@@ -122,12 +131,17 @@ def propane_combustion(x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11):
     return torch.stack([f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11])
 
 class PropaneCombustion(Benchmark):
-    def __init__(self, post=torch.square, max=False):
+    """Propane combustion objective from MINPACK2.
+
+    This is a least squares objective, it can be set to return a vector of residuals by calling ``benchmark.set_multiobjective()``.
+    A function to combine residuals can be set via ``benchmark.set_multiobjective_func``. It is sum of squares by default.
+
+    Doesn't support rendering.
+    """
+    def __init__(self):
         super().__init__(seed=0)
         self.x = nn.Parameter(torch.randn(11, generator=self.rng.torch()))
-        self.post = post
-        self.max = max
 
     def get_loss(self):
-        fs = self.post(propane_combustion(*self.x.clone()))
+        fs = propane_combustion(*self.x.clone())
         return fs

@@ -48,7 +48,10 @@ class _Tinyformer(nn.Module):
 
 
 class CharRNN(Benchmark):
-    """renders text to video"""
+    """Character-level RNN, learns to predict text.
+
+    Renders:
+        predicted text if you pass in ``test_text``"""
     def __init__(
         self,
         length = 256,

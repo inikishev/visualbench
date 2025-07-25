@@ -1,5 +1,5 @@
 import os
-from collections.abc import Sequence, Callable
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
@@ -28,14 +28,19 @@ _YSCALES: dict[str, Any] = {
     "ML - Wave PDE - FLS": "log",
 
     # 2D
-    # "2D - booth": "symlog",
-    # "2D - ill": "symlog",
+    "2D - booth": dict(value='symlog', linthresh=1e-8),
+    "2D - ill": dict(value='symlog', linthresh=1e-6),
     "2D - star": "log",
-    # "2D - rosenbrock": "symlog",
+    "2D - rosenbrock": dict(value='symlog', linthresh=1e-8),
     "2D - rosenbrock abs": "log",
     "2D - spiral": "log",
     "2D - illppc": "log",
-    "2D - oscillating": "log",
+    "2D - oscillating": dict(value='symlog', linthresh=1e-6),
+    "2D simultaneous - rosenbrock-10": "log",
+    "2D simultaneous - rosenbrock": "log",
+    "2D simultaneous - rosenbrock abs": "log",
+    "2D simultaneous - rosenbrock rastrigin": "log",
+    "2D simultaneous - oscillating": "log",
 
     # Losses
     "ML - Friedman 1 - Linear Regression - L-Infinity": "log",
@@ -72,6 +77,8 @@ _YSCALES: dict[str, Any] = {
     "Visual - Colorization (2nd order)": dict(value='symlog', linthresh=1e-12),
     "Visual - Graph layout optimization": "log",
     "Visual - Style Transfer": "log",
+    "Visual - Sine Approximator - Tanh 7-4": "log",
+    "Visual - Muon coefficients": "log",
 
     # real
     "Real - Human heart dipole": "log",
@@ -93,7 +100,7 @@ _TRAIN_SMOOTHING: dict[str, float] = {
 _COLORS_MAIN = ("red", "green", "blue")
 _COLORS_REFERENCES = ("deepskyblue", "orange", "springgreen", "coral", "lawngreen", "aquamarine", "plum", "pink", "peru")
 _COLORS_BEST = ("black", "dimgray", "maroon", "midnightblue", "darkgreen", "rebeccapurple", "darkmagenta", "saddlebrown", "darkslategray")
-Yscale = None | str | dict[str, Any] | Callable[[Axes], Any]
+Scale = None | str | dict[str, Any] | Callable[[Axes], Any]
 
 def _maybe_format_number(x):
     if isinstance(x, (int,float)): return format_number(x, 3)
@@ -118,28 +125,39 @@ def _load_steps_values(logger: "Logger", metric):
     steps = num_passes[step_idxs.clip(max=len(num_passes)-1)]
     return steps, values
 
-def _set_yscale_(ax: Axes, yscale: Yscale):
-    if yscale is None: return ax
-    if isinstance(yscale, str): ax.set_yscale(yscale)
-    elif isinstance(yscale, dict): ax.set_yscale(**yscale)
-    elif callable(yscale): yscale(ax)
-    else: raise ValueError(f"Invalid yscale {yscale}")
-    return ax
+def _set_scale_(ax: Axes, scale: Scale, which='y'):
+    if scale is None: return ax
 
-def _is_log_yscale(yscale: Yscale):
+    if which == 'y':
+        if isinstance(scale, str): ax.set_yscale(scale)
+        elif isinstance(scale, dict): ax.set_yscale(**scale)
+        elif callable(scale): scale(ax)
+        else: raise ValueError(f"Invalid yscale {scale}")
+        return ax
+
+    if which == 'x':
+        if isinstance(scale, str): ax.set_xscale(scale)
+        elif isinstance(scale, dict): ax.set_xscale(**scale)
+        elif callable(scale): scale(ax)
+        else: raise ValueError(f"Invalid yscale {scale}")
+        return ax
+
+    raise ValueError(which)
+
+def _is_log_scale(yscale: Scale):
     if yscale is None: return False
     if isinstance(yscale, str): return 'log' in yscale
     if isinstance(yscale, dict):
         yscale = yscale['value']
-        return _is_log_yscale(yscale)
+        return _is_log_scale(yscale)
     if callable(yscale): return False
     raise ValueError(f"Invalid yscale {yscale}")
 
-def _xaxis_settings_(ax:Axes, yscale: Yscale):
+def _xaxis_settings_(ax:Axes, yscale: Scale):
     ax.xaxis.set_major_locator(ticker.AutoLocator())
     ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
 
-    if _is_log_yscale(yscale):
+    if _is_log_scale(yscale):
         ax.yaxis.set_major_locator(ticker.LogLocator(numticks=999))
         ax.yaxis.set_minor_locator(ticker.LogLocator(numticks=999, subs="auto"))
 
@@ -154,7 +172,7 @@ def _xaxis_settings_(ax:Axes, yscale: Yscale):
 
 def plot_train_test_values(
     sweep: "Sweep",
-    yscale: Yscale = None,
+    yscale: Scale = None,
     ax: Axes | None = None,
 ):
     if len(sweep) == 0: return ax
@@ -174,7 +192,7 @@ def plot_train_test_values(
     ylim = _auto_loss_yrange(btr_train_values, btr_test_values, bte_train_values, bte_test_values, yscale=yscale)
     if ylim is not None: ax.set_ylim(*ylim)
 
-    _set_yscale_(ax, yscale)
+    _set_scale_(ax, yscale)
 
     # ---------------------------- plot ---------------------------- #
     ax.plot(bte_train_steps, bte_train_values, label=f"te - train: {format_number(np.nanmin(bte_train_values), 5)}", c='darkgreen', lw=0.5, alpha=0.5)
@@ -267,7 +285,7 @@ def plot_values(
         ylim = _auto_loss_yrange(*all_values, yscale=yscale)
         if ylim is not None: ax.set_ylim(*ylim)
 
-    _set_yscale_(ax, yscale)
+    _set_scale_(ax, yscale)
 
     # ----------------------------------- plot ----------------------------------- #
     _plot_metric(ax, reference_runs, metric, maximize, smoothing, _COLORS_REFERENCES, lw=0.5)
@@ -324,7 +342,7 @@ def _sweep_xyaxes(ax: Axes, xscale, yscale):
         ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
 
     # ----------------------------------- yaxis ---------------------------------- #
-    if _is_log_yscale(yscale):
+    if _is_log_scale(yscale):
         ax.yaxis.set_major_locator(ticker.LogLocator(numticks=999))
         ax.yaxis.set_minor_locator(ticker.LogLocator(numticks=999, subs="auto"))
 
@@ -344,7 +362,7 @@ def plot_sweeps(
     references: str | Sequence[str] | None,
     n_best: int,
     xscale: Any = 'log',
-    yscale: Yscale = None,
+    yscale: Scale = None,
     ax: Axes | None = None
 ):
     if ax is None: ax = plt.gca()
@@ -363,7 +381,7 @@ def plot_sweeps(
         if ylim is not None: ax.set_ylim(*ylim)
 
     if xscale is not None: ax.set_xscale(xscale)
-    _set_yscale_(ax, yscale)
+    _set_scale_(ax, yscale)
 
     # --------------------------------- load runs -------------------------------- #
     main_sweeps = [task[r] for r in main]
@@ -391,7 +409,7 @@ def plot_sweeps(
 def plot_train_test_sweep(
     sweep: "Sweep",
     xscale: Any = 'log',
-    yscale: Yscale = None,
+    yscale: Scale = None,
     ax: Axes | None = None,
 ):
 
@@ -406,7 +424,7 @@ def plot_train_test_sweep(
     if ylim is not None: ax.set_ylim(*ylim)
 
     if xscale is not None: ax.set_xscale(xscale)
-    _set_yscale_(ax, yscale)
+    _set_scale_(ax, yscale)
 
     # -------------------------------- plot -------------------------------- #
     hyperparam = None
@@ -439,103 +457,53 @@ def plot_train_test_sweep(
     return ax
 
 
-
-def render_summary(
-    root:str,
-    fname: str,
-    main: str | Sequence[str] | None,
-    n_best: int = 1,
-    references: str | Sequence[str] | None = REFERENCE_OPTS,
-
-    # plotting settings
-    axsize=(12,6), dpi=100
+def bar_chart(
+    task: "Task",
+    metric: str,
+    maximize: bool,
+    n=32,
+    references = None,
+    scale: Scale = None,
+    ax: Axes | None = None,
 ):
-    from .run import Task
-    if main is None: main = []
-    if isinstance(main, str): main = [main]
-
     if references is None: references = []
     if isinstance(references, str): references = [references]
 
-    decoder = msgspec.msgpack.Decoder()
+    if ax is None: ax = plt.gca()
+    if len(task) == 0: return ax
 
-    # ------------------------- determine number of axes ------------------------- #
-    nrows = 0
-    tasks: "list[Task]" = []
-    w_test_loss: list[bool] = []
-    for task_name in os.listdir(root):
+    # --------------------------------- load runs -------------------------------- #
+    sweeps = task.best_sweeps(metric, maximize, n=n)
+    runs = [s.best_runs(metric, maximize, n=1)[0] for s in sweeps]
 
-        task_path = os.path.join(root, task_name)
-        if not os.path.isdir(task_path): continue
-        sweeps = os.listdir(task_path)
+    # --------------------------- load best keys/values -------------------------- #
+    key = 'max' if maximize else 'min'
+    runs = [r for r in runs if metric in r.stats][:32]
+    keys = [r.string(metric) for r in runs]
+    values = [r.stats[metric][key] for r in runs]
+    colors = ['cornflowerblue' for _ in keys]
 
-        # load task if a sweep was done by `main`
-        if len(main) == 0 or any(sweep in main for sweep in sweeps):
+    # ------------------------- set main run color to red ------------------------ #
+    for ref in references:
+        names = [r.run_name for r in runs]
+        if ref in names: colors[names.index(ref)] = 'red'
 
-            task = Task.load(task_path, load_loggers=False, decoder=decoder)
-            if len(task) == 0: continue
-            assert task.target_metrics is not None
+    # --------------------------------- plotting --------------------------------- #
+    ax.grid(which='major', axis='x', lw=0.5)
+    ax.grid(which='minor', axis='x', lw=0.5, alpha=0.15)
+    _set_scale_(ax, scale, which='x')
+    if _is_log_scale(scale):
+        ax.xaxis.set_major_locator(ticker.LogLocator(numticks=999))
+        ax.xaxis.set_minor_locator(ticker.LogLocator(numticks=999, subs="auto"))
 
-            tasks.append(task)
-            has_test = False
-            nrows += len(task.target_metrics)
+    else:
+        ax.xaxis.set_major_locator(ticker.AutoLocator())
+        ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
 
-            # if there is test loss, plot train/test separately in extra row
-            if len(main) > 0:
-                # get 1st non empty sweep and 1st run to see if it has test loss
-                run1 = None
-                sweep1 = None
-                for sweep in task.values():
-                    if len(sweep) > 0: sweep1 = sweep
-                if sweep1 is not None:
-                    run1 = sweep1[0]
-                if run1 is not None and 'test loss' in run1.stats:
-                    nrows += 1
-                    has_test = True
+    ax.tick_params(axis='y', labelsize=7)
+    ax.barh(keys, values, color=colors)
+    return ax
 
-            w_test_loss.append(has_test)
-
-
-    # --------------------------------- make axes -------------------------------- #
-    axes = make_axes(n=nrows*2, ncols=2, nrows=nrows, axsize=axsize, dpi=dpi)
-    axes_iter = iter(axes)
-
-    # sort by task name, tasks with no test loss are first
-    zipped = list(zip(tasks, w_test_loss))
-    zipped.sort(key=lambda x: (x[1], x[0].task_name if x[0].task_name is not None else 0))
-
-    # ----------------------------------- plot ----------------------------------- #
-    for task, has_test in zipped:
-        assert task.task_name is not None
-        assert task.target_metrics is not None
-
-        yscale = _YSCALES.get(task.task_name, None)
-        if has_test:
-            sweep = task[main[0]]
-            # plot train/test losses of current opt
-            ax = next(axes_iter)
-            plot_train_test_values(sweep, yscale, ax)
-
-            # plot train/test sweep of current opt
-            ax = next(axes_iter)
-            plot_train_test_sweep(sweep, xscale='log', yscale=yscale, ax=ax)
-
-        # plot all metrics
-        for metric, maximize in task.target_metrics.items():
-            # plot values
-            ax = next(axes_iter)
-            smoothing = 0
-            if metric == 'train loss': smoothing = _TRAIN_SMOOTHING.get(task.task_name, 0)
-            plot_values(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, yscale=yscale, smoothing=smoothing, ax=ax)
-
-            # plot sweep
-            ax = next(axes_iter)
-            plot_sweeps(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, xscale='log', yscale=yscale, ax=ax)
-
-    # ---------------------------------- save ts --------------------------------- #
-    # for fn in queue: fn()
-    plt.savefig(fname)
-    plt.close()
 
 def _clean_empty(root):
     for f in os.listdir(root):
@@ -547,7 +515,7 @@ def _clean_empty(root):
                 _clean_empty(path)
 
 
-def render_summary_v2(
+def render_summary(
     root:str,
     dirname: str,
     main: str | Sequence[str] | None,
@@ -596,8 +564,9 @@ def render_summary_v2(
                 if run1 is not None and 'test loss' in run1.stats:
                     has_test = True
 
-            nrows = len(task.target_metrics) + has_test
-            axes = make_axes(n=nrows*2, nrows=nrows, ncols=2, axsize=axsize, dpi=dpi)
+            n_metrics = len(task.target_metrics)
+            nrows = n_metrics + has_test
+            axes = make_axes(n=nrows*2+n_metrics, nrows=nrows, ncols=2, axsize=axsize, dpi=dpi)
             axes_iter = iter(axes)
 
             if has_test:
@@ -622,6 +591,11 @@ def render_summary_v2(
                 ax = next(axes_iter)
                 plot_sweeps(task, metric=metric, maximize=maximize, main=main, references=references, n_best=n_best, xscale='log', yscale=yscale, ax=ax)
 
+            # bars
+            for metric, maximize in task.target_metrics.items():
+                # plot values
+                ax = next(axes_iter)
+                bar_chart(task, metric, maximize, references=references, scale=yscale, ax=ax)
             # ---------------------------------- save ts --------------------------------- #
             # for fn in queue: fn()
             if not os.path.exists(dirname): os.mkdir(dirname)
