@@ -28,7 +28,12 @@ class Inverse(Benchmark):
         loss2 = self.criterion(AB, self.I)
         loss3 = self.criterion(BA, self.I)
 
+        # prevents loss close to 0 when matrices are just zeros
+        if AB.amax().maximum(BA.amax()) < torch.finfo(AB.dtype).eps:
+            loss2 = loss3 = float('inf')
+
         loss = loss1+loss2+loss3
+
 
         if self._make_images:
             with torch.no_grad():
@@ -84,6 +89,12 @@ class StochasticInverse(Benchmark):
             loss1 = self.criterion(AB, BA)
             loss2 = self.criterion(AB, self.I)
             loss3 = self.criterion(BA, self.I)
+
+            # prevents loss close to 0 when matrices are just zeros
+            if AB.amax().maximum(BA.amax()) < torch.finfo(AB.dtype).eps:
+                loss2 = loss3 = float('inf')
+                with torch.enable_grad(): loss = loss*torch.inf
+
             self.log('test loss', loss1+loss2+loss3)
 
             # ---------------------------------- images ---------------------------------- #

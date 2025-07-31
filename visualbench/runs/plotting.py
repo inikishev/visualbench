@@ -1,11 +1,15 @@
+import math
+import warnings
 import os
+import textwrap
 from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import msgspec
 import numpy as np
-from matplotlib import ticker
+from matplotlib import patches, ticker
 from matplotlib.axes import Axes
 from matplotlib.scale import SymmetricalLogScale
 from scipy.ndimage import gaussian_filter1d
@@ -17,7 +21,18 @@ if TYPE_CHECKING:
     from ..logger import Logger
     from ..runs.run import Run, Sweep, Task
 
-REFERENCE_OPTS = ("SGD", "NAG", "Adagrad", "RMSprop", "Adam", "AdamW", "L-BFGS", "BFGS-Backtracking", "Newton")
+REFERENCE_OPTS = (
+    "torch.SGD",
+    "torch.NAG(0.9)",
+    "torch.Adagrad",
+    "torch.RMSprop",
+    "torch.Adam",
+    "torch.AdamW",
+    "torch.LBFGS",
+    "tz.BFGS-Backtracking",
+    "tz.Newton",
+    "tz.SOAP",
+)
 
 _YSCALES: dict[str, Any] = {
     # ML
@@ -36,11 +51,11 @@ _YSCALES: dict[str, Any] = {
     "2D - spiral": "log",
     "2D - illppc": "log",
     "2D - oscillating": dict(value='symlog', linthresh=1e-6),
-    "2D simultaneous - rosenbrock-10": "log",
-    "2D simultaneous - rosenbrock": "log",
-    "2D simultaneous - rosenbrock abs": "log",
-    "2D simultaneous - rosenbrock rastrigin": "log",
-    "2D simultaneous - oscillating": "log",
+    # "2D simultaneous - rosenbrock-10": "log",
+    # "2D simultaneous - rosenbrock": "log",
+    # "2D simultaneous - rosenbrock abs": "log",
+    # "2D simultaneous - rosenbrock rastrigin": "log",
+    # "2D simultaneous - oscillating": "log",
 
     # Losses
     "ML - Friedman 1 - Linear Regression - L-Infinity": "log",
@@ -73,16 +88,17 @@ _YSCALES: dict[str, Any] = {
     "Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ReLU+bn": "log",
     "Visual - PartitionDrawer": "log",
     "Visual - Moons BS-16 - MLP(2-2-2-2-2-2-2-2-1)-ELU": "log",
-    "Visual - Colorization": dict(value='symlog', linthresh=1e-12),
-    "Visual - Colorization (2nd order)": dict(value='symlog', linthresh=1e-12),
+    "Visual - Colorization": dict(value='symlog', linthresh=1e-6),
+    "Visual - Colorization (2nd order)": dict(value='symlog', linthresh=1e-6),
+    # "Visual - Colorization (1.3th power)": dict(value='symlog', linthresh=1e-6),
     "Visual - Graph layout optimization": "log",
-    "Visual - Style Transfer": "log",
     "Visual - Sine Approximator - Tanh 7-4": "log",
-    "Visual - Muon coefficients": "log",
 
     # real
     "Real - Human heart dipole": "log",
     "Real - Propane combustion": "log",
+    "Real - Style Transfer": "log",
+    "Real - Muon coefficients": "log",
 }
 
 _TRAIN_SMOOTHING: dict[str, float] = {
@@ -170,6 +186,11 @@ def _xaxis_settings_(ax:Axes, yscale: Scale):
 
     return ax
 
+
+def _wrap(s:str | None, maxlen=30) -> Any:
+    if s is None: return None
+    return '\n'.join(textwrap.wrap(s, maxlen))
+
 def plot_train_test_values(
     sweep: "Sweep",
     yscale: Scale = None,
@@ -207,7 +228,7 @@ def plot_train_test_values(
 
 
     # ------------------------------- axes and grid ------------------------------ #
-    ax.set_title(f'{sweep.run_name} - {sweep.task_name}')
+    ax.set_title(_wrap(f'{sweep.run_name} - {sweep.task_name}'), fontsize=9)
     ax.set_ylabel('loss')
     ax.set_xlabel('num forward/backward passes')
     legend_(ax)
@@ -249,7 +270,7 @@ def _plot_metric(
         best = np.nanmax(values) if maximize else np.nanmin(values)
 
         if smoothing != 0: values = gaussian_filter1d(values, smoothing, mode='nearest')
-        ax.plot(steps, values, label=_make_label(r, best, _get_1st_key(r.hyperparams)), c=c, **plot_kwargs)
+        ax.plot(steps, values, label=_wrap(_make_label(r, best, _get_1st_key(r.hyperparams))), c=c, **plot_kwargs)
 
     return ax
 
@@ -294,7 +315,7 @@ def plot_values(
 
     name = task.task_name
     if len(main) == 1: name = f'{main[0]} - {name}'
-    if name is not None: ax.set_title(name)
+    if name is not None: ax.set_title(_wrap(name), fontsize=9)
     ax.set_ylabel(metric)
     ax.set_xlabel('num forward/backward passes')
     legend_(ax)
@@ -320,13 +341,13 @@ def _plot_sweep(
     for s,c in zip(sweeps,colors):
         key = 'max' if maximize else 'min'
         if len(s) == 1:
-            ax.axhline(s[0].stats[metric][key], c=c, lw=lw, ls='--', label=s.run_name)
+            ax.axhline(s[0].stats[metric][key], c=c, lw=lw, ls='--', label=_wrap(s.run_name))
         else:
             hyperparam = _find_different(*(r.hyperparams for r in s))
             if hyperparam is None: continue
             values = [(run.hyperparams[hyperparam], run.stats[metric][key]) for run in s]
             values.sort(key=lambda x: x[0])
-            ax.plot(*zip(*values), label=s.run_name, c=c, lw=lw)
+            ax.plot(*zip(*values), label=_wrap(s.run_name), c=c, lw=lw)
             ax.scatter(*zip(*values), c=c, s=marker_size, alpha=0.5,)
 
     return ax
@@ -398,7 +419,7 @@ def plot_sweeps(
     # -------------------------------- ax settings ------------------------------- #
     name = task.task_name
     if len(main) == 1: name = f'{main[0]} - {name}'
-    if name is not None: ax.set_title(name)
+    if name is not None: ax.set_title(_wrap(name), fontsize=9)
     ax.set_ylabel(metric)
     ax.set_xlabel("hyperparameter")
     legend_(ax)
@@ -448,7 +469,7 @@ def plot_train_test_sweep(
         ax.scatter(*zip(*test_values), c='blue', s=15, alpha=0.5,)
 
     # -------------------------------- ax settings ------------------------------- #
-    ax.set_title(f'{sweep.run_name} - {sweep.task_name}')
+    ax.set_title(_wrap(f'{sweep.run_name} - {sweep.task_name}'), fontsize=9)
     ax.set_ylabel('loss')
     if hyperparam is not None: ax.set_xlabel(hyperparam)
     legend_(ax)
@@ -462,10 +483,14 @@ def bar_chart(
     metric: str,
     maximize: bool,
     n=32,
+    main=None,
     references = None,
     scale: Scale = None,
     ax: Axes | None = None,
 ):
+    if main is None: main = []
+    if isinstance(main, str): main = [main]
+
     if references is None: references = []
     if isinstance(references, str): references = [references]
 
@@ -479,14 +504,18 @@ def bar_chart(
     # --------------------------- load best keys/values -------------------------- #
     key = 'max' if maximize else 'min'
     runs = [r for r in runs if metric in r.stats][:32]
-    keys = [r.string(metric) for r in runs]
+    keys = [_wrap(r.string(metric), 50) for r in runs]
     values = [r.stats[metric][key] for r in runs]
     colors = ['cornflowerblue' for _ in keys]
 
     # ------------------------- set main run color to red ------------------------ #
     for ref in references:
         names = [r.run_name for r in runs]
-        if ref in names: colors[names.index(ref)] = 'red'
+        if ref in names: colors[names.index(ref)] = 'blue'
+
+    for m in main:
+        names = [r.run_name for r in runs]
+        if m in names: colors[names.index(m)] = 'red'
 
     # --------------------------------- plotting --------------------------------- #
     ax.grid(which='major', axis='x', lw=0.5)
@@ -500,8 +529,122 @@ def bar_chart(
         ax.xaxis.set_major_locator(ticker.AutoLocator())
         ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
 
-    ax.tick_params(axis='y', labelsize=7)
+    ax.tick_params(axis='y', labelsize=2)
     ax.barh(keys, values, color=colors)
+    return ax
+
+
+
+
+def summary_df(root:str = "optimizers", include_partial:bool=True):
+    from .run import Task
+    decoder = msgspec.msgpack.Decoder()
+    dirs = [os.path.join(root, d) for d in os.listdir(root)]
+    tasks = [Task.load(d, load_loggers=False, decoder=decoder) for d in dirs if os.path.isdir(d)]
+    tasks = [t for t in tasks if len(t) != 0]
+
+    tasks_list = []
+    for task in tasks:
+        log_scale = task.task_name in _YSCALES and _is_log_scale(_YSCALES[task.task_name])
+        assert task.target_metrics is not None
+
+        for target_metric, maximize in task.target_metrics.items():
+
+            row_name = task.task_name if len(task.target_metrics) == 1 else f"{task.task_name} - {target_metric}"
+            task_dict: dict = dict(name=row_name)
+
+            for sweep in task.values():
+                assert sweep.run_name is not None
+                assert sweep.target_metrics is not None
+
+                key = 'max' if maximize else 'min'
+                best_run = sweep.best_runs(target_metric, maximize, 1)[0]
+                value = best_run.stats[target_metric][key]
+                if log_scale:
+                    assert value >= 0, f"{task.task_name} has value {value} and log scale"
+                    value = math.log(value + 1e-12)
+
+                # skip runs that were terminated prematurely (those will appear white)
+                if not include_partial:
+                    if 'torch.SGD' not in task: warnings.warn(f"{task.task_name} has no SGD run!")
+                    else:
+                        sgd_logger = task['torch.SGD'][0].load_logger()
+                        cur_logger = best_run.load_logger()
+                        if sgd_logger.list('num passes')[-1] * 0.9 > cur_logger.list('num passes')[-1]: continue
+
+                task_dict[_wrap(sweep.run_name, 50)] = value
+
+            tasks_list.append(task_dict)
+
+    import polars as pl
+    df = pl.from_dicts(tasks_list)
+
+    # make name first and sort other cols
+    df = df.select(["name"] + sorted(col for col in df.columns if col != 'name'))
+
+    return df
+
+
+def summary_table(root:str, n=128, ax=None):
+    if ax is None: ax = plt.gca()
+
+    import polars as pl
+    df = summary_df(root, include_partial=False)
+
+    # remove 2d
+    df = df.filter(pl.col('name').str.contains("2D - ").not_())
+
+    # transpose so that optimizers are rows
+    df = (df
+          .select(col for col in df.columns if col != 'name')
+          .transpose(include_header=True, header_name='run', column_names = pl.Series(df.select('name')).to_list()))
+
+    # schnormalize to (0,1)
+    vals = sorted(col for col, dtype in df.schema.items() if dtype.is_numeric())
+
+    df = df.with_columns([
+        ((pl.col(c) - pl.col(c).min()) / (pl.col(c).max() - pl.col(c).min())).alias(c) for c in vals
+    ])
+
+    # sort by sum and take first n
+    expr = 0
+    for v in vals:
+        weight = 1
+        if "Friedman 1" in v: weight = 0.5
+        if v.startswith(("S - ", "SS - ")): weight = 0.5
+        if v.startswith("Visual - "): weight = 0.25
+        expr = expr + pl.col(v).fill_null(pl.col(v).median()) * weight
+    df = df.sort(expr).head(n)
+
+    # re-sort (somewhere it de-sorts)
+    vals = sorted(col for col, dtype in df.schema.items() if dtype.is_numeric())
+    df = df.select(["run"] + vals)
+
+    # HEHEHE... PLOT!!!!!!!
+    data = df.select(vals).to_numpy().transpose()
+    # cmap = plt.get_cmap("coolwarm").copy()
+    # cmap.set_bad('black')
+    cmap = mcolors.LinearSegmentedColormap.from_list("blue_to_red", ["blue", "red"])
+    cmap.set_bad('white')
+
+    ax.pcolormesh(data, cmap=cmap, edgecolors='w', linewidth=2)
+
+    # highlight best values
+    for row_idx in range(data.shape[0]):
+        row = data[row_idx]
+        if np.all(np.isnan(row)): continue
+        min_col = np.nanargmin(row)
+        rect = patches.Rectangle((int(min_col), row_idx), width=1, height=1, linewidth=3, edgecolor='black', facecolor='none')
+        ax.add_patch(rect)
+
+    # labels
+    ax.set_xticks(np.arange(0, data.shape[1], 1)+0.5)
+    ax.set_yticks(np.arange(0, data.shape[0], 1)+0.5)
+    ax.set_xticklabels(pl.Series(df.select('run')).to_list())
+    ax.set_yticklabels(df.columns[1:])
+    ax.tick_params(axis='x', labelsize=10)
+    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    ax.tick_params(axis='y', labelsize=8)
     return ax
 
 
@@ -566,7 +709,7 @@ def render_summary(
 
             n_metrics = len(task.target_metrics)
             nrows = n_metrics + has_test
-            axes = make_axes(n=nrows*2+n_metrics, nrows=nrows+1, ncols=2, axsize=axsize, dpi=dpi)
+            axes = make_axes(n=nrows*2+n_metrics, ncols=2, axsize=axsize, dpi=dpi)
             axes_iter = iter(axes)
 
             if has_test:
@@ -595,9 +738,18 @@ def render_summary(
             for metric, maximize in task.target_metrics.items():
                 # plot values
                 ax = next(axes_iter)
-                bar_chart(task, metric, maximize, references=references, scale=yscale, ax=ax)
+                bar_chart(task, metric, maximize, main=main, references=references, scale=yscale, ax=ax)
             # ---------------------------------- save ts --------------------------------- #
             # for fn in queue: fn()
             if not os.path.exists(dirname): os.mkdir(dirname)
             plt.savefig(os.path.join(dirname, f"{to_valid_fname(task.task_name)}.png"))
             plt.close()
+
+    # ------------------------------- plot summary ------------------------------- #
+    ax = make_axes(1, figsize=(20,20))[0]
+    ax = summary_table(root, ax=ax)
+    plt.colorbar(ax.collections[0])
+    # fig: Any = ax.get_figure()
+    # fig.set_size_inches(20, 20)
+    plt.savefig(os.path.join(dirname, "summary.png"))
+    plt.close()

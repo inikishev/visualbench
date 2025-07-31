@@ -77,9 +77,9 @@ class Benchmark(torch.nn.Module, ABC):
         # --------------------------------- trackers --------------------------------- #
         self.num_forwards: int = 0
         self.num_backwards: int = 0
-        self.num_extra: int = 0
+        self.num_extra: float = 0
 
-        self._extra_passes_per_step: int = 0 # anything not counted
+        self._extra_passes_per_step: float = 0 # anything not counted
         self._post_step_callbacks: "list[Callable[[Benchmark], Any]]" = [] # runs after each optimizer step
 
         self.num_steps: int = 0
@@ -126,7 +126,7 @@ class Benchmark(torch.nn.Module, ABC):
 
     @property
     def num_passes(self) -> int:
-        return sum([self.num_forwards, self.num_backwards, self.num_extra])
+        return sum([self.num_forwards, self.num_backwards, round(self.num_extra)])
 
     @property
     def seconds_passed(self):
@@ -481,13 +481,13 @@ class Benchmark(torch.nn.Module, ABC):
         target_loss: int | None = None,
 
         # stuff
-        num_extra_passes: int | Callable[[int], int] = 0,
+        num_extra_passes: float | Callable[[int], float] = 0,
         step_callbacks: "Callable[[Benchmark], Any] | Sequence[Callable[[Benchmark], Any]] | None" = None,
     ):
         self._max_passes = max_passes; self._max_forwards = max_forwards
         self._max_steps = max_steps; self._max_epochs = max_epochs
         self._max_seconds = max_seconds; self._target_loss = target_loss
-        self._extra_passes_per_step = num_extra_passes if isinstance(num_extra_passes, int) else num_extra_passes(self.ndim)
+        self._extra_passes_per_step = num_extra_passes if isinstance(num_extra_passes, (int,float)) else num_extra_passes(self.ndim)
         _benchmark_utils._ensure_stop_criteria_exists_(self)
 
         if callable(step_callbacks): step_callbacks = [step_callbacks, ]

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import Literal, Any
 import warnings
 import torch
@@ -97,3 +98,19 @@ def orthogonal(shape, device=None, dtype=None, generator=None) -> torch.Tensor:
 def orthogonal_like(tensor: torch.Tensor, generator=None) -> torch.Tensor:
     t = torch.empty_like(tensor)
     return torch.nn.init.orthogonal_(t, generator=generator)
+
+letters = "abcdefghijklmnopqrstuvwxyz"
+def mats_to_tensor(mats:Sequence[torch.Tensor] | torch.nn.ParameterList):
+    n = len(mats)
+    ls = ", z".join(letters[:n])
+    ls = f"z{ls}"
+    rs = letters[:n]
+
+    # this makes "za, zb, zc, zd -> a,b,c,d"
+    return torch.einsum(f"{ls}->{rs}", *mats)
+
+def make_low_rank_tensor(size:Sequence[int], rank:int, seed=None):
+    if isinstance(seed, int): seed = torch.Generator().manual_seed(seed)
+    mats = [torch.randn(rank, s, generator=seed) for s in size]
+    return mats_to_tensor(mats)
+

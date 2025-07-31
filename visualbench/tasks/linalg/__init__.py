@@ -24,3 +24,4 @@ from .matrix_functions import (
 )
 from .other import StochasticMatrixRecovery
 from .custom import SumOfKrons
+from .tensor import TensorRankDecomposition, TensorSpectralNorm, BilinearLeastSquares

@@ -78,7 +78,7 @@ class StyleTransfer(Benchmark):
         self.generated = torch.nn.Parameter(self.content.clone().requires_grad_(True).contiguous())
 
         if isinstance(content_layers, int): content_layers = (content_layers, )
-        self.vgg = VGG(content_layers=content_layers, style_layers=style_layers)
+        self.vgg = VGG(content_layers=content_layers, style_layers=style_layers).requires_grad_(False)
         for param in self.vgg.parameters(): param.requires_grad_(False)
 
         content_features, _ = self.vgg(self.content) # Content features from layer 19

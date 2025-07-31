@@ -1,7 +1,7 @@
 from . import data, losses, models
 from .tasks import *
 from .utils import tonumpy, totensor
-
+from .tasks.linalg import linalg_utils
 
 def all_benchmarks():
     from .benchmark import Benchmark

@@ -143,7 +143,7 @@ class Run:
 
         maximize = self.target_metrics[metric]
         key = 'max' if maximize else 'min'
-        return f'{s} {str(format_number(self.stats[metric][key], 5)).ljust(7)}"'
+        return f'{s} {str(format_number(self.stats[metric][key], 5)).ljust(7)}'
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, Run): raise TypeError(f"Can't check equality because {type(other)} is not a Run!")
@@ -529,3 +529,5 @@ def single_run(
 
     search.objective({})
     return Sweep(search.runs)
+
+

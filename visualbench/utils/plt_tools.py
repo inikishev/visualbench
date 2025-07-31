@@ -71,6 +71,10 @@ def make_axes(
     frameon: bool = True,
     layout: Literal["constrained", "compressed", "tight", "none"] | None = "compressed",
 ) -> list[matplotlib.axes.Axes]:
+    fix_ncols = ncols is not None
+    fix_nrows = nrows is not None
+    if fix_ncols and fix_nrows: fix_ncols = fix_nrows = False
+
     # distribute rows and cols
     if ncols is None:
         if nrows is None:
@@ -85,11 +89,15 @@ def make_axes(
     ncols = round(ncols)
     nrows = max(nrows, 1)
     ncols = max(ncols, 1)
+
     c = True
     while nrows * ncols < n:
-        if c: ncols += 1
-        else: nrows += 1
-        c = not c
+        if fix_ncols: nrows += 1
+        elif fix_nrows: ncols += 1
+        else:
+            if c: ncols += 1
+            else: nrows += 1
+            c = not c
 
     nrows = min(nrows, n)
     ncols = min(ncols, n)

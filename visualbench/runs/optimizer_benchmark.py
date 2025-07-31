@@ -46,6 +46,7 @@ class MBSRun:
         fixed_hyperparams: dict | None = None,
         max_dim: int | None = None,
         tune: bool = True,
+        skip:str | Sequence[str] | None = None,
 
         # storage
         root: str = "optimizers",
@@ -55,7 +56,14 @@ class MBSRun:
         accelerate: bool = True,
         load_existing: bool = True,
         render_vids: bool = True,
+
+        # pass stuff
+        num_extra_passes: float | Callable[[int], float] = 0,
+        step_callbacks: "Callable[[Benchmark], Any] | Sequence[Callable[[Benchmark], Any]] | None" = None,
     ):
+        if skip is None: skip = ()
+        if isinstance(skip, str): skip = (skip, )
+
         self.root = root
         self.sweep_name = sweep_name
         self.summaries_root = f"{self.root} - summaries"
@@ -63,10 +71,11 @@ class MBSRun:
         self.hyperparam = hyperparam
 
         def run_bench(bench: "Benchmark", task_name: str, passes: int, sec: float, metrics:str | Sequence[str] | dict[str, bool], vid_scale:int|None, fps=60, binary_mul: float = 1, test_every: int | None = None):
-            clean_mem()
-
+            if task_name in skip: return
             dim = sum(p.numel() for p in bench.parameters() if p.requires_grad)
             if max_dim is not None and dim > max_dim: return
+
+            clean_mem()
 
             if accelerate and next(bench.parameters()).is_cuda: # skip CPU because accelerator state can't change.
                 accelerator = Accelerator()
@@ -75,8 +84,8 @@ class MBSRun:
             def logger_fn(value: float):
                 if dim > 10_000: clean_mem()
                 bench.reset().set_benchmark_mode().set_print_inverval(None)
-                opt = opt_fn(bench.parameters(), value)
-                bench.run(opt, passes, max_seconds=sec, test_every_forwards=test_every)
+                opt = opt_fn([p for p in bench.parameters() if p.requires_grad], value)
+                bench.run(opt, passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
                 if print_progress and bench.seconds_passed is not None and bench.seconds_passed > sec:
                     print(f"{sweep_name}: '{task_name}' timeout, {bench.seconds_passed} > {sec}!")
                 return bench.logger
@@ -174,12 +183,6 @@ class MBSRun:
         bench = tasks.Colorization.small(power=1.3).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - Colorization (1.3th power)', passes=2_000, sec=60, metrics='train loss', vid_scale=8)
 
-        # ------------------------------ Alpha Evolve B1 ----------------------------- #
-        # ndim = 600
-        # 4.4s. ~ 1m. 30s.
-        bench = tasks.AlphaEvolveB1().to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Alpha Evolve B1', passes=4_000, sec=90, metrics='train loss', vid_scale=1)
-
         # ----------------------------------- t-SNE ---------------------------------- #
         # ndim = 1,138
         # 3.7s. ~ 1m. 12s.
@@ -193,19 +196,6 @@ class MBSRun:
         bench = tasks.GraphLayout(tasks.GraphLayout.GRID()).to(CUDA_IF_AVAILABLE)
         bench_name = 'Visual - Graph layout optimization'
         self.run_bench(bench, bench_name, passes=2_000, sec=60, metrics='train loss', vid_scale=1) # 4.4s. ~ 1m. 30s.
-
-        # ------------------------------ Style transfer ------------------------------ #
-        # ndim = 49,152
-        # 14s. ~ 4m. 40s.
-        # 9+4=13 ~ 3m.
-        bench = tasks.StyleTransfer(data.FROG96, data.GEOM96).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Style Transfer', passes=2_000, sec=120, metrics='train loss', binary_mul=0.4, vid_scale=2)
-
-        # -------------------------------- Muon coeffs ------------------------------- #
-        # ndim = 15
-        # 9.1s. ~ 3m. 3s.
-        bench = tasks.MuonCoeffs(resolution=(512, 512)) # NO CUDA
-        self.run_bench(bench, 'Visual - Muon coefficients', passes=2_000, sec=120, metrics='train loss', vid_scale=1)
 
         # ----------------------- Sine Approximator - Tanh 7-4 ---------------------- #
         # ndim = 15
@@ -243,6 +233,25 @@ class MBSRun:
         # 3.3s. ~ 1m. 6s.
         bench = tasks.PropaneCombustion() # NO CUDA
         self.run_bench(bench, "Real - Propane combustion", passes=2_000, sec=60, metrics='train loss', vid_scale=None)
+
+        # -------------------------------- Muon coeffs ------------------------------- #
+        # ndim = 15
+        # 9.1s. ~ 3m. 3s.
+        bench = tasks.MuonCoeffs(resolution=(512, 512)) # NO CUDA
+        self.run_bench(bench, 'Real - Muon coefficients', passes=2_000, sec=120, metrics='train loss', vid_scale=1)
+
+        # ------------------------------ Alpha Evolve B1 ----------------------------- #
+        # ndim = 600
+        # 4.4s. ~ 1m. 30s.
+        bench = tasks.AlphaEvolveB1().to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Real - Alpha Evolve B1', passes=4_000, sec=90, metrics='train loss', vid_scale=1)
+
+        # ------------------------------ Style transfer ------------------------------ #
+        # ndim = 49,152
+        # 14s. ~ 4m. 40s.
+        # 9+4=13 ~ 3m.
+        bench = tasks.StyleTransfer(data.FROG96, data.GEOM96).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Real - Style Transfer', passes=2_000, sec=120, metrics='train loss', binary_mul=0.4, vid_scale=2)
 
     def run_ML(self):
         # ---------------------- Small MLP (full-batch MNIST-1D) --------------------- #
@@ -513,27 +522,27 @@ class MBSRun:
         bench = tasks.FunctionDescent('oscillating')
         self.run_bench(bench, '2D - oscillating', passes=2000, sec=30, metrics='train loss', vid_scale=1, fps=30)
 
-        # ------------------------------- simultaneous ------------------------------- #
-        bench = tasks.SimultaneousFunctionDescent('rosen', log_scale=True).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, '2D simultaneous - rosenbrock', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+        # # ------------------------------- simultaneous ------------------------------- #
+        # bench = tasks.SimultaneousFunctionDescent('rosen', log_scale=True).to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, '2D simultaneous - rosenbrock', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
 
-        bench = tasks.SimultaneousFunctionDescent('rosenabs', log_scale=True).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, '2D simultaneous - rosenbrock abs', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+        # bench = tasks.SimultaneousFunctionDescent('rosenabs', log_scale=True).to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, '2D simultaneous - rosenbrock abs', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
 
-        bench = tasks.SimultaneousFunctionDescent('dipole').to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, '2D simultaneous - dipole', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+        # bench = tasks.SimultaneousFunctionDescent('dipole').to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, '2D simultaneous - dipole', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
 
-        bench = tasks.SimultaneousFunctionDescent('rastrigin').to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, '2D simultaneous - rastrigin', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+        # bench = tasks.SimultaneousFunctionDescent('rastrigin').to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, '2D simultaneous - rastrigin', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
 
-        bench = tasks.SimultaneousFunctionDescent('around', log_scale=True).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, '2D simultaneous - around', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+        # bench = tasks.SimultaneousFunctionDescent('around', log_scale=True).to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, '2D simultaneous - around', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
 
-        bench = tasks.SimultaneousFunctionDescent('spiral', log_scale=True).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, '2D simultaneous - spiral', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+        # bench = tasks.SimultaneousFunctionDescent('spiral', log_scale=True).to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, '2D simultaneous - spiral', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
 
-        bench = tasks.SimultaneousFunctionDescent('oscillating', log_scale=True).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, '2D simultaneous - oscillating', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
+        # bench = tasks.SimultaneousFunctionDescent('oscillating', log_scale=True).to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, '2D simultaneous - oscillating', passes=2000, sec=30, metrics='train loss', vid_scale=2, fps=60)
 
 
     def render(self, axsize=(6,3), dpi=300, extra_references: str | Sequence | None = None, n_best:int=1):
@@ -555,23 +564,4 @@ class MBSRun:
             axsize=axsize, dpi=dpi,
         )
 
-
-
-def _maybe_format(x):
-    if isinstance(x, float): return format_number(x, 3)
-    return x
-
-def _dict_to_str(d: dict):
-    return ' '.join([f"{k}={_maybe_format(v)}" for k,v in d.items()])
-
-def print_task_summary(task_name:str, metric: str = "train loss", maximize=False, root: str = "optimizers",) -> None:
-    task = Task.load(os.path.join(root, task_name), load_loggers=False, decoder=None)
-    sweeps = task.best_sweeps(metric, maximize, n=1000)
-    runs = [s.best_runs(metric, maximize, n=1)[0] for s in sweeps]
-
-    for i, r in enumerate(runs):
-        key = 'max' if maximize else 'min'
-        if len(r.hyperparams) == 0: n = f"{i}: {r.run_name}"
-        else: n = f"{i}: {r.run_name} ({_dict_to_str(r.hyperparams)})"
-        print(n.ljust(100)[:100], f"{format_number(r.stats[metric][key], 5)}")
 
