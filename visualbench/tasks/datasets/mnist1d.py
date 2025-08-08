@@ -2,17 +2,22 @@
 mnist1d from
 https://github.com/greydanus/mnist1d
 """
+from typing import TYPE_CHECKING
+from importlib.util import find_spec
 import pickle
 from urllib.request import urlopen
 
 import torch
-from mnist1d.data import make_dataset
 from torch import nn
 from torch.nn import functional as F
 
 from ...utils import CUDA_IF_AVAILABLE
 from .dataset import DatasetBenchmark
 
+if TYPE_CHECKING or find_spec("mnist1d") is not None:
+    from mnist1d.data import make_dataset
+else:
+    make_dataset = None
 
 class ObjectView:
     """this is taken from mnist1d.utils (i added with)"""

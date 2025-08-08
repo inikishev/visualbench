@@ -9,7 +9,7 @@ from ...utils import algebras, to_CHW, to_square, totensor
 class MatrixRoot(Benchmark):
     def __init__(self, A, p: int, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
         self.min = self.A.min().item(); self.max = self.A.max().item()
 
         # this keeps norm at 1 from applying matrix power

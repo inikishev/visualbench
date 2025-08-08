@@ -1,14 +1,21 @@
+from importlib.util import find_spec
+from typing import TYPE_CHECKING, Literal, cast
+
 from .alpha_evolve_b1 import AlphaEvolveB1
 from .char_rnn import CharRNN
 from .colorization import Colorization
 from .covering import RigidBoxCovering
+from .cutest import CUTEst
 from .datasets import *
 from .drawing import LinesDrawer, NeuralDrawer, PartitionDrawer, RectanglesDrawer
 from .function_approximator import FunctionApproximator
-from .function_descent import FunctionDescent, test_functions, SimultaneousFunctionDescent
+from .function_descent import (
+    FunctionDescent,
+    SimultaneousFunctionDescent,
+    test_functions,
+)
 from .gmm import GaussianMixtureNLL
 from .graph_layout import GraphLayout
-from .guassian_processes import GaussianProcesses
 from .hadamard import Hadamard
 from .kato import Kato
 from .lennard_jones_clusters import LennardJonesClusters
@@ -23,6 +30,7 @@ from .packing import BoxPacking, RigidBoxPacking, SpherePacking
 # # from .gnn import GraphNN
 from .particles import *
 from .pde import WavePINN
+from .registration import AffineRegistration, DeformableRegistration
 from .rnn import RNNArgsort
 from .smale7 import Smale7
 from .steiner import SteinerSystem
@@ -34,3 +42,9 @@ from .synthetic import (
     Sphere,
 )
 from .tsne import TSNE
+
+if TYPE_CHECKING or find_spec('gpytorch') is not None:
+    from .guassian_processes import GaussianProcesses
+else:
+    GaussianProcesses = None
+
