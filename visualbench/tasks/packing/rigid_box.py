@@ -161,6 +161,8 @@ class RigidBoxPacking(Benchmark):
         elif init == 'random':
             self.params = nn.Parameter((1 - normalized_box_sizes) * noise.uniform_(0, 1))
 
+        self.set_multiobjective_func(torch.mean)
+
 
     @torch.no_grad
     def _make_frame(self):
@@ -226,7 +228,7 @@ class RigidBoxPacking(Benchmark):
         overlap = x_overlap * y_overlap
         if self.square: overlap = overlap ** 2
 
-        loss = overlap.sum() / self.size
+        loss = overlap#.sum() / self.size
         penalized_loss = loss + penalty
 
         # code above is equivalent to commented out code below (which was very slow):
@@ -241,5 +243,6 @@ class RigidBoxPacking(Benchmark):
 
         if self._make_images:
             self.log_image("boxes", self._make_frame(), to_uint8=False, show_best=True)
-        return penalized_loss
+
+        return penalized_loss.ravel()
 

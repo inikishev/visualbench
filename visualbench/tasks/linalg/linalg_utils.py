@@ -91,7 +91,7 @@ def polar(m):   # express polar decomposition in terms of singular-value decompo
 
 #     return U_truncated @ S_truncated, S_truncated @ V_truncated
 
-def orthogonal(shape, device=None, dtype=None, generator=None) -> torch.Tensor:
+def orthogonal(shape:int | Sequence[int], device:torch.types.Device=None, dtype=None, generator=None) -> torch.Tensor:
     t = torch.empty(shape,device=device,dtype=dtype)
     return torch.nn.init.orthogonal_(t, generator=generator)
 
@@ -99,8 +99,31 @@ def orthogonal_like(tensor: torch.Tensor, generator=None) -> torch.Tensor:
     t = torch.empty_like(tensor)
     return torch.nn.init.orthogonal_(t, generator=generator)
 
+def beye(size, dtype=None, device=None):
+    n,m = size[-2:]
+    eye = torch.eye(n,m, device=device,dtype=dtype)
+    if len(size) > 2:
+        for s in reversed(size[:-2]):
+            eye = eye.unsqueeze(0).repeat_interleave(s, 0)
+
+    return eye.clone()
+
+def eye_like(tensor):
+    return beye(tensor.size(), dtype=tensor.dtype, device=tensor.device)
+
+def expand_batch(tensor:torch.Tensor, size):
+    if tensor.shape != tuple(size[-tensor.ndim:]):
+        raise ValueError(f"can't expand tensor of shape {tensor.shape} to {tuple(size)}")
+
+    if len(size) > tensor.ndim:
+        for s in reversed(size[:-tensor.ndim]):
+            tensor = tensor.unsqueeze(0).repeat_interleave(s, 0)
+
+    return tensor.clone()
+
 letters = "abcdefghijklmnopqrstuvwxyz"
 def mats_to_tensor(mats:Sequence[torch.Tensor] | torch.nn.ParameterList):
+    """mats should be (rank, s_i), where s_i is size of i-th dimension of resulting tensor."""
     n = len(mats)
     ls = ", z".join(letters[:n])
     ls = f"z{ls}"
@@ -114,3 +137,10 @@ def make_low_rank_tensor(size:Sequence[int], rank:int, seed=None):
     mats = [torch.randn(rank, s, generator=seed) for s in size]
     return mats_to_tensor(mats)
 
+@torch.no_grad
+def row_sampler(size: Sequence[int], device=None, dtype=None, generator=None):
+    """Ax returns a random row of A, A can be batched, the row will be the same across the batch."""
+    t = torch.zeros(size, device=device, dtype=dtype)
+    idx = int(torch.randint(0, size[-2], (1, ), device=device, generator=generator).item())
+    t[..., idx, :] = 1
+    return t

@@ -1,4 +1,4 @@
-from .conditioning import Preconditioner
+from .conditioning import Preconditioner, StochasticPreconditioner
 from .decompositions import (
     LDL,
     LU,
@@ -13,7 +13,7 @@ from .decompositions import (
     Polar,
     RankFactorization,
 )
-from .inverses import Inverse, MoorePenrose, StochasticInverse
+from .inverses import Inverse, MoorePenrose, StochasticInverse, Drazin
 from .least_squares import LeastSquares
 from .matrix_functions import (
     MatrixIdempotent,
@@ -22,6 +22,7 @@ from .matrix_functions import (
     StochasticMatrixIdempotent,
     StochasticMatrixRoot,
 )
-from .other import StochasticMatrixRecovery
+from .matrix_recovery import StochasticMatrixRecovery
 from .custom import SumOfKrons
 from .tensor import TensorRankDecomposition, TensorSpectralNorm, BilinearLeastSquares
+from .combined import StochasticLeastSquares

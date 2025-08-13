@@ -35,7 +35,8 @@ class TensorRankDecomposition(Benchmark):
         return loss
 
 def _make_tensor(T, generator):
-    T = format.totensor(T)
+    if isinstance(T, str): T = format.to_CHW(T)
+    else: T = format.totensor(T)
     if T.ndim == 1: return torch.randn(size=T.int().tolist(), generator=generator)
     return T
 
@@ -54,7 +55,10 @@ class TensorSpectralNorm(Benchmark):
         unit_vecs = []
         for v in self.vecs:
             vv = v.dot(v)
-            loss += (vv - 1).abs() * self.w_unit
+
+            if self.w_unit != 0:
+                loss += (vv - 1).abs() * self.w_unit
+
             unit_vecs.append(v / vv.sqrt().clip(min=1e-8))
 
         let = letters[:len(unit_vecs)]
@@ -67,12 +71,19 @@ class TensorSpectralNorm(Benchmark):
 
 
 class BilinearLeastSquares(Benchmark):
-    def __init__(self, A:Any, g:Any, criterion=F.mse_loss):
+    """Solve y^T A_i x = g_i, where x and y are the decision variables.
+
+    ``A`` must be a 3D tensor and ``g`` is a vector with same number of elements as first dimension of ``A``.
+
+    if ``g`` is None, it is generated randomly.
+    """
+    def __init__(self, A:Any, g:Any | None = None, criterion=F.mse_loss, algebra=None):
         super().__init__()
 
         self.A = nn.Buffer(_make_tensor(A, generator=self.rng.torch()))
-        if self.A.ndim != 3: raise ValueError(f"T.ndim should be 3, got {A.shape = }")
+        if self.A.ndim != 3: raise ValueError(f"A.ndim should be 3, got {A.shape = }")
 
+        if g is None: g = self.A.size(0)
         if isinstance(g, int): g = torch.randn(g, generator=self.rng.torch())
         self.g = nn.Buffer(format.totensor(g).flatten())
 
@@ -82,8 +93,10 @@ class BilinearLeastSquares(Benchmark):
         self.x = nn.Parameter(torch.randn(self.A.size(2), generator=self.rng.torch()))
         self.y = nn.Parameter(torch.randn(self.A.size(1), generator=self.rng.torch()))
         self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
 
     def get_loss(self):
-        yAx = self.y @ self.A @ self.x
+        yA = algebras.matmul(self.y, self.A, algebra=self.algebra)
+        yAx = algebras.matmul(yA, self.x, algebra=self.algebra)
         loss = self.criterion(yAx, self.g)
         return loss

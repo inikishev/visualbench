@@ -3,7 +3,7 @@ from typing import Literal
 import torch
 from torch import nn
 
-from ..benchmark import Benchmark
+from ..benchmark import Benchmark, _sum_of_squares
 
 
 def _human_heart_dipole_data(variant: Literal[1,2,3,4,5]):
@@ -73,6 +73,7 @@ class HumanHeartDipole(Benchmark):
         super().__init__(seed=0)
         self.x = nn.Parameter(torch.randn(8, generator=self.rng.torch()))
         self.data = _human_heart_dipole_data(variant)
+        self.set_multiobjective_func(_sum_of_squares)
 
     def get_loss(self):
         x1,x2,x3,x4,x5,x6,x7,x8 = self.x.clone() # not cloning breaks hvps
@@ -141,6 +142,7 @@ class PropaneCombustion(Benchmark):
     def __init__(self):
         super().__init__(seed=0)
         self.x = nn.Parameter(torch.randn(11, generator=self.rng.torch()))
+        self.set_multiobjective_func(_sum_of_squares)
 
     def get_loss(self):
         fs = propane_combustion(*self.x.clone())

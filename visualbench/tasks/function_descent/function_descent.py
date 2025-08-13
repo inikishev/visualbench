@@ -50,6 +50,7 @@ class FunctionDescent(Benchmark):
         domain: tuple[float,float,float,float] | Sequence[float] | None = None,
         minima = None,
         dtype: torch.dtype = torch.float32,
+        mo_func: Callable | None = None,
         unpack=True,
     ):
         if isinstance(func,str): f = TEST_FUNCTIONS[func].to(device = 'cpu', dtype = dtype)
@@ -59,6 +60,7 @@ class FunctionDescent(Benchmark):
             if x0 is None: x0 = f.x0()
             if domain is None: domain = f.domain()
             if minima is None: minima = f.minima()
+            if mo_func is None: mo_func = f.mo_func()
             unpack = True
 
         x0 = totensor(x0, dtype=dtype)
@@ -74,9 +76,11 @@ class FunctionDescent(Benchmark):
         else: self.minima = minima
 
         self.params = torch.nn.Parameter(x0.requires_grad_(True))
-        # self.noise = noise
-        # self.noise_tensor = torch.nn.Buffer(torch.randn_like(self.params))
-        # self.noise_batch = 0
+
+        if mo_func is not None:
+            self.set_multiobjective_func(mo_func)
+
+
 
     @staticmethod
     def list_funcs():
@@ -120,7 +124,16 @@ class FunctionDescent(Benchmark):
 
         if self.unpack: f = self.func
         else: f = _UnpackCall(self.func)
-        funcplot2d(f, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, log_contour=log_contour, lib=torch) # type:ignore
+
+        f_proc = f
+        sample_output = f(*torch.tensor([0., 0.]))
+        if sample_output.numel() > 1:
+            mf = self._multiobjective_func
+            assert mf is not None
+            f_single = lambda x,y: mf(f(x,y))
+            f_proc = f_single
+
+        funcplot2d(f_proc, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, log_contour=log_contour, lib=torch) # type:ignore
 
         if 'params' in self.logger:
             params = self.logger.numpy('params')
@@ -128,7 +141,7 @@ class FunctionDescent(Benchmark):
             losses = self.logger.numpy('train loss')
 
             if len(params) > 0:
-                ax.scatter(*params.T, c=losses, cmap=marker_cmap, s=marker_size, alpha=marker_alpha)
+                ax.scatter(*params.T, c=losses[:len(params)], cmap=marker_cmap, s=marker_size, alpha=marker_alpha)
                 ax.plot(*params.T, alpha=line_alpha, lw=linewidth, c=linecolor)
                 ax.set_xlim(*bounds[0]); ax.set_ylim(*bounds[1])
 
@@ -150,63 +163,6 @@ class FunctionDescent(Benchmark):
         colors = np.clip(np.stack([d[c] for c in s], axis=-1) * 255, 0, 255).astype(np.uint8)
         return colors
 
-    # override render, because get_loss doesnt make frames so that it is even faster
-    @torch.no_grad
-    def render_fast(self, file: str, fps: int = 60, scale: int | float = 1, progress=True, num: int = 500, marker_size:int|np.ndarray = 2, marker_alpha: float = 0.5, ):
-        bounds = self._get_domain()
-        xrange = bounds[0]
-        yrange = bounds[1]
-
-        # note: variables have "x" and "y" in their names.
-        # but I am not sure if they are actually x and y coordinates.
-        # I had to suswap some of them by trial and error
-        x_spacing = torch.linspace(*xrange, num) # type:ignore
-        y_spacing = torch.linspace(*yrange, num) # type:ignore
-        X,Y = torch.meshgrid(x_spacing, y_spacing, indexing='xy') # grid of points
-
-        # make function image
-        if self.unpack: img: np.ndarray = tonumpy(self.func(X, Y)) # type:ignore
-        else: img: np.ndarray = tonumpy(self.func(torch.stack([X,Y], dim=0))).T # type:ignore
-        img -= img.min()
-        img /= img.max()
-        img *= 255
-
-        colors = self._make_colors()
-
-        # turn coords into corresponding image pixels
-        coord_history = self.logger.numpy('params').copy()
-        x_coords = np.round(((coord_history[:, 0] - xrange[0]) / (xrange[1] - xrange[0])) * num).astype(np.int64)
-        y_coords = np.round(((coord_history[:, 1] - yrange[0]) / (yrange[1] - yrange[0])) * num).astype(np.int64)
-
-        sizes = np.asanyarray(marker_size)
-        if sizes.ndim < 1:
-            sizes = sizes[np.newaxis].repeat(len(x_coords), axis = 0)
-
-        size = img.shape
-        img = img[:,:,np.newaxis].repeat(repeats = 3, axis = 2)
-
-        with OpenCVRenderer(file, fps, scale=scale) as renderer:
-            frame = img.copy()
-            for x, y, c, s in _maybe_progress(list(zip(x_coords, y_coords, colors, sizes)), enable = progress):
-                out_of_screen = False
-                if any(((not np.isfinite(ii)) for ii in (x, y, s,))): out_of_screen = True
-                else:
-                    x = int(x); y = int(y); s = int(s)
-                    if (x - s < 0) or (y - s < 0) or (x + s >= size[1]) or (y + s >= size[0]):
-                        out_of_screen = True
-                    else:
-                        # add persistent point to frame
-                        frame[y - s : y + s, x - s : x + s, :] -= (frame[y - s : y + s, x - s : x + s, :] - c) * marker_alpha
-
-                # clone current frame in order to show elarged current point, which is updated each frame
-                cur_frame = np.clip(np.nan_to_num(frame), 0, 255).astype(np.uint8)
-                if not out_of_screen:
-                    sp = s+1
-                    cur_frame[y - sp : y + sp, x - sp : x + sp, :] = 0
-                    cur_frame[y - sp : y + sp, x - sp : x + sp, 2] = 255
-
-                renderer.write(cur_frame[::-1])
-
     @torch.no_grad
     def render( # pyright:ignore[reportIncompatibleMethodOverride] # pylint:disable=arguments-renamed
         self,
@@ -226,6 +182,14 @@ class FunctionDescent(Benchmark):
         bounds = self._get_domain()
         if self.unpack: f = self.func
         else: f = _UnpackCall(self.func)
+        f_proc = f
+
+        sample_output = f(*torch.tensor([0., 0.]))
+        if sample_output.numel() > 1:
+            mf = self._multiobjective_func
+            assert mf is not None
+            f_single = lambda x,y: mf(f(x,y))
+            f_proc = f_single
 
         # make frame with matplotlib
         fig = plt.figure(figsize=(resolution / 100, resolution / 100), dpi=100)
@@ -233,7 +197,7 @@ class FunctionDescent(Benchmark):
         ax.axis('off') # No axes, ticks, or labels
 
         funcplot2d(
-            f, *bounds, num=resolution, cmap=cmap,
+            f_proc, *bounds, num=resolution, cmap=cmap,
             levels=contour_levels, contour_cmap=contour_cmap,
             contour_lw=contour_thickness, contour_alpha=1.0, # Alpha is handled by cv2 later
             log_contour=log_contour, lib='torch', ax=ax

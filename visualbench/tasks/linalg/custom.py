@@ -14,7 +14,7 @@ from .decompositions import _brute_find_closest_ab
 
 
 class SumOfKrons(Benchmark):
-    """Decompose square A into a sum of :code:`k` kronecker factorizations.
+    """Decompose square A into a sum of ``k`` kronecker factorizations.
 
     Args:
         A (Any): something to load and use as a matrix.
@@ -57,7 +57,7 @@ class SumOfKrons(Benchmark):
             for i in range(self.k):
                 self.log_image(f"B_{i}", self.B[i], to_uint8=True, log_difference=True)
                 self.log_image(f"C_{i}", self.C[i], to_uint8=True, log_difference=True)
-                self.log_image(f"B_{i}⊗C_{i}", krons[i], to_uint8=True)
+                self.log_image(f"B_{i} ⊗ C_{i}", krons[i], to_uint8=True)
             self.log_image("recreated", rec, to_uint8=True, show_best=True)
         return loss
 

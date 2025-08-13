@@ -10,7 +10,7 @@ from ...utils import to_CHW, algebras
 
 
 class LeastSquares(Benchmark):
-    """Least squares.
+    """Least squares. The objective is to find X such that AX = B.
 
     Args:
         A (Any, optional): (m, n). Defaults to 512.
@@ -25,33 +25,22 @@ class LeastSquares(Benchmark):
     def __init__(self, A:Any=512, B:Any=512, criterion = F.mse_loss, l1:float=0, l2:float=0, linf:float=0, algebra=None, seed=0):
         super().__init__(seed=seed)
         generator = self.rng.torch()
-        self._make_images = False # will be True if A or B are an image.
 
-        if isinstance(A, int): A = torch.randn(A, A, generator=generator)
-        elif isinstance(A, tuple) and len(A) == 2: A = torch.randn(A, generator=generator)
-        else:
-            self._make_images = True
-            A = to_CHW(A)
-        self.A = nn.Buffer(A)
+        self.A = nn.Buffer(to_CHW(A, generator=generator))
         self.min, self.max = self.A.min().item(), self.A.max().item()
-        *b, m, n = self.A.shape
+        b, m, n = self.A.shape
 
-        if isinstance(B, int): B = torch.randn(B, generator=generator)
-        elif isinstance(B, tuple) and len(B) == 2: B = torch.randn(B, generator=generator)
-        else:
-            self._make_images = True
-            B = to_CHW(B)
-        self.B = nn.Buffer(B)
+        self.B = nn.Buffer(to_CHW(B, generator=generator))
 
-        if B.ndim == 1:
-            assert B.size(0) == m, B.shape
+        if self.B.ndim == 1:
+            assert self.B.size(0) == m, self.B.shape
             self.k = None
-            self.X = nn.Parameter(torch.zeros(n))
+            self.X = nn.Parameter(torch.zeros(b, n))
 
         else:
-            assert B.size(-2) == m, B.shape
-            self.k = B.size(-1)
-            self.X = nn.Parameter(torch.zeros(n, self.k))
+            assert self.B.size(-2) == m, self.B.shape
+            self.k = self.B.size(-1)
+            self.X = nn.Parameter(torch.zeros(b, n, self.k))
 
         self.criterion = criterion
         self.l1 = l1
@@ -65,7 +54,10 @@ class LeastSquares(Benchmark):
             self.add_reference_image('B', B, to_uint8=True)
 
     def get_loss(self):
-        AX = algebras.matmul(self.A, self.X, self.algebra)
+        X = self.X
+        if X.ndim == 2: X = X.unsqueeze(-1)
+        AX = algebras.matmul(self.A, X, self.algebra)
+        if X.ndim == 2: AX = AX.squeeze(-1)
 
         penalty = 0
         if self.l1 != 0: penalty = penalty + torch.linalg.vector_norm(self.X, ord=1) # pylint:disable=not-callable

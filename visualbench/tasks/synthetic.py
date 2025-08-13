@@ -7,7 +7,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from ..benchmark import Benchmark
+from ..benchmark import Benchmark, _sum_of_squares
 from ..utils import algebras, to_CHW, to_square, totensor
 
 
@@ -105,6 +105,7 @@ class Rosenbrock(Benchmark):
         super().__init__()
         self.x = torch.nn.Parameter(torch.tensor([-1.2, 1.]).repeat(dim//2))
         self.variant = variant
+        self.set_multiobjective_func(torch.mean)
 
     def get_loss(self):
         if self.variant == 1:
@@ -117,7 +118,7 @@ class Rosenbrock(Benchmark):
 
         else: raise ValueError(self.variant)
 
-        return (100 * (x2 - x1**2)**2 + (1 - x1)**2).mean()
+        return (100 * (x2 - x1**2)**2 + (1 - x1)**2)
 
 
 

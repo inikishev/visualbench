@@ -1,3 +1,4 @@
+import os
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -130,3 +131,6 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
             collage = _make_collage([tonumpy(i) for i in images])
             renderer.write(collage)
 
+        path = os.path.abspath(renderer.outfile)
+
+    return path

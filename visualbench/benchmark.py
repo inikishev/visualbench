@@ -49,7 +49,7 @@ class Benchmark(torch.nn.Module, ABC):
         self.bounds: tuple[float, float] | None = bounds
         self._make_images: bool = make_images
         self._multiobjective = False
-        self._multiobjective_func = _sum_of_squares
+        self._multiobjective_func: Callable | None = None
 
         self._initial_state_dict = None
 
@@ -331,7 +331,11 @@ class Benchmark(torch.nn.Module, ABC):
         # get loss and log it
         with torch.enable_grad():
             ret = self.get_loss()
-            if ret.numel() > 1: loss = self._multiobjective_func(ret)
+            if ret.numel() > 1:
+                if self._multiobjective_func is None:
+                    raise RuntimeError(f"{self.__class__.__name__} returned multiple values but multiobjective "
+                                       "function is not set. Add `self.set_multiobjective_func` to `__init__`.")
+                loss = self._multiobjective_func(ret)
             else: loss = ret
 
         cpu_loss = utils.format.tofloat(loss)

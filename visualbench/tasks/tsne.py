@@ -139,6 +139,8 @@ class TSNE(Benchmark):
 
                 self._colors = colors
 
+        self.set_multiobjective_func(torch.sum)
+
 
     def _make_frame(self, Y_np: np.ndarray, canvas_size: int = 500, point_size: int = 5):
         # Create a blank white canvas
@@ -181,7 +183,7 @@ class TSNE(Benchmark):
         else:
             P_eff = self.P
 
-        loss = torch.sum(P_eff * torch.log(P_eff / Q))
+        loss = P_eff * torch.log(P_eff / Q)
 
         if self._make_images:
             with torch.no_grad():

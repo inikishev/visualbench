@@ -202,6 +202,9 @@ class GraphLayout(Benchmark):
         elif len(nodes_with_edges) < num_nodes and num_nodes > 0 :
             print(f"Warning: {num_nodes - len(nodes_with_edges)} nodes appear to have no edges. Attraction loss will not affect them.")
 
+
+        self.set_multiobjective_func(torch.sum)
+
     def get_loss(self) -> torch.Tensor:
         pos = self.node_positions
         pos_clamped = torch.clip(pos, 0, self.canvas_size - 1)
@@ -231,15 +234,12 @@ class GraphLayout(Benchmark):
 
             repulsion = self.k_repulsion * torch.mean(inv_dist_sq) / 2.0
 
-        # loss
-        loss = attraction + repulsion + penalty
-
         # visualize
         if self._make_images:
             frame = self._make_frame(self.node_positions.detach().cpu().numpy()) # pylint:disable=not-callable ???
             self.log_image('graph', frame, to_uint8=False, show_best=True)
 
-        return loss
+        return torch.stack([attraction, repulsion, penalty])
 
     @torch.no_grad
     def _make_frame(self, pos: np.ndarray) -> np.ndarray:

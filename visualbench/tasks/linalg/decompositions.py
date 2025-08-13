@@ -244,7 +244,7 @@ class EigenWithInverse(Benchmark):
         self.Q = torch.nn.Parameter(torch.linalg.qr(self.A)[0]) # pylint:disable=not-callable
         self.Q_inv = torch.nn.Parameter(self.Q.clone()) # pylint:disable=not-callable
         self.L = torch.nn.Parameter(torch.zeros(*b, self.n))
-        self.I = torch.nn.Buffer(torch.eye(self.Q.size(-1)).expand_as(self.Q).clone())
+        self.I = torch.nn.Buffer(linalg_utils.eye_like(self.Q))
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
@@ -254,6 +254,7 @@ class EigenWithInverse(Benchmark):
             except torch.linalg.LinAlgError as e:
                 warnings.warn(f'PyTorch eigh failed: {e!r}')
 
+        self.set_multiobjective_func(torch.sum)
 
     def get_loss(self):
         Q = self.Q
@@ -267,12 +268,11 @@ class EigenWithInverse(Benchmark):
         loss1 = self.criterion(AB, BA)
         loss2 = self.criterion(AB, I)
         loss3 = self.criterion(BA, I)
-        loss = loss1 + loss2 + loss3
 
         QL = algebras.mul(Q, L.unsqueeze(-2), self.algebra) # same as Q @ L.diag_embed()
         QLQi = algebras.matmul(QL, Q_inv, self.algebra)
 
-        loss = loss + self.criterion(QLQi, self.A)
+        loss4 = self.criterion(QLQi, self.A)
 
         if self._make_images:
             indices = torch.argsort(L**2, descending=True)
@@ -285,7 +285,7 @@ class EigenWithInverse(Benchmark):
             self.log_image("Q^-1 Q", BA, to_uint8=True)
             self.log_image("QLQ^-1", QLQi, to_uint8=True, show_best=True)
 
-        return loss
+        return torch.stack([loss1, loss2, loss3, loss4])
 
 
 
@@ -363,7 +363,7 @@ class LDL(Benchmark):
         *b, self.n, self.n = self.A.shape
         self.L = torch.nn.Parameter(torch.zeros_like(self.A)) # pylint:disable=not-callable
         self.D = torch.nn.Parameter(torch.zeros(*b, self.n))
-        self.I = torch.nn.Buffer(torch.eye(self.L.size(-1)).expand_as(self.L).clone())
+        self.I = torch.nn.Buffer(linalg_utils.eye_like(self.L))
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
@@ -419,7 +419,7 @@ class LU(Benchmark):
         k = min(m, n) if mode == 'reduced' else m
         self.L = torch.nn.Parameter(torch.ones(*b, m, k))
         self.U = torch.nn.Parameter(torch.zeros(*b, k, n))
-        self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
+        self.I = torch.nn.Buffer(linalg_utils.eye_like(self.A))
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:
@@ -482,7 +482,7 @@ class LUP(Benchmark):
         self.P = torch.nn.Parameter(torch.zeros(*b, m, m))
         self.L = torch.nn.Parameter(torch.ones(*b, m, k))
         self.U = torch.nn.Parameter(torch.zeros(*b, k, n))
-        self.I = torch.nn.Buffer(torch.eye(self.A.size(-1)).expand_as(self.A).clone())
+        self.I = torch.nn.Buffer(linalg_utils.eye_like(self.A))
 
         self.add_reference_image('A', self.A, to_uint8=True)
         if algebra is None:

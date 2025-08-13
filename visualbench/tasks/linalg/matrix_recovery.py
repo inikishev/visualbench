@@ -12,7 +12,8 @@ from . import linalg_utils
 
 
 class StochasticMatrixRecovery(Benchmark):
-    """Matrix recovery from matrix vector products.
+    """Optimize B to recover A given matrix-vector products Ax with a random vector.
+    The objective is `criterion(Ax, Bx)`.
 
     Args:
         A (Any, optional): (m, n). Defaults to 512.
@@ -24,7 +25,7 @@ class StochasticMatrixRecovery(Benchmark):
         algebra (Any, optional): custom algebra for matmul. Defaults to None.
         seed (int, optional): seed. Defaults to 0.
     """
-    def __init__(self, A:Any=512, batch_size: int = 1, criterion = F.mse_loss, l1:float=0, l2:float=0, linf:float=0, vec=True, algebra=None, seed=0):
+    def __init__(self, A:Any=512, batch_size: int = 1, criterion = F.mse_loss, l1:float=0, l2:float=0, linf:float=0, vec=True, algebra=None, sampler = linalg_utils.row_sampler, seed=0):
         super().__init__(seed=seed)
         generator = self.rng.torch()
         self._make_images = False # will be True if A or B are an image.
@@ -36,7 +37,7 @@ class StochasticMatrixRecovery(Benchmark):
             A = format.to_CHW(A)
         self.A = nn.Buffer(A)
         self.min = self.A.min().item(); self.max = self.A.max().item()
-        self.B = nn.Parameter(torch.randn_like(self.A))
+        self.B = nn.Parameter(torch.zeros_like(self.A))
 
         self.batch_size = batch_size
         self.vec = vec
@@ -44,6 +45,7 @@ class StochasticMatrixRecovery(Benchmark):
         self.l1 = l1
         self.l2 = l2
         self.linf = linf
+        self.sampler = sampler
 
         self.algebra = algebras.get_algebra(algebra)
 
@@ -52,11 +54,11 @@ class StochasticMatrixRecovery(Benchmark):
 
     def pre_step(self):
         if self.vec:
-            *b, n, m = self.A.shape
-            self.X = torch.randn((self.batch_size, *b, m, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            b, n, m = self.A.shape
+            self.X = self.sampler((self.batch_size, b, m, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         else:
-            self.X = torch.randn((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            self.X = self.sampler((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
     def get_loss(self):
         X = self.X
