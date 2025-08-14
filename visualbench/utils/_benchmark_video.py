@@ -1,12 +1,61 @@
 import os
+import textwrap
 from typing import TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from PIL import Image, ImageDraw, ImageFont
 
-from .padding import pad_to_shape
-from .renderer import OpenCVRenderer, make_hw3, render_frames
 from .format import tonumpy
+from .padding import pad_to_shape
+from .python_tools import format_number
+from .renderer import OpenCVRenderer, make_hw3, render_frames
+
+
+def _better_load_default(size):
+    """loads default font out of more fonts beacuse default one is so bad its crazy"""
+    for font_path in ("arial.ttf", "/usr/share/fonts/google-noto-vf/NotoSans[wght].ttf"):
+        try:
+            return ImageFont.truetype(font_path, size=size)
+        except IOError:
+            pass
+    return ImageFont.load_default(size=size)
+
+def _add_title(image: np.ndarray, title: str, size_per_px:float=0.04, wrap=True,):
+    """image is (H,W,3) uint8"""
+    h, w, c = image.shape
+    assert c == 3, f"shape is wrong and it is {image.shape} and it should be (H, W, 3)"
+
+    font_size = max(int(size_per_px * w), 7)
+
+    if wrap:
+        title = '\n'.join(textwrap.wrap(title, width=(w//font_size)*2))
+
+    nlines = title.count("\n") + 1
+    bar_size = (font_size * 1.25) * nlines
+    font = _better_load_default(size=font_size)
+
+    # calculate padding with fake draw
+    text_bbox = ImageDraw.Draw(Image.new('RGB', (0,0))).multiline_textbbox((0,0), title, font=font)
+    text_height = text_bbox[3] - text_bbox[1]
+    pad_height = text_height + bar_size
+
+    pad = np.full((int(pad_height), w, c), 255, dtype=np.uint8)
+    image = np.concatenate([pad, image], 0)
+
+    pil_image = Image.fromarray(image)
+    draw = ImageDraw.Draw(pil_image)
+    draw.multiline_text(
+        (w / 2, pad_height / 2),
+        title,
+        font=font,
+        fill="black",
+        anchor="ms", # m means middle horizontal s means middle vertical
+        align="center"
+    )
+
+    return np.array(pil_image)
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
@@ -17,27 +66,27 @@ def _maybe_progress(x, enable):
         return tqdm(x)
     return x
 
-def _repeat_to_largest(images: list[np.ndarray]):
+def _repeat_to_largest(images: dict[str, np.ndarray]):
     """for each elemnt of x if both height and width are 2 or more times smaller than largest element repeat them
 
     x must be hwc"""
-    max_h, max_w = np.max([i.shape for i in images], axis = 0)[:-1]
-    for i,img in enumerate(images.copy()):
+    max_h, max_w = np.max([i.shape for i in images.values()], axis = 0)[:-1]
+    for k,img in images.copy().items():
         h,w = img.shape[:-1]
         ratio = min(max_h/h, max_w/w)
         if ratio >= 2:
-            images[i] = np.repeat(np.repeat(img, ratio, 0), ratio, 1)
+            images[k] = np.repeat(np.repeat(img, ratio, 0), ratio, 1)
     return images
 
-def _make_collage(images: list[np.ndarray]):
+def _make_collage(images: dict[str, np.ndarray]):
     """make a collage from images"""
-    images = [make_hw3(i) for i in images]
-    if len(images) == 1: return images[0]
+    if len(images) == 1: return next(iter(images.values()))
 
-    images = _repeat_to_largest([i for i in images])
-    max_shape = np.max([i.shape for i in images], axis = 0)
+    images = _repeat_to_largest(images)
+    images_titles = [_add_title(v, k) for k,v in images.items()]
+    max_shape = np.max([i.shape for i in images_titles], axis = 0)
     max_shape[:-1] += 2 # add 2 pixel to spatial dims
-    stacked = np.stack([pad_to_shape(i, max_shape, mode = 'constant', value=128) for i in images])
+    stacked = np.stack([pad_to_shape(i, max_shape, mode = 'constant', value=128) for i in images_titles])
     # it is now (image, H, W, 3)
 
     # compose them
@@ -55,7 +104,7 @@ def _make_collage(images: list[np.ndarray]):
     if len(stacked) < n_tiles: stacked = np.concatenate([stacked, np.zeros_like(stacked[:n_tiles - len(stacked)])])
     stacked = stacked.reshape(nrows, ncols, *max_shape)
     stacked = np.concatenate(np.concatenate(stacked, 1), 1)
-    return stacked
+    return stacked, ncols
 
 
 def _check_image(image: np.ndarray | torch.Tensor, name=None) -> np.ndarray | torch.Tensor:
@@ -71,6 +120,16 @@ def _check_image(image: np.ndarray | torch.Tensor, name=None) -> np.ndarray | to
 
 def _isclose(x, y, tol=2):
     return y-tol <= x <= y+tol
+
+def _rescale(x, scale):
+    if scale > 1:
+        return np.repeat(np.repeat(x, int(scale), 0), int(scale), 1)
+
+    if scale < 1:
+        skip = round(1/scale)
+        return x[::skip,::skip]
+
+    return x
 
 @torch.no_grad
 def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1, progress=True,):
@@ -102,15 +161,16 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
     if len(logger_images) + len(lowest_images) == 0:
         raise NotImplementedError(f'Solution plotting is not implemented for {self.__class__.__name__}')
 
-    with OpenCVRenderer(file, fps = fps, scale=scale) as renderer:
+    with OpenCVRenderer(file, fps = fps, scale=1) as renderer:
         lowest_loss = float('inf')
 
         for step, loss in enumerate(_maybe_progress(list(self.logger['train loss'].values()), enable=progress)):
             # add current and best image
-            images: list[np.ndarray | torch.Tensor] = []
+            images: dict[str, np.ndarray | torch.Tensor] = {}
 
             # add reference image
-            for image in self._reference_images.values(): images.append(image)
+            for k, image in self._reference_images.items():
+                images[k] = image
 
             # check if new params are better
             if loss <= lowest_loss:
@@ -122,14 +182,22 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
                         lowest_images[key] = logger_images[key][step]
 
             # add logger images
-            for key, value in logger_images.items(): images.append(value[step])
+            for key, value in logger_images.items():
+                images[key] = value[step]
 
             # add best images
-            for image in lowest_images.values(): images.append(image)
+            for key, image in lowest_images.items():
+                images[key] = image
 
             # make a collage
-            collage = _make_collage([tonumpy(i) for i in images])
-            renderer.write(collage)
+            collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()})
+
+            title = f"train loss: {str(format_number(loss,  5)).ljust(7, '0')}"
+            if "test loss" in self.logger:
+                test_loss = self.logger.closest("test loss", step)
+                title = f"{title}; test loss: {str(format_number(test_loss, 5)).ljust(7, '0')}"
+
+            renderer.write(_add_title(collage, title, size_per_px=0.05/ncols, wrap=False))
 
         path = os.path.abspath(renderer.outfile)
 

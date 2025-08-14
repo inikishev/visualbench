@@ -201,6 +201,9 @@ class TransformedFunction(TestFunction):
             if ret is not None: x, y = ret
         return (float(x), float(y))
 
+    def mo_func(self):
+        return self.function.mo_func()
+
 
 class PowSum(TestFunction):
     def __init__(self, xpow, ypow, cross_add=1.0, cross_mul=0.0, abs:bool = True, post_pow = 1.0, x0=(-9,-7)):

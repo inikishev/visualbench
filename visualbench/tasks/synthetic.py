@@ -100,7 +100,12 @@ class Quadratic(Benchmark):
 
 
 class Rosenbrock(Benchmark):
-    """Rosenbrock"""
+    """Rosenbrock
+    Args:
+        dim (int, optional): number of variables. Defaults to 512.
+        variant (Literal[1,2], optional):
+            1 is the harder version, 2 is like running 2D rosenbrocks in parallel and is easier. Defaults to 1.
+    """
     def __init__(self, dim=512, variant:Literal[1,2]=1, ):
         super().__init__()
         self.x = torch.nn.Parameter(torch.tensor([-1.2, 1.]).repeat(dim//2))
@@ -123,16 +128,18 @@ class Rosenbrock(Benchmark):
 
 
 class IllConditioned(Benchmark):
-    """the diabolical hessian looks like this
+    """The diabolical function with a hessian that looks like this
 
-    .. code:: py
+    ```python
+    tensor([[2, c, c, c],
+            [c, 2, c, c],
+            [c, c, 2, c],
+            [c, c, c, 2]])
+    ```
 
-        tensor([[2, c, c, c],
-                [c, 2, c, c],
-                [c, c, 2, c],
-                [c, c, c, 2]])
+    condition number is (2 + c(dim-1)) / (2 - c).
 
-    condition number is (2 + c(dim-1)) / (2 - c)
+    This is as ill conditioned as you can get. When `c` is closer to 2, it becomes more ill-conditioned.
     """
     def __init__(self, dim=512, c=1.9999, seed=0):
         super().__init__(seed=seed)

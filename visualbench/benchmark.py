@@ -288,6 +288,7 @@ class Benchmark(torch.nn.Module, ABC):
         if isinstance(image, torch.Tensor): image = image.detach().cpu().clone()
 
         # difference
+        k = difference = None
         if log_difference:
             k = f'{name} (difference)'
 
@@ -296,14 +297,17 @@ class Benchmark(torch.nn.Module, ABC):
 
             self._previous_images[name] = image
             if to_uint8: difference = utils.format.normalize_to_uint8(difference)
-            self._image_keys.add(k)
-            self.logger.log(self.num_forwards, k, difference)
 
         # value
         if to_uint8:
             image = utils.format.normalize_to_uint8(image, min=min, max=max)
 
         self.logger.log(self.num_forwards, name, image)
+
+        # log difference after image so that order is better
+        if (k is not None) and (difference is not None):
+            self._image_keys.add(k)
+            self.logger.log(self.num_forwards, k, difference)
 
     def pre_step(self):
         pass
