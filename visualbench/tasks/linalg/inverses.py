@@ -32,7 +32,7 @@ class Inverse(Benchmark):
         loss3 = self.criterion(BA, self.I)
 
         # prevents loss close to 0 when matrices are just zeros
-        if AB.amax().maximum(BA.amax()) < torch.finfo(AB.dtype).eps:
+        if self.algebra is None and AB.amax().maximum(BA.amax()) < torch.finfo(AB.dtype).eps:
             loss1 = loss1 * torch.inf
 
 
@@ -51,7 +51,7 @@ class Inverse(Benchmark):
 
 class StochasticInverse(Benchmark):
     """sample random x, update B such that ABx = BAx = x, which is true when AB = BA = I, so B converges to true inverse"""
-    def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, sampler=row_sampler, vec=False, algebra=None, seed=0):
+    def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, sampler=row_sampler, vec=True, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
         self.min = self.A.min().item(); self.max = self.A.max().item()
@@ -101,7 +101,7 @@ class StochasticInverse(Benchmark):
             loss3 = self.criterion(BA, self.I)
 
             # prevents loss close to 0 when matrices are just zeros
-            if AB.amax().maximum(BA.amax()) < torch.finfo(AB.dtype).eps:
+            if self.algebra is None and  AB.amax().maximum(BA.amax()) < torch.finfo(AB.dtype).eps:
                 loss2 = loss3 = float('inf')
                 with torch.enable_grad(): loss = loss*torch.inf
 
@@ -209,6 +209,7 @@ class Drazin(Benchmark):
             ind = [matrix_index(M) for M in self.A]
 
         if isinstance(ind, int): ind = [ind for _ in self.A]
+        self.ind = ind
 
         # pre-compute the powers (each channel is treated separate matrix with separate index)
         self.Ak = torch.nn.Buffer(

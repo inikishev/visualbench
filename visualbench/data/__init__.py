@@ -56,7 +56,7 @@ def get_circulant(size: int = 64):
 
 def get_dft(size: int = 96):
     import scipy.linalg
-    dft = np.stack([scipy.linalg.dft(size).real, scipy.linalg.dft(96).imag], 0)
+    dft = np.stack([scipy.linalg.dft(size).real, scipy.linalg.dft(size).imag], 0)
     return torch.from_numpy(dft).float().contiguous()
 
 def get_fielder(size: int = 64):

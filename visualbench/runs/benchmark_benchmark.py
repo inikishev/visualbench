@@ -216,6 +216,9 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: torch.optim.LBFGS(p, line_search_fn='strong_wolfe')
         self.run_optimizer(opt, "LBFGS", tune=False, max_dim=None)
 
+        opt = lambda p, lr: tz.Modular(p, tz.m.LBFGS(), tz.m.RelativeWeightDecay(0.2), tz.m.Backtracking())
+        self.run_optimizer(opt, "LBFGS-RelativeWeightDecay-Backtracking", tune=False, max_dim=None)
+
         opt = lambda p, lr: tz.Modular(p, tz.m.BFGS(), tz.m.Backtracking())
         self.run_optimizer(opt, "BFGS-Backtracking", tune=False, max_dim=5000)
 
@@ -242,7 +245,7 @@ class MBSBenchmarkBenchmark:
         self.run_optimizer(opt, "SixthOrder5P", tune=False, max_dim=400, num_extra_passes=lambda ndim: 5*ndim+5)
 
         opt = lambda p, lr: tz.Modular(p, tz.m.experimental.NewtonNewton(), tz.m.Backtracking())
-        self.run_optimizer(opt, "NewtonNewton-Backtracking", tune=False, max_dim=40, num_extra_passes=lambda ndim: ndim**2)
+        self.run_optimizer(opt, "NewtonNewton-Backtracking", tune=False, max_dim=50, num_extra_passes=lambda ndim: ndim**2)
 
         opt = lambda p, lr: tz.Modular(p, tz.m.HigherOrderNewton())
         self.run_optimizer(opt, "HigherOrderNewton", tune=False, max_dim=10, num_extra_passes=lambda ndim: ndim**3)
@@ -250,22 +253,39 @@ class MBSBenchmarkBenchmark:
 
     def run_zo(self):
         opt = lambda p, lr: tz.Modular(p, tz.m.SPSA(), tz.m.LR(lr))
-        self.run_optimizer(opt, "SPSA", tune=False, max_dim=None)
+        self.run_optimizer(opt, "SPSA", tune=True, max_dim=None)
 
         opt = lambda p, lr: tz.Modular(p, tz.m.GaussianSmoothing(n_samples=10), tz.m.LR(lr))
-        self.run_optimizer(opt, "GaussianSmoothing(10)", tune=False, max_dim=None)
+        self.run_optimizer(opt, "GaussianSmoothing(10)", tune=True, max_dim=None)
 
-        from torchzero.optim.wrappers.nlopt import NLOptWrapper
+        opt = lambda p, lr: tz.Modular(p, tz.m.GaussianSmoothing(), tz.m.ScipyMinimizeScalar(maxiter=10))
+        self.run_optimizer(opt, "GaussianSmoothing(100)-ScipyMinimizeScalar", tune=False, max_dim=None)
+
+        opt = lambda p, lr: tz.Modular(p, tz.m.FDM(), tz.m.BFGS(), tz.m.Backtracking())
+        self.run_optimizer(opt, "FDM-BFGS-Backtracking", tune=False, max_dim=None)
+
         from torchzero.optim.wrappers.scipy import ScipyMinimize
-        from torchzero.optim.wrappers.optuna import OptunaSampler
         opt = lambda p, lr: ScipyMinimize(p, 'powell')
         self.run_optimizer(opt, "Powell", tune=False, max_dim=1000)
 
+        from torchzero.optim.wrappers.nlopt import NLOptWrapper
         opt = lambda p, lr: NLOptWrapper(p, 'LN_SBPLX')
         self.run_optimizer(opt, "SBPLX", tune=False, max_dim=1000)
 
         opt = lambda p, lr: ScipyMinimize(p, 'cobyla')
         self.run_optimizer(opt, "COBYLA", tune=False, max_dim=200)
+
+        from torchzero.optim.wrappers.nevergrad import NevergradWrapper
+        import nevergrad as ng
+        opt = lambda p, lr: NevergradWrapper(p, ng.optimizers.RandomSearchPlusMiddlePoint, budget=self.passes, mutable_sigma=True)
+        self.run_optimizer(opt, "RandomSearchPlusMiddlePoint", tune=False, max_dim=20_000)
+
+        opt = lambda p, lr: NevergradWrapper(p, ng.optimizers.DE, budget=self.passes, mutable_sigma=True)
+        self.run_optimizer(opt, "DE", tune=False, max_dim=20_000)
+
+        opt = lambda p, lr: NevergradWrapper(p, ng.optimizers.UltraSmoothDiscreteLenglerOnePlusOne, budget=self.passes, mutable_sigma=True)
+        self.run_optimizer(opt, "UltraSmoothDiscreteLenglerOnePlusOne", tune=False, max_dim=20_000)
+
 
 
 
@@ -307,7 +327,7 @@ class MBSBenchmarkBenchmark:
         # --------------------------------- bar chart -------------------------------- #
         axes = make_axes(n=len(self.metrics), nrows=len(self.metrics), axsize=axsize, dpi=dpi)
         for ax, (metric, maximize) in zip(axes, self.metrics.items()):
-            bar_chart(task, metric, maximize, scale=self.yscale, ax=ax)
+            bar_chart(task, metric, maximize, scale=self.yscale, ax=ax, n=100)
 
         plt.savefig(os.path.join(summary_dir, "bar.png"))
         plt.close()

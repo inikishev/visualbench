@@ -363,14 +363,17 @@ def _plot_sweep(
     for s,c in zip(sweeps,colors):
         key = 'max' if maximize else 'min'
         if len(s) == 1:
-            ax.axhline(s[0].stats[metric][key], c=c, lw=lw, ls='--', label=_wrap(s.run_name))
+            v = s[0].stats[metric][key]
+            if math.isfinite(v):
+                ax.axhline(s[0].stats[metric][key], c=c, lw=lw, ls='--', label=_wrap(s.run_name))
         else:
             hyperparam = _find_different(*(r.hyperparams for r in s))
             if hyperparam is None: continue
             values = [(run.hyperparams[hyperparam], run.stats[metric][key]) for run in s]
             values.sort(key=lambda x: x[0])
-            ax.plot(*zip(*values), label=_wrap(s.run_name), c=c, lw=lw)
-            ax.scatter(*zip(*values), color=c, s=marker_size, alpha=0.5,)
+            if any(math.isfinite(v) for k,v in values):
+                ax.plot(*zip(*values), label=_wrap(s.run_name), c=c, lw=lw)
+                ax.scatter(*zip(*values), color=c, s=marker_size, alpha=0.5,)
 
     return ax
 
