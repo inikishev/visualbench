@@ -1,3 +1,4 @@
+import random
 import math
 import warnings
 import os
@@ -251,6 +252,19 @@ def _get_1st_key(d: dict):
     if len(d) == 0: return None
     return next(iter(d.keys()))
 
+
+# this ensures same colors
+class _RandomRGB:
+    def __init__(self):
+        self.random = random.Random(0)
+    def __call__(self, max_sum=512):
+        randrange = self.random.randrange
+        rgb = (randrange(0,256), randrange(0,256), randrange(0,256))
+        while sum(rgb) > max_sum:
+            rgb = (randrange(0,256), randrange(0,256), randrange(0,256))
+        return tuple(i/255 for i in rgb)
+
+
 def _plot_metric(
     ax: Axes,
     runs: "Sequence[Run]",
@@ -260,17 +274,18 @@ def _plot_metric(
     colors: Sequence,
     **plot_kwargs,
 ):
+    gen = _RandomRGB()
     while len(colors) < len(runs):
-        print(f"ADD {len(runs) - len(colors)} MORE COLORS TO {colors}!!!")
+        # print(f"ADD {len(runs) - len(colors)} MORE COLORS TO {colors}!!!")
         colors = list(colors).copy()
-        colors.append("pink")
+        colors.append(gen())
 
     for r,c in zip(runs,colors):
         steps, values = _load_steps_values(r.load_logger(), metric)
         best = np.nanmax(values) if maximize else np.nanmin(values)
 
         if smoothing != 0: values = gaussian_filter1d(values, smoothing, mode='nearest')
-        ax.plot(steps, values, label=_wrap(_make_label(r, best, _get_1st_key(r.hyperparams))), c=c, **plot_kwargs)
+        ax.plot(steps, values, label=_wrap(_make_label(r, best, _get_1st_key(r.hyperparams))), color=c, **plot_kwargs)
 
     return ax
 
@@ -310,7 +325,13 @@ def plot_values(
 
     # ----------------------------------- plot ----------------------------------- #
     _plot_metric(ax, reference_runs, metric, maximize, smoothing, _COLORS_REFERENCES, lw=0.5)
-    _plot_metric(ax, best_runs, metric, maximize, smoothing, _COLORS_BEST, lw=0.5)
+
+    # for best if no references/main are available, use better main colos
+    colors_best = _COLORS_BEST
+    if len(reference_runs) + len(main_runs) == 0:
+        colors_best = _COLORS_MAIN + _COLORS_REFERENCES + _COLORS_BEST
+    _plot_metric(ax, best_runs, metric, maximize, smoothing, colors_best, lw=0.5)
+
     _plot_metric(ax, main_runs, metric, maximize, smoothing, _COLORS_MAIN)
 
     name = task.task_name
@@ -334,9 +355,10 @@ def _plot_sweep(
     lw,
     marker_size,
 ):
+    gen = _RandomRGB()
     while len(colors) < len(sweeps):
         colors = list(colors).copy()
-        colors.append("pink")
+        colors.append(gen())
 
     for s,c in zip(sweeps,colors):
         key = 'max' if maximize else 'min'
@@ -348,7 +370,7 @@ def _plot_sweep(
             values = [(run.hyperparams[hyperparam], run.stats[metric][key]) for run in s]
             values.sort(key=lambda x: x[0])
             ax.plot(*zip(*values), label=_wrap(s.run_name), c=c, lw=lw)
-            ax.scatter(*zip(*values), c=c, s=marker_size, alpha=0.5,)
+            ax.scatter(*zip(*values), color=c, s=marker_size, alpha=0.5,)
 
     return ax
 
@@ -413,7 +435,13 @@ def plot_sweeps(
 
     # ----------------------------------- plot ----------------------------------- #
     _plot_sweep(ax, reference_sweeps, metric, maximize, _COLORS_REFERENCES, 0.5, 5)
-    _plot_sweep(ax, best_sweeps,  metric, maximize, _COLORS_BEST, 0.5, 5)
+
+    # for best if no references/main are available, use better main colos
+    colors_best = _COLORS_BEST
+    if len(reference_sweeps) + len(main_sweeps) == 0:
+        colors_best = _COLORS_MAIN + _COLORS_REFERENCES + _COLORS_BEST
+    _plot_sweep(ax, best_sweeps,  metric, maximize, colors_best, 0.5, 5)
+
     _plot_sweep(ax, main_sweeps, metric, maximize, _COLORS_MAIN, 1., 10)
 
     # -------------------------------- ax settings ------------------------------- #
@@ -666,7 +694,7 @@ def render_summary(
     references: str | Sequence[str] | None = REFERENCE_OPTS,
 
     # plotting settings
-    axsize=(12,6), dpi=100
+    axsize=(6,3), dpi=300
 ):
     from .run import Task
     if main is None: main = []

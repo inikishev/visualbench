@@ -28,7 +28,7 @@ LOSSES = ("train loss", "test loss")
 def _unbatched_ssim(x,y):
     return ssim_loss(x[None,:], y[None,:],5)
 
-class MBSRun:
+class MBSOptimizerBenchmark:
     def __init__(
         self,
         opt_fn: Callable,

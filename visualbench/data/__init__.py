@@ -1,11 +1,13 @@
 import os
+from collections.abc import Sequence
 
 import numpy as np
 import torch
 from torch.nn import functional as F
 
-from ..utils import to_3HW, normalize
+from ..utils import normalize, to_3HW
 from ..utils.image import _imread
+
 _path = os.path.dirname(__file__)
 
 QRCODE96 = os.path.join(_path, 'qr-96.jpg')
@@ -101,3 +103,8 @@ def get_3d_structured48():
 
     return stacked
 
+
+
+def get_lowrank(size: Sequence[int], rank:int, seed=0):
+    from ..tasks.linalg.linalg_utils import make_low_rank_tensor
+    return make_low_rank_tensor(size, rank, seed=seed)

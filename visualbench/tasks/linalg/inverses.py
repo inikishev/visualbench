@@ -10,7 +10,7 @@ class Inverse(Benchmark):
     """For a square A, the objective is to find B such that AB = BA = I."""
     def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
         self.min = self.A.min(); self.max = self.A.max()
 
         self.I = torch.nn.Buffer(eye_like(self.A))
@@ -53,7 +53,7 @@ class StochasticInverse(Benchmark):
     """sample random x, update B such that ABx = BAx = x, which is true when AB = BA = I, so B converges to true inverse"""
     def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, sampler=row_sampler, vec=False, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
         self.min = self.A.min().item(); self.max = self.A.max().item()
 
         self.I = torch.nn.Buffer(eye_like(self.A))
@@ -131,7 +131,7 @@ class MoorePenrose(Benchmark):
     """
     def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_CHW(A))
+        self.A = torch.nn.Buffer(to_CHW(A, generator=self.rng.torch()))
         self.B = torch.nn.Parameter(eye_like(self.A))
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
@@ -200,7 +200,7 @@ class Drazin(Benchmark):
     """
     def __init__(self, A, ind: int | Sequence[int] | None = None, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_CHW(A))
+        self.A = torch.nn.Buffer(to_CHW(A, generator=self.rng.torch()))
         self.B = torch.nn.Parameter(eye_like(self.A))
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
