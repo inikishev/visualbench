@@ -68,6 +68,7 @@ class LinesDrawer(Benchmark):
         )
         pixel_grid = torch.stack((grid_x, grid_y), dim=-1).permute(1, 0, 2) # [H, W, 2]
         self.pixel_grid = nn.Buffer(pixel_grid)
+        self._show_titles_on_video = False
 
     def _get_sigmoid_params(self):
         """maps params with sigmoid"""

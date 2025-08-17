@@ -28,6 +28,7 @@ class ClosestFurthestParticles(Benchmark):
         self.color_furthest = (0, 0, 255) # red
         self.color_line_closest = (0, 180, 0)  # dark green
         self.color_line_furthest = (0, 0, 180) # dart red
+        self._show_titles_on_video = False
 
     def get_loss(self):
         pdist05 = torch.cdist(self.points, self.points, p=0.5) # L0.5 norm

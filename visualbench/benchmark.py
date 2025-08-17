@@ -67,6 +67,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._print_timeout: bool = False
         self._plot_perturbed: bool = False
         self._benchmark_mode: bool = False
+        self._show_titles_on_video: bool = True
 
         self.reset()
 
@@ -183,6 +184,7 @@ class Benchmark(torch.nn.Module, ABC):
         params = [p.detach().clone().cpu() for p in self.parameters()]
         torch.nn.utils.vector_to_parameters(v, params)
         return params
+
 
     @torch.no_grad
     def add_reference_image(self, name: str, image, to_uint8: bool, min: float | None = None, max: float | None = None):

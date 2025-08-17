@@ -217,6 +217,7 @@ class AlphaEvolveB1(Benchmark):
         self.knots_t = np.linspace(2 * self.f_x_min, 2 * self.f_x_max, 2 * P + 1)
         self.delta_x = (self.f_x_max - self.f_x_min) / P
         self.frame_size = frame_size
+        self._show_titles_on_video = False
 
     def get_loss(self):
         heights = self.heights

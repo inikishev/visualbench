@@ -238,6 +238,8 @@ class MuonCoeffs(Benchmark):
                 y_kj = abc_iterator(y_kj, a, b, c)
             self.y_kj = nn.Buffer(y_kj)
 
+        self._show_titles_on_video = False
+
     def get_loss(self):
         steepness_loss, intermediate_losses, aesthetic_aux_loss, diff_ratio = loss(x=self.x, params=self.params, eps=self.eps, precision=self.precision)
         self.log("loss steepness", steepness_loss)

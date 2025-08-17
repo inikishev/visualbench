@@ -143,6 +143,7 @@ class DatasetBenchmark(Benchmark):
 
         self.model = model
         self.criterion = criterion
+        self._show_titles_on_video = False
 
         self._make_images = decision_boundary
         if decision_boundary:

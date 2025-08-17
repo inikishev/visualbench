@@ -87,6 +87,7 @@ class FunctionApproximator(Benchmark):
                 l.bias.zero_() # type:ignore
 
         self.resolution = resolution
+        self._show_titles_on_video = False
 
     @staticmethod
     def SINE(periods=4, n=1024):

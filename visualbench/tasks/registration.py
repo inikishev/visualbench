@@ -55,10 +55,11 @@ def _initialize(fixed, moving, generator, mode, padding_mode):
 
     if random_affine:
         with torch.no_grad():
-            rotate = torch.tensor([[-0.87, 0.48, 0.5], [-0.48, -0.87, 0.5]])
-            noise = torch.randn(affine.size(), dtype=affine.dtype, generator=generator) * 0.1
-
-            fixed = _affine_move(fixed=moving, moving=fixed, affine=rotate+noise,
+            # rotate = torch.tensor([[-0.87, 0.48, 0.5], [-0.48, -0.87, 0.5]])
+            # rotate = torch.tensor([[1.5, 0, 0.25], [0, 1.5, 0.25]])
+            # noise = torch.randn(affine.size(), dtype=affine.dtype, generator=generator) * 0.5
+            mat = torch.tensor([[ 2.2705, -0.1467, -0.8394], [ 0.2842,  0.9577, -0.4493]])
+            moving = _affine_move(fixed=fixed, moving=moving, affine=mat,
                                 mode=mode, padding_mode=padding_mode, is_2d=is_2d)
 
     return affine, fixed, moving, is_2d
@@ -83,6 +84,7 @@ class AffineRegistration(Benchmark):
         self.criterion = criterion
         self.mode = mode
         self.padding_mode = padding_mode
+        self._show_titles_on_video = False
 
     def get_loss(self):
         moved = _affine_move(self.fixed, self.moving, self.affine, self.mode, self.padding_mode, is_2d=self.is_2d)
@@ -149,6 +151,8 @@ class DeformableRegistration(Benchmark):
         self.criterion = criterion
         self.mode = mode
         self.padding_mode = padding_mode
+
+        self._show_titles_on_video = False
 
     def get_loss(self):
 

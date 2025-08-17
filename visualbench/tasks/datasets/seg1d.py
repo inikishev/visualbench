@@ -35,7 +35,7 @@ class _SyntheticSegmentation1D(Dataset):
 
     def _create_sample(self):
         # Randomly partition sequence into segments
-        num_segments = np.random.randint(3, 7)
+        num_segments = np.random.randint(1, 8)
         segment_lengths = self._random_partition(num_segments)
 
         # Generate segments with different patterns
@@ -140,7 +140,7 @@ class SynthSeg1d(DatasetBenchmark):
         batch_size: int | None = None,
         test_batch_size: int | None = None,
         test_split=0.8,
-        num_samples=4_000,
+        num_samples=10_000,
         seq_length=32,
         num_classes=10,
         seed=0,

@@ -36,6 +36,14 @@ REFERENCE_OPTS = (
 )
 
 _YSCALES: dict[str, Any] = {
+    # ------------------------------------ new ----------------------------------- #
+    "S - Inverse-16 L1": "log",
+    "S - Inverse-16 MSE": "log",
+    "S - MoorePenrose-16 L1": "log",
+    "S - MatrixLogarithm-16 L1": "log",
+    "SS - StochasticRLstsq-10 MSE": "log",
+
+    # ------------------------------------ old ----------------------------------- #
     # ML
     "ML - Olivetti Faces FB - Logistic Regression": dict(value='symlog', linthresh=1e-12),
     "ML - Friedman 1 - Linear Regression - L1": "log",
@@ -642,6 +650,7 @@ def summary_table(root:str, n=128, ax=None):
     for v in vals:
         weight = 1
         if "Friedman 1" in v: weight = 0.5
+        if v.startswith("Real - "): weight = 0.75
         if v.startswith(("S - ", "SS - ")): weight = 0.5
         if v.startswith("Visual - "): weight = 0.25
         expr = expr + pl.col(v).fill_null(pl.col(v).median()) * weight

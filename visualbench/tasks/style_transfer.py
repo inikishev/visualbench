@@ -95,6 +95,8 @@ class StyleTransfer(Benchmark):
         self.add_reference_image('content', content, to_uint8=True)
         self.add_reference_image('style', style, to_uint8=True)
 
+        self._show_titles_on_video = False
+
     def get_loss(self):
         self.vgg.eval()
         content, style = self.vgg(self.generated)

@@ -79,6 +79,8 @@ class RectanglesDrawer(Benchmark):
         self.x_grid = torch.nn.Buffer(x_grid)
         self.y_grid = torch.nn.Buffer(y_grid)
 
+        self._show_titles_on_video = False
+
     def get_loss(self):
         # Normalize parameters to (0,1)
         p = torch.sigmoid(self.rect_params)

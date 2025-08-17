@@ -210,6 +210,10 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: tz.Modular(p, tz.m.Online(tz.m.LBFGS()), tz.m.Backtracking())
         self.run_optimizer(opt, "OnlineLBFGS-Backtracking", tune=False, max_dim=None)
 
+        opt = lambda p, lr: tz.Modular(p, tz.m.SVRG(self.passes//4), tz.m.Adam(), tz.m.LR(lr))
+        self.run_optimizer(opt, "SVRG-Adam", tune=True, max_dim=None)
+
+
     def run_qn(self):
         from torchzero.optim.wrappers.scipy import ScipyMinimize
 

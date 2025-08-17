@@ -77,6 +77,8 @@ class PartitionDrawer(Benchmark):
 
         self.add_reference_image('target', self.target, to_uint8=True)
 
+        self._show_titles_on_video = False
+
     def get_loss(self):
         pixels = self.flat_pixel_coords.unsqueeze(1) # H*W, 1, 2
         points = self.points.unsqueeze(0) # 1, num_points, 2

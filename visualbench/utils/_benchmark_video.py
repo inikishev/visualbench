@@ -33,7 +33,7 @@ def _add_title(image: np.ndarray, title: str, size_per_px:float=0.04, wrap=True,
         title = '\n'.join(textwrap.wrap(title, width=(w//font_size)*2))
 
     nlines = title.count("\n") + 1
-    bar_size = (font_size * 1.25) * nlines
+    bar_size = (font_size * 1.15) * nlines
     font = _better_load_default(size=font_size)
 
     # calculate padding with fake draw
@@ -78,12 +78,14 @@ def _repeat_to_largest(images: dict[str, np.ndarray]):
             images[k] = np.repeat(np.repeat(img, ratio, 0), ratio, 1)
     return images
 
-def _make_collage(images: dict[str, np.ndarray]):
+def _make_collage(images: dict[str, np.ndarray], titles:bool):
     """make a collage from images"""
     if len(images) == 1: return next(iter(images.values())), 1
 
     images = _repeat_to_largest(images)
-    images_titles = [_add_title(v, k) for k,v in images.items()]
+    if titles: images_titles = [_add_title(v, k) for k,v in images.items()]
+    else: images_titles = images.values()
+
     max_shape = np.max([i.shape for i in images_titles], axis = 0)
     max_shape[:-1] += 2 # add 2 pixel to spatial dims
     stacked = np.stack([pad_to_shape(i, max_shape, mode = 'constant', value=128) for i in images_titles])
@@ -190,7 +192,7 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
                 images[f"{key} - best"] = image
 
             # make a collage
-            collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()})
+            collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()}, titles=self._show_titles_on_video)
 
             title = f"train loss: {str(format_number(loss,  5)).ljust(7, '0')}"
             if "test loss" in self.logger:

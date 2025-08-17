@@ -97,6 +97,7 @@ class Colorization(Benchmark):
         self.white_idxs = white_idxs
         self.order = order
         self.power = power
+        self._show_titles_on_video = False
 
     @classmethod
     def snake(cls, order: int = 1, power: float = 2):
@@ -105,7 +106,12 @@ class Colorization(Benchmark):
 
     @classmethod
     def small(cls, order: int = 1, power: float = 2):
-        init = torch.zeros(16, 64)
+        init = torch.zeros(32, 128)
+        return cls(init = init, mask =_better_snake_mask(init, 4), white_idxs = ((0, 0),), order = order, power=power)
+
+    @classmethod
+    def tiny(cls, order: int = 1, power: float = 2):
+        init = torch.zeros(8, 32)
         return cls(init = init, mask =_better_snake_mask(init, 4), white_idxs = ((0, 0),), order = order, power=power)
 
     def get_loss(self):
@@ -132,7 +138,7 @@ class Colorization(Benchmark):
                 blue_overflow = - frame.clip(max=0)
                 blue_overflow[:,:,2] *= 2
                 frame = ((frame - red_overflow + blue_overflow) * 255).clip(0,255).to(torch.uint8).detach().cpu()
-                self.log_image('image', frame, to_uint8=False, show_best=True)
+                self.log_image('image', frame, to_uint8=False, show_best=True, log_difference=True)
 
         return spreader
         #return 0.5*colorizer + 0.5*spreader

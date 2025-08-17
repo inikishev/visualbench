@@ -172,6 +172,7 @@ class TSNE(Benchmark):
         self._colors = _make_colors(targets, self.n_samples)
 
         self.set_multiobjective_func(torch.sum)
+        self._show_titles_on_video = False
 
 
     def get_loss(self) -> torch.Tensor:

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -84,7 +86,7 @@ class TinyLongConvNet(nn.Module):
 
 class ConvNet(nn.Module):
     """134,410 params"""
-    def __init__(self, act_cls = nn.ELU, dropout=0.2):
+    def __init__(self, act_cls:Callable = nn.ELU, dropout=0.2):
         super().__init__()
 
         self.c1 = nn.Sequential(
@@ -216,3 +218,69 @@ class MobileNet(nn.Module):
         x = self.c2(x)
         x = self.c3(x)
         return x.mean(-1)
+
+def convblock1d(in_channels, out_channels, kernel_size, stride, padding, act_cls, bn: bool, dropout:float|None, transpose=False):
+    ConvCls = nn.ConvTranspose1d if transpose else nn.Conv1d
+    # UCPAND
+    modules: list = [ConvCls(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding)]
+    if act_cls is not None:
+        modules.append(act_cls())
+
+    if bn:
+        modules.append(nn.BatchNorm1d(out_channels, track_running_stats=False))
+
+    if dropout is not None and dropout != 0:
+        modules.append(nn.Dropout1d(dropout))
+
+    return nn.Sequential(*modules)
+
+
+class ConvNetAutoencoder(nn.Module):
+    def __init__(
+        self,
+        in_channels=1,
+        out_channels=1,
+        out_size = 40,
+        hidden=(32, 64, 128, 256),
+        act_cls=nn.ReLU,
+        bn=True,
+        dropout=None,
+        sparse_reg: float | None = None,
+        squeeze:bool=True,
+
+    ):
+        super().__init__()
+        if isinstance(hidden, int): hidden = [hidden]
+        channels = [in_channels] + list(hidden) # in_channels is always 1 cos conv net
+
+        self.enc = nn.Sequential(
+            *[convblock1d(i, o, 2, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout) for i, o in zip(channels[:-1], channels[1:])]
+        )
+
+        rev = list(reversed(channels))
+        self.dec = nn.Sequential(
+            *[convblock1d(i, o, 3, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, transpose=True) for i, o in zip(rev[:-2], rev[1:-1])]
+        )
+
+        self.head = nn.Sequential(
+            *convblock1d(rev[-2], rev[-2], 2, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, transpose=True),
+            convblock1d(rev[-2], out_channels, 2, 1, 0, act_cls=None, bn=False, dropout=None)
+        )
+
+        self.sparse_reg = sparse_reg
+        self.out_size = out_size
+        self.squeeze = squeeze
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        if x.ndim == 2: x = x.unsqueeze(1)
+        features = self.enc(x)
+        x = self.dec(features)
+        res = self.head(x)[:,:,:self.out_size]
+        if self.squeeze and self.out_channels == 1:
+            assert res.size(1) == 1
+            res = res.squeeze(1)
+
+        if self.sparse_reg is not None: return res, features.abs().mean() * self.sparse_reg
+        return res
+

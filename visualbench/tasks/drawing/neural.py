@@ -42,6 +42,7 @@ class NeuralDrawer(Benchmark):
         self.loss_mask = nn.Buffer(mask1 & mask2 & mask3)
 
         self.add_reference_image("target", self.image, to_uint8=True)
+        self._show_titles_on_video = False
 
     def get_loss(self):
 
