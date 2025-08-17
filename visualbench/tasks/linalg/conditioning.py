@@ -59,7 +59,7 @@ class StochasticPreconditioner(Benchmark):
     """
     def __init__(self, A, criterion = F.mse_loss, inverse:bool=True, ord='fro', sigma=1e-2, algebra=None):
         super().__init__()
-        self.A = nn.Buffer(format.to_CHW(A))
+        self.A = nn.Buffer(format.to_CHW(A, generator=self.rng.torch()))
         b, m, n = self.A.shape
         self.P = nn.Parameter(linalg_utils.beye(size=(b, n, max(n, m))))
 
@@ -88,10 +88,14 @@ class StochasticPreconditioner(Benchmark):
 
         loss = self.criterion(Av, Av_p) / self.sigma
 
-        if self._make_images:
-            self.log_image('P', P, to_uint8=True, log_difference=True)
-            if P_inv is not None: self.log_image('P^-1', P_inv, to_uint8=True)
-            self.log_image('A preconditioned', A_precond, to_uint8=True)
+        with torch.no_grad():
+            test_loss = torch.linalg.cond(A_precond).mean() # pylint:disable=not-callable
+            self.log('test loss', test_loss)
+
+            if self._make_images:
+                self.log_image('P', P, to_uint8=True, log_difference=True)
+                if P_inv is not None: self.log_image('P^-1', P_inv, to_uint8=True)
+                self.log_image('A preconditioned', A_precond, to_uint8=True)
 
         return loss
 

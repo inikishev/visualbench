@@ -1,9 +1,12 @@
-from typing import Literal
 from collections.abc import Callable
+from typing import Literal
+
 import torch
+import torch.nn.functional as F
 
 from ...benchmark import Benchmark
 from ...utils import algebras, to_CHW, to_square, totensor
+from . import linalg_utils
 
 
 class MatrixRoot(Benchmark):
@@ -51,7 +54,7 @@ class MatrixRoot(Benchmark):
 
 class StochasticMatrixRoot(Benchmark):
     """The objective is to find B such that (B^P)x = Ax, where A is a square matrix and x is a random vector."""
-    def __init__(self, A, p: int, batch_size: int = 1, criterion:Callable=torch.nn.functional.mse_loss, vec=False, algebra=None, seed=0):
+    def __init__(self, A, p: int, batch_size: int = 1, criterion:Callable=torch.nn.functional.mse_loss, vec=True, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A)))
         self.min = self.A.min().item(); self.max = self.A.max().item()
@@ -280,3 +283,46 @@ class StochasticMatrixIdempotent(Benchmark):
             self.log_image(f'B^{self.n}', B_p, to_uint8=True, show_best=True)
 
         return torch.stack(losses)
+
+
+class StochasticMatrixSign(Benchmark):
+    """given square A, find B such that Bx = Ax / ||Ax||, where x is a random unit vector sampled on each step."""
+    def __init__(self, A, batch_size=1, criterion = F.mse_loss, algebra=None, sampler=torch.randn):
+        super().__init__()
+
+        self.A = torch.nn.Buffer(to_square(A, generator=self.rng.torch()))
+        self.sign = torch.nn.Buffer(linalg_utils.matrix_sign_svd(self.A))
+
+        self.batch_size = batch_size
+        self.criterion = criterion
+        self.algebra = algebras.get_algebra(algebra)
+        self.sampler = sampler
+
+        self.B = torch.nn.Parameter(self.A.clone())
+        b, n, m = self.A.shape
+        self.I = torch.nn.Buffer(linalg_utils.beye((b, n, n)))
+
+        self.add_reference_image('A', A, to_uint8=True)
+        self.add_reference_image('true sign', self.sign, to_uint8=True)
+
+    def pre_step(self):
+        b, n, m = self.A.shape
+        self.x = self.sampler((self.batch_size, b, m, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+
+    def get_loss(self):
+        A = self.A.unsqueeze(0)
+        B = self.B.unsqueeze(0)
+        x = self.x / torch.linalg.vector_norm(self.x, dim=(-2,-1), keepdim=True).clip(min=1e-12) # pylint:disable=not-callable
+
+        Ax = algebras.matmul(A, x, self.algebra)
+        Bx = algebras.matmul(B, x, self.algebra)
+
+        loss = self.criterion(Bx, Ax / torch.linalg.vector_norm(Ax).clip(min=1e-12)) # pylint:disable=not-callable
+
+        with torch.no_grad():
+            self.log("test loss", self.criterion(self.B, self.sign))
+            if self._make_images:
+                self.log_image("B", self.B, to_uint8=True, show_best=True, log_difference=True)
+
+        return loss
+

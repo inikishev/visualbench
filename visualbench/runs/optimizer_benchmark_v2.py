@@ -132,8 +132,12 @@ class MBSOptimizerBenchmark:
         # ------------------------- StochasticInverse-16 MSE ------------------------- #
         # ShorR(???), SOAP, NAG, Muon, SGD, LMAdagrad, Adagrad, PSGD. Interesting. ShorR is 0.021, SOAP 0.023, Adam is 0.033.
         bench = tasks.StochasticInverse(16, criterion=F.mse_loss).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'StochasticInverse-16 MSE', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        self.run_bench(bench, 'StochasticInverse-16 MSE', passes=2000, sec=60, metrics='test loss', vid_scale=None)
 
+        # --------------------------- MatrixLogarithm-16 LR -------------------------- #
+        # smooth, PSGD 0.02, SOAP 0.03, AdamW 0.05
+        bench = tasks.MatrixLogarithm(16, criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'MatrixLogarithm-16 L1', passes=2000, sec=60, metrics='train loss', vid_scale=None)
 
 
         # maybe
@@ -144,7 +148,7 @@ class MBSOptimizerBenchmark:
         self.run_bench(bench, 'Inverse-16 MSE', passes=2000, sec=60, metrics='train loss', vid_scale=None)
 
         # ---------------------------- MoorePenrose-16 L1 ---------------------------- #
-        # weird mix, but reasonably big spacing between algos, so maybe as a weirder kind of problem, best is Adam
+        # weird mix, but reasonably big spacing between algos, so maybe as a weirder kind of problem with clean lr to loss curve, best is Adam
         bench = tasks.MoorePenrose(16, criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'MoorePenrose-16 L1', passes=2000, sec=60, metrics='train loss', vid_scale=None)
 
@@ -152,6 +156,11 @@ class MBSOptimizerBenchmark:
         # hard, only few managed to reach 2 - LBFGS and ShorR. Then we have BFGS with 1348, Adam has 2233
         bench = tasks.Drazin(data.get_fielder(16)[0], criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Drazin-fielder16 L1', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+
+        # -------------------------- StochasticRLstsq-10 MSE ------------------------- #
+        # smooth, big gaps, Adagrad is best, not sure if this is a good proxy for generalization
+        bench = tasks.StochasticRLstsq(10, 10).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'StochasticRLstsq-10 MSE', passes=2000, sec=60, metrics='train loss', vid_scale=None)
 
 
     def run_visual(self):

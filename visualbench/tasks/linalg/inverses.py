@@ -7,7 +7,7 @@ from ...utils import algebras, to_CHW, to_square, totensor
 from .linalg_utils import eye_like, row_sampler
 
 class Inverse(Benchmark):
-    """For a square A, the objective is to find B such that AB = BA = I."""
+    """For a square ``A``, the objective is to find ``B`` such that ``AB = BA = I``."""
     def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
@@ -50,7 +50,11 @@ class Inverse(Benchmark):
 
 
 class StochasticInverse(Benchmark):
-    """sample random x, update B such that ABx = BAx = x, which is true when AB = BA = I, so B converges to true inverse"""
+    """For a square ``A``, the objective is to find it's inverse ``B``
+    by minimizing ``criterion(ABx, x) + criterion(BAx, x)``,
+    where ``x`` is a random vector sampled before each step.
+    If ``Ax = v`` then ``Bv = BAx = x`` (left inverse), and
+    if ``Av = x``, then ``Bx = v`` (right inverse)."""
     def __init__(self, A, batch_size = 1, criterion=torch.nn.functional.mse_loss, sampler=row_sampler, vec=True, algebra=None, seed=0):
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
@@ -70,26 +74,23 @@ class StochasticInverse(Benchmark):
     def pre_step(self):
         if self.vec:
             b, n, n = self.A.shape # pylint:disable=redeclared-assigned-name
-            self.X = self.sampler((self.batch_size, b, n, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            self.x = self.sampler((self.batch_size, b, n, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
         else:
-            self.X = self.sampler((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+            self.x = self.sampler((self.batch_size, *self.A.shape), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
     def get_loss(self):
-        X = self.X
-        A = self.A.unsqueeze(0); B = self.B.unsqueeze(0)
+        A = self.A.unsqueeze(0); B = self.B.unsqueeze(0); x = self.x
 
-        # ------------------------------ stochastic loss ----------------------------- #
-        AX = algebras.matmul(A, X, self.algebra)
-        BAX = algebras.matmul(B, AX, algebra=self.algebra)
+        # Ax=v so Bv=x
+        Ax = algebras.matmul(A, x, self.algebra)
+        BAx = algebras.matmul(B, Ax, self.algebra)
+        loss_left = self.criterion(BAx, x)
 
-        BX = algebras.matmul(B, X, self.algebra)
-        ABX = algebras.matmul(A, BX, algebra=self.algebra)
-
-        loss1 = self.criterion(X, ABX)
-        loss2 = self.criterion(X, BAX)
-        loss3 = self.criterion(ABX, BAX)
-        loss = torch.stack([loss1,loss2,loss3])
+        # Bx=v so Av=x
+        Bx = algebras.matmul(B, x, self.algebra)
+        ABx = algebras.matmul(A, Bx, self.algebra)
+        loss_right = self.criterion(ABx, x)
 
         with torch.no_grad():
             # --------------------------------- test loss -------------------------------- #
@@ -103,7 +104,8 @@ class StochasticInverse(Benchmark):
             # prevents loss close to 0 when matrices are just zeros
             if self.algebra is None and  AB.amax().maximum(BA.amax()) < torch.finfo(AB.dtype).eps:
                 loss2 = loss3 = float('inf')
-                with torch.enable_grad(): loss = loss*torch.inf
+                with torch.enable_grad():
+                    loss_left = loss_right = loss_left*torch.inf
 
             self.log('test loss', loss1+loss2+loss3)
 
@@ -118,16 +120,16 @@ class StochasticInverse(Benchmark):
                         self.log_image('B inverse', B_inv, to_uint8=True, show_best=True) # removed min and max due to inexact inverse
                         self.log_image('residual', (B_inv - self.A).abs_(), to_uint8=True)
 
-        return loss
+        return torch.stack([loss_left, loss_right])
 
 
 class MoorePenrose(Benchmark):
-    """Given rectangular A, Moore-Penrose B is a matrix that satisfies following criteria:
+    """Given rectangular ``A``, the Moore-Penrose inverse ``B`` is a matrix that satisfies following criteria:
 
-    1. ABA = A
-    2. BAB = B
-    3. (AB)* = AB (AB is Hermitian)
-    4. (BA)* = BA (BA is hermitian)
+    1. ``ABA = A``
+    2. ``BAB = B``
+    3. ``(AB)* = AB`` (``AB`` is Hermitian)
+    4. ``(BA)* = BA`` (``BA`` is Hermitian)
     """
     def __init__(self, A, criterion=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
@@ -181,19 +183,18 @@ def algebraic_matrix_power(A:torch.Tensor, power: int, algebra):
     return Ap
 
 class Drazin(Benchmark):
-    """Given square A, the index of A is defined as the least nonnegative integer k such that rank(A^(k+1)) = rank(A^k).
+    """Given square ``A``, the index of ``A`` is defined as the
+    least nonnegative integer ``k`` such that ```rank(A^(k+1)) = rank(A^k)```.
     In other words it is the power where rank stops changing.
 
-    The Drazin inverse B of A is a unique matrix that satisfies the following criteria:
+    The Drazin inverse ``B`` of ``A`` is a unique matrix that satisfies the following criteria:
 
-    1. A^(k+1) B = A^k
-    2. BAB = B
-    3. AB = BA
+    1. ``A^(k+1) B = A^k``
+    2. ``BAB = B``
+    3. ``AB = BA``
 
     Note:
         If index is large, due to large powers float64 precision may be necessary to avoid infinities.
-
-        A custom index can be provided in the ``ind`` argument, and if it is small, instability is avoided. Of course supplying an artificial index means the problem should no longer be considered Drazin inverse.
 
     Note:
         Index calculation won't be correct with non-elementary algebras (it still uses normal rank and power).

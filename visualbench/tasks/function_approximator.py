@@ -63,7 +63,7 @@ class FunctionApproximator(Benchmark):
     Inspired by https://www.youtube.com/watch?v=3BwRVpciD3k
 
     """
-    def __init__(self, target: Any, depth:int=15, n_skip:int=15, act=F.tanh, batch_size=None, criterion=F.mse_loss, resolution=(256,512)):
+    def __init__(self, target: Any, depth:int=7, n_skip:int=4, act=F.tanh, batch_size=None, criterion=F.mse_loss, resolution=(256,512)):
         super().__init__()
 
         self.target = nn.Buffer(totensor(target, dtype=torch.float32))

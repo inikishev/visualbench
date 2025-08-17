@@ -99,7 +99,7 @@ def orthogonal_like(tensor: torch.Tensor, generator=None) -> torch.Tensor:
     t = torch.empty_like(tensor)
     return torch.nn.init.orthogonal_(t, generator=generator)
 
-def beye(size, dtype=None, device=None):
+def beye(size:Sequence[int], dtype=None, device=None):
     n,m = size[-2:]
     eye = torch.eye(n,m, device=device,dtype=dtype)
     if len(size) > 2:
@@ -108,10 +108,10 @@ def beye(size, dtype=None, device=None):
 
     return eye.clone()
 
-def eye_like(tensor):
+def eye_like(tensor:torch.Tensor):
     return beye(tensor.size(), dtype=tensor.dtype, device=tensor.device)
 
-def expand_batch(tensor:torch.Tensor, size):
+def expand_batch(tensor:torch.Tensor, size:Sequence[int]):
     if tensor.shape != tuple(size[-tensor.ndim:]):
         raise ValueError(f"can't expand tensor of shape {tensor.shape} to {tuple(size)}")
 
@@ -144,3 +144,8 @@ def row_sampler(size: Sequence[int], device=None, dtype=None, generator=None):
     idx = int(torch.randint(0, size[-2], (1, ), device=device, generator=generator).item())
     t[..., idx, :] = 1
     return t
+
+
+def matrix_sign_svd(A):
+    U, S, Vh = torch.linalg.svd(A)
+    return U @ S.sign().diag_embed() @ Vh

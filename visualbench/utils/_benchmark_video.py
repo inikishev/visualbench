@@ -80,7 +80,7 @@ def _repeat_to_largest(images: dict[str, np.ndarray]):
 
 def _make_collage(images: dict[str, np.ndarray]):
     """make a collage from images"""
-    if len(images) == 1: return next(iter(images.values()))
+    if len(images) == 1: return next(iter(images.values())), 1
 
     images = _repeat_to_largest(images)
     images_titles = [_add_title(v, k) for k,v in images.items()]
@@ -187,7 +187,7 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
 
             # add best images
             for key, image in lowest_images.items():
-                images[key] = image
+                images[f"{key} - best"] = image
 
             # make a collage
             collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()})

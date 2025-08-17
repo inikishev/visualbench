@@ -9,7 +9,7 @@ from ...utils import algebras, to_CHW, to_square, totensor
 from .linalg_utils import orthogonal, orthogonal_like, row_sampler, eye_like
 
 
-class StochasticLeastSquares(Benchmark):
+class StochasticRLstsq(Benchmark):
     """This objective jointly recovers A and B from matrix-vector products
     and optimizes X to be the solution to recovered A and B.
 
@@ -78,8 +78,12 @@ class StochasticLeastSquares(Benchmark):
         AX_v = algebras.matmul(AX, self.V_b, algebra=self.algebra)
         loss3 = self.criterion(AX_v, B_hat_v)
 
-        if self._make_images:
-            with torch.no_grad():
+        with torch.no_grad():
+            test_loss1 = self.criterion(A, A_hat)
+            test_loss2 = self.criterion(B, B_hat)
+            test_loss3 = self.criterion(A@X, B)
+            self.log("test loss", test_loss1 + test_loss2 + test_loss3)
+            if self._make_images:
                 self.log_image("A_hat", A_hat, to_uint8=True, log_difference=True)
                 self.log_image("B_hat", B_hat, to_uint8=True, log_difference=True)
                 self.log_image("X", self.X, to_uint8=True, log_difference=True)

@@ -61,6 +61,65 @@ def _calculate_P(X: torch.Tensor, perplexity: float) -> torch.Tensor:
     P = (P_conditional + P_conditional.T) / (2 * n_samples)
     return torch.max(P, torch.tensor(1e-12, device=X.device))
 
+def _make_colors(targets: Any, n_samples:int):
+    if targets is None:
+        return np.array([[0, 0, 0]]) # Black for all points
+
+    else:
+        targets = tonumpy(targets)
+
+        # -------------------------------- categorical ------------------------------- #
+        if targets.dtype in (int, np.int64, np.int32):
+            unique_classes = np.unique(targets)
+            n_classes = len(unique_classes)
+
+            generator = np.random.default_rng(0)
+            class_colors = (generator.uniform(0, 255, size=(n_classes, 3))).astype(np.uint8)
+            colors = np.zeros((n_samples, 3), dtype=np.uint8)
+            for i, cls in enumerate(unique_classes):
+                colors[targets == cls] = class_colors[i]
+            return colors
+
+        # -------------------------------- regression -------------------------------- #
+        targets_norm = (targets - targets.min()) / (targets.max() - targets.min() + 1e-12)
+        colormap_start = np.array([0, 0, 255])  # Blue
+        colormap_end = np.array([255, 255, 0]) # Yellow
+        colors = (colormap_start[None, :] * (1 - targets_norm)[:, None] + \
+                colormap_end[None, :] * targets_norm[:, None]).astype(np.uint8)
+
+        return colors
+
+def _pca(inputs: torch.Tensor):
+    from sklearn.decomposition import PCA
+    inputs_pca = PCA(2).fit_transform(inputs.numpy(force=True))
+    return torch.as_tensor(inputs_pca.copy()).clone()
+
+
+def _make_frame(colors, Y: np.ndarray, resolution: int = 500, point_size: int = 5):
+    # create a blank white canvas
+    image = np.full((resolution, resolution, 3), 255, dtype=np.uint8)
+
+    # normalize coordinates to fit within the canvas
+    y_min, y_max = Y.min(), Y.max()
+    scale = y_max - y_min
+    if scale == 0: scale = 1.0
+
+    y_norm = (Y - y_min) / scale
+
+    # add a margin
+    margin = point_size * 2
+    coords = (y_norm * (resolution - 1 - 2 * margin) + margin).astype(int)
+
+    # draw points
+    r = point_size // 2
+    for (x, y), color in zip(coords, colors):
+        top = max(0, y - r)
+        bottom = min(resolution, y + r + 1)
+        left = max(0, x - r)
+        right = min(resolution, x + r + 1)
+        image[top:bottom, left:right] = color
+
+    return image
 
 class TSNE(Benchmark):
     """t-distributed Stochastic Neighbor Embedding dimensionality reduction.
@@ -101,73 +160,19 @@ class TSNE(Benchmark):
         self.exaggeration_iters = exaggeration_iters
 
         if pca_init:
-            from sklearn.decomposition import PCA
-            inputs_pca = PCA(2).fit_transform(inputs.numpy(force=True))
-            self.Y = nn.Parameter(torch.as_tensor(inputs_pca.copy()).clone())
+            self.Y = nn.Parameter(_pca(inputs))
         else:
             self.Y = nn.Parameter(torch.randn(self.n_samples, n_components, generator=self.rng.torch()) * 0.0001)
+
         self.resolution = resolution
         with torch.no_grad():
             self.P = nn.Buffer(_calculate_P(inputs, perplexity))
 
         self.iteration = 0
-
-        # make colors
-        if targets is None:
-            self._colors = np.array([[0, 0, 0]] * self.n_samples) # Black for all points
-
-        else:
-            targets = tonumpy(targets)
-
-            if targets.dtype in (int, np.int64, np.int32): # Categorical
-                unique_classes = np.unique(targets)
-                n_classes = len(unique_classes)
-                # Generate a consistent color for each class
-                np.random.seed(42) # for reproducibility
-                class_colors = (np.random.rand(n_classes, 3) * 255).astype(np.uint8)
-                colors = np.zeros((self.n_samples, 3), dtype=np.uint8)
-                for i, cls in enumerate(unique_classes):
-                    colors[targets == cls] = class_colors[i]
-                self._colors = colors
-
-            else:
-                targets_norm = (targets - targets.min()) / (targets.max() - targets.min() + 1e-12)
-                colormap_start = np.array([0, 0, 255])  # Blue
-                colormap_end = np.array([255, 255, 0]) # Yellow
-                colors = (colormap_start[None, :] * (1 - targets_norm)[:, None] + \
-                        colormap_end[None, :] * targets_norm[:, None]).astype(np.uint8)
-
-                self._colors = colors
+        self._colors = _make_colors(targets, self.n_samples)
 
         self.set_multiobjective_func(torch.sum)
 
-
-    def _make_frame(self, Y_np: np.ndarray, canvas_size: int = 500, point_size: int = 5):
-        # Create a blank white canvas
-        image = np.full((canvas_size, canvas_size, 3), 255, dtype=np.uint8)
-
-        # Normalize coordinates to fit within the canvas
-        y_min, y_max = Y_np.min(), Y_np.max()
-        scale = y_max - y_min
-        if scale == 0: scale = 1.0
-
-        y_norm = (Y_np - y_min) / scale
-
-        # Add a margin
-        margin = point_size * 2
-        coords = (y_norm * (canvas_size - 1 - 2 * margin) + margin).astype(int)
-
-        # Draw points (as small squares)
-        r = point_size // 2
-        for (x, y), color in zip(coords, self._colors):
-            # Clamp coordinates to be within canvas bounds
-            top = max(0, y - r)
-            bottom = min(canvas_size, y + r + 1)
-            left = max(0, x - r)
-            right = min(canvas_size, x + r + 1)
-            image[top:bottom, left:right] = color
-
-        return image
 
     def get_loss(self) -> torch.Tensor:
         sum_Y_sq = torch.sum(self.Y**2, 1)
@@ -187,7 +192,7 @@ class TSNE(Benchmark):
 
         if self._make_images:
             with torch.no_grad():
-                frame = self._make_frame(self.Y.detach().cpu().numpy(), self.resolution) # pylint:disable=not-callable
+                frame = _make_frame(self._colors, self.Y.numpy(force=True), self.resolution)
                 self.log_image('data', frame, to_uint8=False)
 
         self.iteration += 1

@@ -30,8 +30,8 @@ class StochasticMatrixRecovery(Benchmark):
         generator = self.rng.torch()
         self._make_images = False # will be True if A or B are an image.
 
-        if isinstance(A, int): A = torch.randn(A, A, generator=generator)
-        elif isinstance(A, tuple) and len(A) == 2: A = torch.randn(A, generator=generator)
+        if isinstance(A, int): A = torch.randn(1, A, A, generator=generator)
+        elif isinstance(A, tuple) and len(A) == 2: A = torch.randn((1, *A), generator=generator)
         else:
             self._make_images = True
             A = format.to_CHW(A)

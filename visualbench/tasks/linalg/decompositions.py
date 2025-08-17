@@ -575,6 +575,14 @@ class Polar(Benchmark):
         return loss + penalty
 
 
+def _make_lowrank(A, rank, seed,):
+    if isinstance(A, int):
+        A = (A, A)
+
+    if isinstance(A, tuple) and (len(A) in (2, 3)) and isinstance(A[0], int):
+        A = linalg_utils.make_low_rank_tensor(A, rank=rank, seed=seed)
+
+    return A
 
 class RankFactorization(Benchmark):
     """Decompose rectangular A into CF, where C is (m, rank) and F is (rank, n).
@@ -590,11 +598,15 @@ class RankFactorization(Benchmark):
         self,
         A,
         rank: int,
+        true_rank: int | None = None,
         criterion:Callable=torch.nn.functional.mse_loss,
         algebra=None,
         seed=0,
     ):
         super().__init__(seed=seed)
+
+        if true_rank is None: true_rank = rank
+        A = _make_lowrank(A, true_rank, self.rng.seed)
         self.A = torch.nn.Buffer(format.to_CHW(A, generator=self.rng.torch()))
 
         self.criterion = criterion
@@ -636,11 +648,15 @@ class NNMF(Benchmark):
         self,
         A,
         rank: int,
+        true_rank: int | None = None,
         criterion:Callable=torch.nn.functional.mse_loss,
         algebra=None,
         seed=0,
     ):
         super().__init__(seed=seed)
+        if true_rank is None: true_rank = rank
+        A = _make_lowrank(A, true_rank, self.rng.seed)
+
         A = format.to_CHW(A)
         self.A = torch.nn.Buffer(A - A.amin().clip(max=0))
 
