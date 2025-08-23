@@ -1,10 +1,11 @@
 import warnings
 from collections import UserDict
-from typing import Any
 from collections.abc import Mapping
+from typing import Any
 
 import numpy as np
 import torch
+
 
 class Logger(UserDict[str, dict[int, Any]]):
     def log(self, step: int, metric: str, value: Any):
@@ -45,7 +46,7 @@ class Logger(UserDict[str, dict[int, Any]]):
         """same as logger[metric][step] but returns closest value if idx doesn't exist"""
         steps = np.asarray(self.steps(metric), dtype=np.int64)
         idx = np.abs(steps - step).argmin().item()
-        return self[metric][int(idx)]
+        return self[metric][steps[int(idx)]]
 
 
     def save(self, fname: str):

@@ -22,9 +22,10 @@ if TYPE_CHECKING:
     from ..logger import Logger
     from ..runs.run import Run, Sweep, Task
 
+# region reference opts
 REFERENCE_OPTS = (
-    "torch.SGD",
-    "torch.NAG(0.9)",
+    "GD",
+    "torch.NAG(0.95)",
     "torch.Adagrad",
     "torch.RMSprop",
     "torch.Adam",
@@ -34,7 +35,9 @@ REFERENCE_OPTS = (
     "tz.Newton",
     "tz.SOAP",
 )
+# endregion
 
+# region yscales
 _YSCALES: dict[str, Any] = {
     # ------------------------------------ new ----------------------------------- #
     "S - Inverse-16 L1": "log",
@@ -42,6 +45,14 @@ _YSCALES: dict[str, Any] = {
     "S - MoorePenrose-16 L1": "log",
     "S - MatrixLogarithm-16 L1": "log",
     "SS - StochasticRLstsq-10 MSE": "log",
+    "S - Drazin-fielder16 L1": "log",
+    "S - ChebushevRosenbrock-8": "log",
+    "S - Inverse-fielder16 MSE": "log",
+    "S - Rosenbrock 384": "log",
+    "S - Rotated quadratic 384": "log",
+    "S - Nonsmooth Chebyshev-Rosenbrock 384": "log",
+    "S - Rastrigin 384": "log",
+    "MLS - MovieLens BS-32 - Matrix Factorization": "log",
 
     # ------------------------------------ old ----------------------------------- #
     # ML
@@ -50,6 +61,8 @@ _YSCALES: dict[str, Any] = {
     "ML - MNIST-1D FB - NeuralODE": "log",
     "ML - Wave PDE - TinyFLS": "log",
     "ML - Wave PDE - FLS": "log",
+    "ML - WDBC FB - ElasticNet": "log",
+    "MLS - MNIST-1D Sparse Autoencoder BS-32 - ConvNet": "log",
 
     # 2D
     "2D - booth": dict(value='symlog', linthresh=1e-8),
@@ -74,7 +87,8 @@ _YSCALES: dict[str, Any] = {
 
     # Synthetic
     "S - Ill conditioned quadratic": dict(value='symlog', linthresh=1e-12),
-    "S - Rosenbrock": "log",
+    "S - Rosenbrock-384": "log",
+    "S - IllConditioned-384": "log",
     "S - LogSumExp": "log",
     "S - Least Squares": "log",
     "S - Inverse - L1": "log",
@@ -109,7 +123,9 @@ _YSCALES: dict[str, Any] = {
     "Real - Style Transfer": "log",
     "Real - Muon coefficients": "log",
 }
+# endregion
 
+# region train smoothing
 _TRAIN_SMOOTHING: dict[str, float] = {
     "SS - Stochastic inverse - L1": 2,
     "SS - Stochastic inverse - MSE": 2,
@@ -117,9 +133,15 @@ _TRAIN_SMOOTHING: dict[str, float] = {
     "SS - Stochastic matrix recovery - MSE": 2,
     "SS - Stochastic matrix idempotent": 2,
     "SS - Stochastic matrix idempotent (hard)": 2,
-    "MLS - Covertype Online - Logistic Regression": 2
+    "MLS - Covertype BS-1 - Logistic Regression": 8,
+    "MLS - MNIST-1D BS-32 - TinyConvNet": 4,
+    "MLS - SynthSeg BS-64 - ConvNet": 2,
+    "MLS - MNIST-1D BS-64 - MLP(40-64-96-128-256-10)": 4,
+    "MLS - MNIST-1D BS-128 - RNN(2x40)": 4,
+    "MLS - MNIST-1D Sparse Autoencoder BS-32 - ConvNet": 4,
+    "SS - StochasticRLstsq-10 MSE": 4,
 }
-
+# endregion
 
 
 _COLORS_MAIN = ("red", "green", "blue")
@@ -200,6 +222,7 @@ def _wrap(s:str | None, maxlen=30) -> Any:
     if s is None: return None
     return '\n'.join(textwrap.wrap(s, maxlen))
 
+# region plot_train_test_values
 def plot_train_test_values(
     sweep: "Sweep",
     yscale: Scale = None,
@@ -225,15 +248,21 @@ def plot_train_test_values(
     _set_scale_(ax, yscale)
 
     # ---------------------------- plot ---------------------------- #
-    ax.plot(bte_train_steps, bte_train_values, label=f"te - train: {format_number(np.nanmin(bte_train_values), 5)}", c='darkgreen', lw=0.5, alpha=0.5)
+    if sweep.task_name is not None and sweep.task_name in _TRAIN_SMOOTHING:
+        smoothing = _TRAIN_SMOOTHING[sweep.task_name]
+        if smoothing != 0:
+            bte_train_values = gaussian_filter1d(bte_train_values, smoothing, mode='nearest')
+            btr_train_values = gaussian_filter1d(btr_train_values, smoothing, mode='nearest')
+
+    ax.plot(bte_train_steps, bte_train_values, label=f"train (best test): {format_number(np.nanmin(bte_train_values), 5)}", c='darkgreen', lw=0.5, alpha=0.5)
 
     if best_train != best_test:
-        ax.plot(btr_train_steps, btr_train_values, label=f"tr - train: {format_number(np.nanmin(btr_train_values), 5)}", c='darkred', lw=0.5, alpha=0.5)
+        ax.plot(btr_train_steps, btr_train_values, label=f"train (best train): {format_number(np.nanmin(btr_train_values), 5)}", c='darkred', lw=0.5, alpha=0.5)
 
-    ax.plot(bte_test_steps, bte_test_values, label=f"te - test: {format_number(np.nanmin(bte_test_values), 5)}", c='lime', lw=1.0, alpha=0.5)
+    ax.plot(bte_test_steps, bte_test_values, label=f"test (best test): {format_number(np.nanmin(bte_test_values), 5)}", c='lime', lw=1.0, alpha=0.5)
 
     if best_train != best_test:
-        ax.plot(btr_test_steps, btr_test_values, label=f"tr - test: {format_number(np.nanmin(btr_test_values), 5)}", c='red', lw=1.0, alpha=0.5)
+        ax.plot(btr_test_steps, btr_test_values, label=f"test (best train): {format_number(np.nanmin(btr_test_values), 5)}", c='red', lw=1.0, alpha=0.5)
 
 
     # ------------------------------- axes and grid ------------------------------ #
@@ -244,7 +273,7 @@ def plot_train_test_values(
 
     _xaxis_settings_(ax, yscale)
     return ax
-
+# endregion
 
 def _find_different(*d:dict):
     if len(d) == 0: return None
@@ -297,6 +326,7 @@ def _plot_metric(
 
     return ax
 
+# region plot_values
 def plot_values(
     task: "Task",
     metric: str,
@@ -352,7 +382,7 @@ def plot_values(
     # ------------------------------- axes and grid ------------------------------ #
     _xaxis_settings_(ax, yscale)
     return ax
-
+# endregion
 
 def _plot_sweep(
     ax: Axes,
@@ -408,6 +438,7 @@ def _sweep_xyaxes(ax: Axes, xscale, yscale):
     ax.grid(which='minor', lw=0.5, alpha=0.15)
     return ax
 
+# region plot_sweeps
 def plot_sweeps(
     task: "Task",
     metric: str,
@@ -466,6 +497,9 @@ def plot_sweeps(
 
     return ax
 
+# endregion
+
+# region plot_train_test_sweep
 def plot_train_test_sweep(
     sweep: "Sweep",
     xscale: Any = 'log',
@@ -515,8 +549,9 @@ def plot_train_test_sweep(
     _sweep_xyaxes(ax, xscale, yscale)
 
     return ax
+# endregion
 
-
+# region bar_chart
 def bar_chart(
     task: "Task",
     metric: str,
@@ -572,9 +607,9 @@ def bar_chart(
     ax.barh(keys, values, color=colors)
     return ax
 
+# endregion
 
-
-
+# region summary
 def summary_df(root:str = "optimizers", include_partial:bool=True):
     from .run import Task
     decoder = msgspec.msgpack.Decoder()
@@ -605,9 +640,9 @@ def summary_df(root:str = "optimizers", include_partial:bool=True):
 
                 # skip runs that were terminated prematurely (those will appear white)
                 if not include_partial:
-                    if 'torch.SGD' not in task: warnings.warn(f"{task.task_name} has no SGD run!")
+                    if 'GD' not in task: warnings.warn(f"{task.task_name} has no `GD` run!")
                     else:
-                        sgd_logger = task['torch.SGD'][0].load_logger()
+                        sgd_logger = task['GD'][0].load_logger()
                         cur_logger = best_run.load_logger()
                         if sgd_logger.list('num passes')[-1] * 0.9 > cur_logger.list('num passes')[-1]: continue
 
@@ -645,16 +680,31 @@ def summary_table(root:str, n=128, ax=None):
         ((pl.col(c) - pl.col(c).min()) / (pl.col(c).max() - pl.col(c).min())).alias(c) for c in vals
     ])
 
-    # sort by sum and take first n
-    expr = 0
+    # previous sorter by sum
+    # expr = 0
+    # for v in vals:
+    #     weight = 1
+    #     if "Friedman 1" in v: weight = 0.5
+    #     if v.startswith("Real - "): weight = 0.75
+    #     if v.startswith(("S - ", "SS - ")): weight = 0.5
+    #     if v.startswith("Visual - "): weight = 0.25
+    #     expr = expr + pl.col(v).fill_null(pl.col(v).median()) * weight
+    # df = df.sort(expr).head(n)
+
+    # sort by sum of ranks and take first n
+    rank_expressions = []
     for v in vals:
         weight = 1
         if "Friedman 1" in v: weight = 0.5
         if v.startswith("Real - "): weight = 0.75
         if v.startswith(("S - ", "SS - ")): weight = 0.5
         if v.startswith("Visual - "): weight = 0.25
-        expr = expr + pl.col(v).fill_null(pl.col(v).median()) * weight
-    df = df.sort(expr).head(n)
+
+        rank_expressions.append(
+            pl.col(v).fill_null(strategy="max").rank(method='average') * weight
+        )
+
+    df = df.sort(by=pl.sum_horizontal(rank_expressions)).head(n)
 
     # re-sort (somewhere it de-sorts)
     vals = sorted(col for col, dtype in df.schema.items() if dtype.is_numeric())
@@ -686,7 +736,7 @@ def summary_table(root:str, n=128, ax=None):
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
     ax.tick_params(axis='y', labelsize=8)
     return ax
-
+# endregion
 
 def _clean_empty(root):
     for f in os.listdir(root):
@@ -697,7 +747,7 @@ def _clean_empty(root):
             else:
                 _clean_empty(path)
 
-
+# region render_summary
 def render_summary(
     root:str,
     dirname: str,
@@ -793,3 +843,4 @@ def render_summary(
     # fig.set_size_inches(20, 20)
     plt.savefig(os.path.join(dirname, "summary.png"))
     plt.close()
+# endregion

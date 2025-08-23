@@ -13,6 +13,9 @@ from .python_tools import format_number
 from .renderer import OpenCVRenderer, make_hw3, render_frames
 
 
+if TYPE_CHECKING:
+    from ..benchmark import Benchmark
+
 def _better_load_default(size):
     """loads default font out of more fonts beacuse default one is so bad its crazy"""
     for font_path in ("arial.ttf", "/usr/share/fonts/google-noto-vf/NotoSans[wght].ttf"):
@@ -33,13 +36,15 @@ def _add_title(image: np.ndarray, title: str, size_per_px:float=0.04, wrap=True,
         title = '\n'.join(textwrap.wrap(title, width=(w//font_size)*2))
 
     nlines = title.count("\n") + 1
-    bar_size = (font_size * 1.15) * nlines
+    bar_size = (font_size * 1.05) * nlines
     font = _better_load_default(size=font_size)
 
     # calculate padding with fake draw
-    text_bbox = ImageDraw.Draw(Image.new('RGB', (0,0))).multiline_textbbox((0,0), title, font=font)
-    text_height = text_bbox[3] - text_bbox[1]
-    pad_height = text_height + bar_size
+    # removed because value can change leading to different resolution
+    # text_bbox = ImageDraw.Draw(Image.new('RGB', (0,0))).multiline_textbbox((0,0), title, font=font)
+    # text_height = text_bbox[3] - text_bbox[1]
+    # font_size = 25 text_height = 20
+    pad_height = font_size*0.7 + bar_size
 
     pad = np.full((int(pad_height), w, c), 255, dtype=np.uint8)
     image = np.concatenate([pad, image], 0)
@@ -56,9 +61,6 @@ def _add_title(image: np.ndarray, title: str, size_per_px:float=0.04, wrap=True,
     )
 
     return np.array(pil_image)
-
-if TYPE_CHECKING:
-    from ..benchmark import Benchmark
 
 def _maybe_progress(x, enable):
     if enable:
@@ -92,7 +94,7 @@ def _make_collage(images: dict[str, np.ndarray], titles:bool):
     # it is now (image, H, W, 3)
 
     # compose them
-    ncols = len(stacked) ** (0.6 * (max_shape[0]/max_shape[1]))
+    ncols = len(stacked) ** (0.65 * (max_shape[0]/max_shape[1]))
     nrows = round(len(stacked) / ncols)
     ncols = round(ncols)
     nrows = max(nrows, 1)
@@ -161,6 +163,8 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
         _check_image(value, f'reference_images[{key}]')
 
     if len(logger_images) + len(lowest_images) == 0:
+        if self._benchmark_mode:
+            raise RuntimeError(f'Images were not created for {self.__class__.__name__} because benchmark mode is enabled')
         raise NotImplementedError(f'Solution plotting is not implemented for {self.__class__.__name__}')
 
     with OpenCVRenderer(file, fps = fps, scale=1) as renderer:
@@ -194,12 +198,12 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
             # make a collage
             collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()}, titles=self._show_titles_on_video)
 
-            title = f"train loss: {str(format_number(loss,  5)).ljust(7, '0')}"
+            title = f"train loss: {str(format_number(loss,  5)).ljust(7, '0')[:7]}"
             if "test loss" in self.logger:
                 test_loss = self.logger.closest("test loss", step)
-                title = f"{title}; test loss: {str(format_number(test_loss, 5)).ljust(7, '0')}"
+                title = f"{title}; test loss: {str(format_number(test_loss, 5)).ljust(7, '0')[:7]}"
 
-            renderer.write(_add_title(collage, title, size_per_px=0.05/ncols, wrap=False))
+            renderer.write(_add_title(collage, title, size_per_px=0.04/ncols, wrap=False))
 
         path = os.path.abspath(renderer.outfile)
 

@@ -48,7 +48,7 @@ class MBS:
 
         grid = tuple(grid)
         if len(grid) == 0: raise ValueError("At least one grid search point must be specified")
-        self.grid = grid
+        self.grid = sorted(grid)
 
         self.step = step
         self.num_candidates = num_candidates

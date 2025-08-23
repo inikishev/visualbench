@@ -133,8 +133,13 @@ def _map_coords(x_data, y_data, viewport, data_range):
     if np.any(~np.isfinite(y_filt)):
         return [[1.,2.],[3.,4.]]
 
-    px = x_vp + (x_filt - x_min) / (x_max - x_min) * w_vp
-    py = y_vp + h_vp - ((y_filt - y_min) / (y_max - y_min) * h_vp)
+    denom = (x_max - x_min)
+    if abs(denom) < 1e-16: denom = 1
+    px = x_vp + (x_filt - x_min) / denom * w_vp
+
+    denom = (y_max - y_min)
+    if abs(denom) < 1e-16: denom = 1
+    py = y_vp + h_vp - ((y_filt - y_min) / denom * h_vp)
 
     py = np.clip(py, y_vp, y_vp + h_vp)
     return list(zip(px, py))

@@ -1,3 +1,3 @@
-from .basic import MLP, RecurrentMLP, RNN
-from . import act, mnist1d
+from .basic import MLP, RecurrentMLP, RNN, Regularized
+from . import act, vision
 from . import ssm

@@ -29,6 +29,7 @@ class DatasetBenchmark(Benchmark):
         decision_boundary = False,
         resolution = 192,
         boundary_act = None,
+        batch_transform: Callable | None = None,
         seed = 0
     ):
         """dataset benchmark
@@ -55,6 +56,8 @@ class DatasetBenchmark(Benchmark):
                 resolution for decision boundary. Defaults to 192.
             boundary_act (_type_, optional):
                 activation for decision boundary for example when you use BCE with logits you can put torch.sigmoid. Defaults to None.
+            batch_transform (Callable, optional):
+                function that accepts batch, transforms and returns it. Batch is always a list/tuple.
             seed (int, optional): seed. Defaults to 0.
         """
         if batch_size is None and test_batch_size is not None: raise NotImplementedError('batch_size is None, but test_batch size is not None')
@@ -91,6 +94,7 @@ class DatasetBenchmark(Benchmark):
 
         def _norm(x: torch.Tensor, normalize):
             if not normalize: return x, None, None
+            x = x.float()
             mean = x.mean(0, keepdim=True); std = x.std(0, keepdim=True).clip(min=1e-10)
             x = (x - mean) / std
             return x, mean, std
@@ -143,9 +147,10 @@ class DatasetBenchmark(Benchmark):
 
         self.model = model
         self.criterion = criterion
+        self.batch_transform = batch_transform
         self._show_titles_on_video = False
 
-        self._make_images = decision_boundary
+        self.decision_boundary = decision_boundary
         if decision_boundary:
             if len(data_train) != 2: raise ValueError(f'{len(data_train) = }, needs to be 2 for decision boundary')
             x,y = data_train
@@ -184,6 +189,13 @@ class DatasetBenchmark(Benchmark):
             self.resolution = resolution
             self.boundary_act = boundary_act
 
+    def reset(self):
+        super().reset()
+        for module in self.modules():
+            if hasattr(module, "flatten_parameters"):
+                module.flatten_parameters() # pyright:ignore[reportCallIssue]
+        return self
+
     def penalty(self, preds):
         return 0
 
@@ -192,8 +204,12 @@ class DatasetBenchmark(Benchmark):
         self.model.train()
 
         assert self.batch is not None
-        if len(self.batch) == 1: x = y = self.batch[0].to(device)
-        else: x, y = [i.to(device) for i in self.batch]
+        batch = self.batch
+        if self.batch_transform is not None:
+            batch = self.batch_transform(self.batch)
+
+        if len(batch) == 1: x = y = batch[0].to(device)
+        else: x, y = [i.to(device) for i in batch]
 
         y_hat = self.model(x)
         if isinstance(y_hat, tuple): y_hat, penalty = y_hat
@@ -211,8 +227,11 @@ class DatasetBenchmark(Benchmark):
         else:
             train_loss = self.criterion(y_hat, y) + penalty
 
+        if self.training and self._make_images and hasattr(self.model, "after_get_loss"):
+            self.model.after_get_loss(self) # pyright:ignore[reportCallIssue]
+
         # decision boundary
-        if self._make_images and self.training:
+        if self.decision_boundary and self.training:
             self.model.eval()
             with torch.inference_mode():
                 out: torch.Tensor = self.model(self.grid_points)

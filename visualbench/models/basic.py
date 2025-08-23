@@ -1,13 +1,45 @@
+import math
 from collections.abc import Callable, Iterable, Sequence
 from functools import partial
-from typing import Any, Literal
+from typing import Any, Literal, TYPE_CHECKING, cast
 
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torchvision.utils import make_grid
 
 from ..utils import nn_tools
+if TYPE_CHECKING:
+    from ..benchmark import Benchmark
 
+def _visualize_linear(linear: nn.Module, benchmark: "Benchmark", vis_shape: tuple[int,int] | None, max_tiles:int):
+    if vis_shape is None: return
+    if not hasattr(linear, "weight"): return
+
+    weight = cast(torch.Tensor, linear.weight)
+    channels = weight.view(-1, *vis_shape)[:max_tiles].unsqueeze(1)
+    grid = make_grid(channels, nrow=max(math.ceil(math.sqrt(channels.size(0))), 1), padding=1, pad_value=channels.amax().item())
+    benchmark.log_image("1st layer weights", grid, to_uint8=True, log_difference=True)
+
+class Regularized(nn.Module):
+    def __init__(self, model: nn.Module, l1:float|None=None, l2:float|None=None):
+        super().__init__()
+        self.model = model
+        self.l1 = l1
+        self.l2 = l2
+
+    def forward(self, x):
+        ret = self.model(x)
+        penalty = 0
+        if self.l1 is not None and self.l1 != 0:
+            penalty = sum(p.abs().sum() for p in self.model.parameters()) * self.l1
+        if self.l2 is not None and self.l2 != 0:
+            penalty = penalty + sum(p.pow(2).sum() for p in self.model.parameters()) * self.l2
+        return ret, penalty
+
+    def after_get_loss(self, benchmark: "Benchmark"):
+        if hasattr(self.model, "after_get_loss"):
+            self.model.after_get_loss(benchmark) #pyright:ignore[reportCallIssue]
 
 class MLP(nn.Module):
     def __init__(
@@ -18,6 +50,8 @@ class MLP(nn.Module):
         act_cls: Callable | None = nn.ELU,
         bn: bool = False,
         dropout: float = 0,
+        vis_shape: tuple[int,int] | None = None,
+        max_tiles: int = 100,
         cls: Callable = nn.Linear,
     ):
         super().__init__()
@@ -32,10 +66,18 @@ class MLP(nn.Module):
 
         self.layers = nn_tools.Sequential(*layers)
         self.head = cls(channels[-2], channels[-1])
+        self.vis_shape = vis_shape
+        self.max_tiles = max_tiles
 
     def forward(self, x):
+        x = x.flatten(1,-1)
         for l in self.layers: x = l(x)
         return self.head(x)
+
+    def after_get_loss(self, benchmark: "Benchmark"):
+        _visualize_linear(self.layers[0][0], benchmark, self.vis_shape, self.max_tiles)
+
+
 
 class RecurrentMLP(nn.Module):
     def __init__(
@@ -48,6 +90,8 @@ class RecurrentMLP(nn.Module):
         act_cls: Callable | None = nn.ELU,
         dropout: float = 0,
         bn=True,
+        vis_shape: tuple[int,int] | None = None,
+        max_tiles: int = 100,
         cls: Callable = nn.Linear,
     ):
         super().__init__()
@@ -59,13 +103,20 @@ class RecurrentMLP(nn.Module):
         self.rec = nn_tools.Sequential(linear, act_cls() if act_cls is not None else nn.Identity())
         self.batch_norms = nn.ModuleList([nn.BatchNorm1d(width) if bn else nn.Identity() for _ in range(n_passes)])
         self.drop = nn.Dropout(dropout) if dropout > 0 else nn.Identity()
-
+        self.vis_shape = vis_shape
+        self.max_tiles = max_tiles
         self.head = cls(width,out_channels)
 
     def forward(self, x):
+        x = x.flatten(1,-1)
         x = self.first(x)
         for bn in self.batch_norms: x = self.drop(bn(self.rec(x)))
         return self.head(x)
+
+    def after_get_loss(self, benchmark: "Benchmark"):
+        if isinstance(self.first, nn.Identity): layer = self.rec[0]
+        else: layer = self.first
+        _visualize_linear(layer, benchmark, self.vis_shape, self.max_tiles)
 
 class RNN(nn.Module):
     def __init__(self, in_channels, out_channels, hidden_size, num_layers, rnn: Callable[..., nn.Module]=nn.LSTM):

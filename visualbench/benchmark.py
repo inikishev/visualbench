@@ -139,6 +139,10 @@ class Benchmark(torch.nn.Module, ABC):
         """number of learnable parameters"""
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
+    @property
+    def lowest_loss(self):
+        return float(self.logger.min("train loss"))
+
     def set_noise(self, p: float | None = None, g: float | None = None):
         if p is not None: self._param_noise_alpha = p
         if g is not None: self._grad_noise_alpha = g
@@ -488,7 +492,7 @@ class Benchmark(torch.nn.Module, ABC):
         test_every_batches: int | None = None,
         test_every_epochs: int | None = None,
         test_every_seconds: float | None = None,
-        target_loss: int | None = None,
+        target_loss: float | None = None,
 
         # stuff
         num_extra_passes: float | Callable[[int], float] = 0,
@@ -556,3 +560,51 @@ class Benchmark(torch.nn.Module, ABC):
         _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress)
 
 
+    def tune(
+        self,
+        opt_fn,
+        grid: Iterable[float],
+        metrics: str | Sequence[str] | dict[str, bool] = "train loss",
+        log_scale=False,
+
+        # MBS serttings
+        step: int | None = None,
+        num_candidates: int = 4,
+        num_binary: int = 20,
+        num_expansions: int = 20,
+        rounding: float = 10,
+        root: str | None = None,
+        print_progress: bool = False,
+
+        **run_kwargs
+    ):
+        from .runs.run import mbs_search, _target_metrics_to_dict
+        metrics = _target_metrics_to_dict(metrics)
+
+        def logger_fn(hyperparameter: float):
+            self.reset()
+            self.run(opt_fn(self.parameters(), hyperparameter), **run_kwargs)
+            return self.logger
+
+        res = mbs_search(
+            logger_fn=logger_fn,
+            metrics=metrics,
+            search_hyperparam='hyperparameter',
+            fixed_hyperparams=None,
+            log_scale=log_scale,
+            grid=grid,
+            step=step,
+            num_candidates=num_candidates,
+            num_binary=num_binary,
+            num_expansions=num_expansions,
+            rounding=rounding,
+            root=root,
+            print_progress=print_progress,
+            load_existing=False,
+        )
+
+        metric = next(iter(metrics.keys()))
+        best = res.best_runs(metric, maximize=metrics[metric], n=1)[0]
+
+        logger_fn(best.hyperparams["hyperparameter"])
+        return best.hyperparams["hyperparameter"]

@@ -108,3 +108,19 @@ def get_3d_structured48():
 def get_lowrank(size: Sequence[int], rank:int, seed=0):
     from ..tasks.linalg.linalg_utils import make_low_rank_tensor
     return make_low_rank_tensor(size, rank, seed=seed)
+
+def get_ill_conditioned(size: int | tuple[int,int], cond:float=1e17):
+    """cond can't be above around 1e17 because of precision"""
+    if isinstance(size, int): size = (size, size)
+
+    # precision is better in numpy
+    *b, rows, cols = size
+    k = min(rows, cols)
+    singular_values = np.linspace(1, 1/cond, k, dtype=np.float128)
+
+    Sigma = np.zeros((rows, cols), dtype=np.float64) # linalg doesnt support float128
+    np.fill_diagonal(Sigma, singular_values)
+    U = np.linalg.qr(np.random.rand(rows, rows))[0]
+    V = np.linalg.qr(np.random.rand(cols, cols))[0]
+    A = U @ Sigma @ V.T
+    return torch.from_numpy(A.copy()).float().contiguous()

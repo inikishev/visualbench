@@ -20,7 +20,7 @@ class ClosestFurthestParticles(Benchmark):
         self.resolution = resolution
 
         start = 0.5 - spread / 2.0
-        initial_points = torch.rand(n, 2) * spread + start
+        initial_points = torch.rand(n, 2, generator=self.rng.torch()) * spread + start
         self.points = nn.Parameter(initial_points)
 
         self.color_normal = (200, 200, 200) # light grey
@@ -48,7 +48,7 @@ class ClosestFurthestParticles(Benchmark):
 
         if self._make_images:
             with torch.no_grad():
-                points_rel = self.points.detach().cpu().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0).numpy() # pylint:disable=not-callable
+                points_rel = self.points.detach().cpu().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0).clip(-1e10,1e10).numpy() # pylint:disable=not-callable
                 points_px = points_rel * self.resolution # Scale to pixel coordinates
 
                 frame = np.zeros((self.resolution, self.resolution, 3), dtype=np.uint8)
@@ -70,12 +70,12 @@ class ClosestFurthestParticles(Benchmark):
                         radius = 3
 
                         # point in closest pair
-                        if i == min_idx1 or i == min_idx2:
+                        if i == min_idx1 or i == min_idx2: # pylint:disable=consider-using-in
                             color = self.color_closest
                             radius = 5
 
                         # point in furthest pair
-                        if i == max_idx1 or i == max_idx2:
+                        if i == max_idx1 or i == max_idx2:# pylint:disable=consider-using-in
                             color = self.color_furthest
                             radius = 5
 

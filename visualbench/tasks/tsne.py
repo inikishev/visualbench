@@ -65,29 +65,28 @@ def _make_colors(targets: Any, n_samples:int):
     if targets is None:
         return np.array([[0, 0, 0]]) # Black for all points
 
-    else:
-        targets = tonumpy(targets)
+    targets = tonumpy(targets)
 
-        # -------------------------------- categorical ------------------------------- #
-        if targets.dtype in (int, np.int64, np.int32):
-            unique_classes = np.unique(targets)
-            n_classes = len(unique_classes)
+    # -------------------------------- categorical ------------------------------- #
+    if targets.dtype in (int, np.int64, np.int32):
+        unique_classes = np.unique(targets)
+        n_classes = len(unique_classes)
 
-            generator = np.random.default_rng(0)
-            class_colors = (generator.uniform(0, 255, size=(n_classes, 3))).astype(np.uint8)
-            colors = np.zeros((n_samples, 3), dtype=np.uint8)
-            for i, cls in enumerate(unique_classes):
-                colors[targets == cls] = class_colors[i]
-            return colors
-
-        # -------------------------------- regression -------------------------------- #
-        targets_norm = (targets - targets.min()) / (targets.max() - targets.min() + 1e-12)
-        colormap_start = np.array([0, 0, 255])  # Blue
-        colormap_end = np.array([255, 255, 0]) # Yellow
-        colors = (colormap_start[None, :] * (1 - targets_norm)[:, None] + \
-                colormap_end[None, :] * targets_norm[:, None]).astype(np.uint8)
-
+        generator = np.random.default_rng(0)
+        class_colors = (generator.uniform(0, 255, size=(n_classes, 3))).astype(np.uint8)
+        colors = np.zeros((n_samples, 3), dtype=np.uint8)
+        for i, cls in enumerate(unique_classes):
+            colors[targets == cls] = class_colors[i]
         return colors
+
+    # -------------------------------- regression -------------------------------- #
+    targets_norm = (targets - targets.min()) / (targets.max() - targets.min() + 1e-12)
+    colormap_start = np.array([0, 0, 255])  # Blue
+    colormap_end = np.array([255, 255, 0]) # Yellow
+    colors = (colormap_start[None, :] * (1 - targets_norm)[:, None] + \
+            colormap_end[None, :] * targets_norm[:, None]).astype(np.uint8)
+
+    return colors
 
 def _pca(inputs: torch.Tensor):
     from sklearn.decomposition import PCA

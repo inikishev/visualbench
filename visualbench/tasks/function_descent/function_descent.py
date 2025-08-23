@@ -111,9 +111,9 @@ class FunctionDescent(Benchmark):
         contour_lw = 0.5,
         contour_alpha = 0.3,
         marker_size=7.,
-        marker_alpha=0.5,
+        marker_alpha=1.,
         linewidth=0.5,
-        line_alpha=0.5,
+        line_alpha=1.,
         linecolor="red",
         norm=None,
         log_contour=False,
@@ -133,7 +133,7 @@ class FunctionDescent(Benchmark):
             f_single = lambda x,y: mf(f(x,y))
             f_proc = f_single
 
-        funcplot2d(f_proc, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, log_contour=log_contour, lib=torch) # type:ignore
+        funcplot2d(f_proc, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, log_contour=log_contour, lib=torch, ax=ax) # type:ignore
 
         if 'params' in self.logger:
             params = self.logger.numpy('params')
@@ -145,6 +145,8 @@ class FunctionDescent(Benchmark):
                 ax.plot(*params.T, alpha=line_alpha, lw=linewidth, c=linecolor)
                 ax.set_xlim(*bounds[0]); ax.set_ylim(*bounds[1])
 
+        if self.minima is not None:
+            ax.scatter(tonumpy([self.minima[0]]), tonumpy(self.minima[1]), s=16, marker='x', c="red")
         return ax
 
     def _make_colors(self, s='rgb'):
@@ -216,10 +218,17 @@ class FunctionDescent(Benchmark):
         coord_history = self.logger.numpy('params')
         def _world_to_pixel(coords, domain_bounds, image_size):
             """Maps world coordinates to pixel coordinates."""
+            coords = np.nan_to_num(coords, nan=0, posinf=1e10, neginf=-1e10)
             pix = np.zeros_like(coords, dtype=np.int32)
             width, height = image_size
-            pix[:, 0] = ((coords[:, 0] - domain_bounds[0, 0]) / (domain_bounds[0, 1] - domain_bounds[0, 0])) * (width - 1)
-            pix[:, 1] = (1 - (coords[:, 1] - domain_bounds[1, 0]) / (domain_bounds[1, 1] - domain_bounds[1, 0])) * (height - 1)
+
+            denom = domain_bounds[0, 1] - domain_bounds[0, 0]
+            if abs(denom) < 1e-16: denom = 1
+            pix[:, 0] = ((coords[:, 0] - domain_bounds[0, 0]) / denom) * (width - 1)
+
+            denom = domain_bounds[1, 1] - domain_bounds[1, 0]
+            if abs(denom) < 1e-16: denom = 1
+            pix[:, 1] = (1 - (coords[:, 1] - domain_bounds[1, 0]) / denom) * (height - 1)
             return pix
 
         pixel_coords = _world_to_pixel(coord_history, bounds, (resolution, resolution))

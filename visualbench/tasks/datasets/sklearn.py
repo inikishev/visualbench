@@ -2,10 +2,10 @@ from collections.abc import Callable
 from typing import Any
 
 import torch
-import sklearn.datasets
-from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 from torch import nn
 from torch.nn import functional as F
+import sklearn.datasets
+from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 
 from .dataset import DatasetBenchmark
 
@@ -213,7 +213,7 @@ class KDDCup1999(DatasetBenchmark):
         percent10: bool = True,
     ):
         x,y = sklearn.datasets.fetch_kddcup99(return_X_y=True, percent10=percent10, random_state=0)
-        x = OrdinalEncoder().fit_transform(x)
+        x = OrdinalEncoder().fit_transform(x) # pyright:ignore[reportArgumentType]
         y = LabelEncoder().fit_transform(y)
         super().__init__(
             data_train = (x, y), # type:ignore

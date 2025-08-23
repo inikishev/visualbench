@@ -1,10 +1,11 @@
 import os
+import random
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
-import gpytorch
 import gpytorch.kernels as gk
+import numpy as np
 import torch
 from accelerate import Accelerator
 from kornia.losses import ssim_loss
@@ -83,6 +84,11 @@ class MBSOptimizerBenchmark:
 
             def logger_fn(value: float):
                 if dim > 10_000: clean_mem()
+
+                torch.manual_seed(0)
+                np.random.seed(0)
+                random.seed(0)
+
                 bench.reset().set_benchmark_mode().set_print_inverval(None)
                 opt = opt_fn([p for p in bench.parameters() if p.requires_grad], value)
                 bench.run(opt, passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
@@ -136,54 +142,54 @@ class MBSOptimizerBenchmark:
     def run_synthetic(self):
         # basic
         # ------------------------------ Rosenbrock-256 ------------------------------ #
-        bench = tasks.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - Rosenbrock-384', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'S - Rosenbrock 384', passes=2000, sec=30, metrics='train loss', vid_scale=4)
 
         # ---------------------------- IllConditioned-256 ---------------------------- #
-        bench = tasks.IllConditioned(384).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - IllConditioned-384', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        bench = tasks.RotatedQuadratic(384).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'S - Rotated quadratic 384', passes=2000, sec=30, metrics='train loss', vid_scale=None)
+
+        # -------------------- Nonsmooth Chebyshev-Rosenbrock 384 -------------------- #
+        bench = tasks.ChebushevRosenbrock(dim=384, p=100, pd_fn=torch.abs).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'S - Nonsmooth Chebyshev-Rosenbrock 384', passes=2000, sec=30, metrics='train loss', vid_scale=None)
+
+        # --------------------------------- rastrigin -------------------------------- #
+        bench = tasks.Rastrigin(384).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'S - Rastrigin 384', passes=2000, sec=30, metrics='train loss', vid_scale=None)
+
 
         # good linalg
         # ------------------------------- Inverse-16 L1 ------------------------------ #
         # SOAP, PSGD, NAG, Muon, Adam, AdamW, BFGS-Backtracking. SOAP/PSGD are 0.08, Adam 0.10, BFGS is 0.12.
         bench = tasks.Inverse(16, criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - Inverse-16 L1', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        self.run_bench(bench, 'S - Inverse-16 L1', passes=2000, sec=30, metrics='train loss', vid_scale=None)
 
-        # --------------------------- MatrixLogarithm-16 LR -------------------------- #
+        # --------------------------- MatrixLogarithm-16 L1 -------------------------- #
         # smooth, PSGD 0.02, SOAP 0.03, AdamW 0.05
         bench = tasks.MatrixLogarithm(16, criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - MatrixLogarithm-16 L1', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        self.run_bench(bench, 'S - MatrixLogarithm-16 L1', passes=2000, sec=30, metrics='train loss', vid_scale=None)
 
 
         # maybe linalg
         # ------------------------------ Inverse-16 MSE ------------------------------ #
         # AdaptiveHeavyBall, Newton and QN with up to 1e-13  is good, Adam 5e-4, SOAP 5e-5. Maybe keep for convex testing
-        bench = tasks.Inverse(16, criterion=F.mse_loss).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - Inverse-16 MSE', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        bench = tasks.Inverse(data.get_fielder(16)[0], criterion=F.mse_loss).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'S - Inverse-fielder16 MSE', passes=2000, sec=30, metrics='train loss', vid_scale=16)
 
         # ---------------------------- MoorePenrose-16 L1 ---------------------------- #
         # weird mix, but reasonably big spacing between algos, so maybe as a weirder kind of problem with clean lr to loss curve, best is Adam
         bench = tasks.MoorePenrose(16, criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - MoorePenrose-16 L1', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        self.run_bench(bench, 'S - MoorePenrose-16 L1', passes=2000, sec=30, metrics='train loss', vid_scale=None)
 
         # ---------------------------- Drazin-fielder16 L1 --------------------------- #
         # hard, only few managed to reach 2 - LBFGS and ShorR. Then we have BFGS with 1348, Adam has 2233
         bench = tasks.Drazin(data.get_fielder(16)[0], criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - Drazin-fielder16 L1', passes=2000, sec=60, metrics='train loss', vid_scale=None)
+        self.run_bench(bench, 'S - Drazin-fielder16 L1', passes=2000, sec=30, metrics='train loss', vid_scale=16)
 
         # -------------------------- StochasticRLstsq-10 MSE ------------------------- #
         # smooth, big gaps, Adagrad is best, not sure if this is a good proxy for generalization
         bench = tasks.StochasticRLstsq(10, 10).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'SS - StochasticRLstsq-10 MSE', passes=2000, sec=60, metrics='test loss', vid_scale=None)
-
-        # big ones for vis
-        # ----------------------------- S Inverse-96 MSE ----------------------------- #
-        bench = tasks.Inverse(data.WEEVIL96).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, "S Inverse-96 MSE", passes=2000, sec=60, metrics="train loss", vid_scale=2)
-
-        # ----------------------------- S StochasticInverse-96 MSE ----------------------------- #
-        bench = tasks.StochasticInverse(data.WEEVIL96).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, "SS StochasticInverse-96 MSE", passes=2000, sec=60, metrics="test loss", vid_scale=2)
+        self.run_bench(bench, 'SS - StochasticRLstsq-10 MSE', passes=2000, sec=30, metrics='test loss', vid_scale=None)
 
 
     def run_visual(self):
@@ -197,7 +203,7 @@ class MBSOptimizerBenchmark:
         bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP(2, 3, [12,12,12,12,12,12,12], act_cls=models.act.Sine), expand=48).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - NeuralDrawer - Sine', passes=2000, sec=60, metrics='train loss', vid_scale=2)
 
-        # ------------------------- Colorization (2nd order) ------------------------- #
+        # ------------------------------- Colorization ------------------------------- #
         # ndim  = 1024
         # 3.2s. ~ 1m. 4s.
         bench = tasks.Colorization.small().to(CUDA_IF_AVAILABLE)
@@ -231,10 +237,6 @@ class MBSOptimizerBenchmark:
         # 2s ~ 40s
         bench = tasks.ClosestFurthestParticles(32, spread=0.75) # NO CUDA
         self.run_bench(bench, 'Visual - Particle min-max', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
-
-        # -------------------------- deformable registration ------------------------- #
-        bench = tasks.DeformableRegistration(data.FROG96, grid_size=(5,5)).cuda()
-        self.run_bench(bench, 'Visual - DeformableRegistration', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
 
         # ----------------------------- partition drawer ----------------------------- #
         bench = tasks.PartitionDrawer(data.WEEVIL96, 100).to(CUDA_IF_AVAILABLE)
@@ -275,12 +277,12 @@ class MBSOptimizerBenchmark:
 
 
     def run_ml(self):
-        # non stochastic
-        # --------------------- Thin ConvNet (full-batch MNIST-1D) -------------------- #
-        # ndim = 1,338
-        # 9.5s. ~ 3m.
-        bench = tasks.datasets.Mnist1d(models.mnist1d.TinyLongConvNet()).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, "ML - MNIST-1D FB - ThinConvNet", passes=2_000, sec=120, metrics = LOSSES, vid_scale=None, binary_mul=0.75)
+        # --------------------- TinyConvNet (full-batch MNIST-1D) -------------------- #
+        # strong overfitting, may be good to study generalization
+        # ndim = 4,098
+        # 4.6s. ~ 1m. 32s.
+        bench = tasks.datasets.Mnist1d(models.vision.TinyConvNet(40, 1, 10)).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, "ML - MNIST-1D FB - TinyConvNet", passes=2_000, sec=120, metrics = LOSSES, vid_scale=None)
 
         # ------------------------------ PINN (Wave PDE) ----------------------------- #
         # ndim = 132,611
@@ -290,12 +292,17 @@ class MBSOptimizerBenchmark:
         self.run_bench(bench, 'ML - Wave PDE - FLS', passes=2_000, sec=240, metrics='train loss', binary_mul=0.3, vid_scale=4)
 
         # stochastic
-        # ------------------------ Logistic regression ------------------------ #
+        # ---------------------------- Logistic regression --------------------------- #
         # ndim = 385
         # 5s. ~ 1m. 40s.
         bench = tasks.datasets.Covertype(models.MLP(54, 7, hidden=None), batch_size=1).to(CUDA_IF_AVAILABLE)
         bench_name = 'MLS - Covertype BS-1 - Logistic Regression'
-        self.run_bench(bench, bench_name, passes=2_000, sec=60, test_every=5, metrics='test loss', vid_scale=None)
+        self.run_bench(bench, bench_name, passes=2_000, sec=60, test_every=10, metrics='test loss', vid_scale=None)
+
+        # --------------------------- Matrix factorization --------------------------- #
+        bench = tasks.MFMovieLens("/var/mnt/wwn-0x5000039a52582e84-part1/datasets/MovieLens 100K", batch_size=32, device='cuda').cuda()
+        bench_name = 'MLS - MovieLens BS-32 - Matrix Factorization'
+        self.run_bench(bench, bench_name, passes=2_000, sec=60, test_every=10, metrics='test loss', vid_scale=None)
 
         # ------------------------------- MLP (MNIST-1D) ------------------------------ #
         # ndim = 56,874
@@ -305,7 +312,7 @@ class MBSOptimizerBenchmark:
             batch_size=64
         ).to(CUDA_IF_AVAILABLE)
         bench_name = "MLS - MNIST-1D BS-64 - MLP(40-64-96-128-256-10)"
-        self.run_bench(bench, bench_name, passes=4_000, sec=120, test_every=10, metrics = "test loss", vid_scale=None, binary_mul=0.75)
+        self.run_bench(bench, bench_name, passes=4_000, sec=120, test_every=20, metrics = "test loss", vid_scale=None, binary_mul=0.75)
 
         # ------------------------------- RNN (MNIST-1D) ------------------------------ #
         # ndim = 20,410
@@ -317,22 +324,28 @@ class MBSOptimizerBenchmark:
         bench_name = 'MLS - MNIST-1D BS-128 - RNN(2x40)'
         self.run_bench(bench, bench_name, passes=4_000, sec=120, test_every=20, metrics='test loss', vid_scale=None, binary_mul=0.5)
 
-        # ----------------------------- ConvNet (MNIST-1D) ---------------------------- #
-        # 9.9s ~ 3m.18s.
+        # --------------------- TinyConvNet (MNIST-1D) -------------------- #
+        # ndim = 4,098
+        # 3.9s. ~ 1m. 18s.
+        bench = tasks.datasets.Mnist1d(models.vision.TinyConvNet(40, 1, 10), batch_size=32).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, "MLS - MNIST-1D BS-32 - TinyConvNet", passes=2_000, sec=60, test_every=10, metrics = "test loss", vid_scale=None)
+
+        # ----------------------- Sparse Autoencoder (MNIST-1D) ---------------------- #
+        # 8.0s ~ 2m. 30s.
         bench = tasks.datasets.Mnist1dAutoencoding(
-            models.mnist1d.ConvNetAutoencoder(hidden=(64,96,128,256), sparse_reg=0.1),
-            batch_size=32, test_batch_size=512
+            models.vision.ConvNetAutoencoder(1, 1, 1, 40, hidden=(64,96,128,256), sparse_reg=0.1),
+            batch_size=32, test_batch_size=256
         ).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'MLS - MNIST-1D Sparse Autoencoder BS-32 - ConvNet', passes=2_000, sec=120, test_every=20, metrics='test loss', vid_scale=None, binary_mul=0.5)
+        self.run_bench(bench, 'MLS - MNIST-1D Sparse Autoencoder BS-32 - ConvNet', passes=2_000, sec=120, test_every=50, metrics='test loss', vid_scale=None, binary_mul=0.75)
 
         # ---------------------------- ConvNet (SynthSeg) ---------------------------- #
         # 18.8s ~ 6m. 12s.
         # 9+3=12 ~ 3m. 44s.
         bench = tasks.datasets.SynthSeg1d(
-            models.mnist1d.ConvNetAutoencoder(1, 10, 32, hidden=(64,96,128)),
+            models.vision.ConvNetAutoencoder(1, 1, 5, 32, hidden=(64,96,128)),
             num_samples=10_000, batch_size=64, test_batch_size=512
         ).cuda()
-        self.run_bench(bench, 'MLS - SynthSeg BS-64 - ConvNet', passes=4_000, sec=120, test_every=20, metrics='test loss', vid_scale=None, binary_mul=0.3)
+        self.run_bench(bench, 'MLS - SynthSeg BS-64 - ConvNet', passes=4_000, sec=240, test_every=50, metrics='test loss', vid_scale=None, binary_mul=0.3)
 
 
     def run_2d(self):
@@ -350,6 +363,9 @@ class MBSOptimizerBenchmark:
 
         bench = tasks.FunctionDescent('rosenabs')
         self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('spiral')
+        self.run_bench(bench, '2D - spiral', passes=2000, sec=60, metrics='train loss', vid_scale=1)
 
     def render(self, axsize=(6,3), dpi=300, extra_references: str | Sequence | None = None, n_best:int=1):
         from .plotting import REFERENCE_OPTS, render_summary
@@ -402,3 +418,6 @@ class MBSOptimizerBenchmark:
         ) # NO CUDA
         self.run_bench(bench, 'Visual - Sine Approximator - LeakyReLU 10-4', passes=2_000, sec=120, metrics='train loss', vid_scale=1)
 
+        # -------------------------- deformable registration ------------------------- #
+        bench = tasks.DeformableRegistration(data.FROG96, grid_size=(5,5)).cuda()
+        self.run_bench(bench, 'Visual - DeformableRegistration', passes=2_000, sec=60, metrics='train loss', vid_scale=2)

@@ -1,6 +1,7 @@
 from importlib.util import find_spec
 from typing import TYPE_CHECKING, Literal, cast
 
+from . import projected
 from .alpha_evolve_b1 import AlphaEvolveB1
 from .char_rnn import CharRNN
 from .colorization import Colorization
@@ -21,6 +22,7 @@ from .hadamard import Hadamard
 from .kato import Kato
 from .lennard_jones_clusters import LennardJonesClusters
 from .linalg import *
+from .matrix_factorization import MFMovieLens
 from .minpack2 import HumanHeartDipole, PropaneCombustion
 from .muon_coeffs import MuonCoeffs
 from .normal_scalar_curvature import NormalScalarCurvature
@@ -36,12 +38,7 @@ from .rnn import RNNArgsort
 from .smale7 import Smale7
 from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
-from .synthetic import (
-    IllConditioned,
-    Quadratic,
-    Rosenbrock,
-    Sphere,
-)
+from .synthetic import Sphere, Rosenbrock,ChebushevRosenbrock, RotatedQuadratic, Rastrigin, Ackley
 from .tsne import TSNE
 
 if TYPE_CHECKING or find_spec('gpytorch') is not None:

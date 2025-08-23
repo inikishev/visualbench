@@ -446,7 +446,7 @@ def mbs_search(
     # MBS parameters
     log_scale: bool,
     grid: Iterable[float],
-    step: float,
+    step: float | None,
     num_candidates,
     num_binary,
     num_expansions,
@@ -461,6 +461,10 @@ def mbs_search(
     save: bool = False,
     load_existing: bool = True,
 ):
+    grid = sorted(list(grid))
+    if step is None:
+        if len(grid) == 1: step = max(abs(grid[0]), 1)
+        else: step = abs(grid[0] - grid[1])
 
     def hparam_fn(**hyperparameters):
         assert len(hyperparameters) == 1

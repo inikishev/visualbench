@@ -247,49 +247,57 @@ stretched_sphere = PowSum(2, 2, x0=(-9, -70)).scaled(1, 10).shifted(1, -2).regis
 
 
 class Rosenbrock(TestFunction):
-    def __init__(self, a = 1., b = 100, mo_fn=lambda x: x.pow(2).sum(0)):
+    def __init__(self, a = 1., b = 100, pd_fn=torch.square, pd_fn2 = None):
         self.a = a
         self.b = b
-        self._mo_fn = mo_fn
+        self.pd_fn = pd_fn
+        if pd_fn2 is None: pd_fn2 = pd_fn
+        self.pd_fn2 = pd_fn2
 
-    def mo_func(self):
-        return self._mo_fn
+    def _get_terms(self, x, y):
+        term1 = self.pd_fn(self.a - x)
+        term2 = self.b * self.pd_fn(y - self.pd_fn2(x))
+        return term1, term2
 
     def objective(self, x, y):
-        term1 = self.a - x
-        term2 = self.b * (y - x**2)
-        return torch.stack([term1, term2])
+        term1, term2 = self._get_terms(x, y)
+        return term1 + term2
 
     def x0(self): return (-1.1, 2.5)
     def domain(self): return (-2, 2, -1, 3)
     def minima(self): return (1, 1)
 
 rosenbrock = Rosenbrock().register('rosen', 'rosenbrock')
-rosenbrock_abs = Rosenbrock(mo_fn=lambda x: x.abs().sum(0)).register('rosen_abs', 'rosenbrock_abs')
+rosenbrock_abs = Rosenbrock(pd_fn = torch.abs).register('rosen_abs',)
+rosenbrock_abs2 = Rosenbrock(pd_fn = torch.abs, pd_fn2=torch.square).register('rosen_abs2')
+rosenbrock_abs3 = Rosenbrock(pd_fn = torch.square, pd_fn2=torch.abs).register('rosen_abs3',)
 rosenbrock10 = Rosenbrock(b=10).register('rosen10', 'rosenbrock10')
-rosenmax = Rosenbrock(mo_fn=lambda x: x.amax(0)).register('rosenmax')
 
 class ChebushevRosenbrock(TestFunction):
-    def __init__(self, p=8, x2_fn=torch.square, mo_fn=lambda x: x.sum(0)):
+    def __init__(self, p=1., a = 1/4, pd_fn=torch.square, pd_fn2 = None):
+        self.a = a
         self.p = p
-        self.x2_fn = x2_fn
-        self._mo_fn = mo_fn
+        self.pd_fn = pd_fn
+        if pd_fn2 is None: pd_fn2 = pd_fn
+        self.pd_fn2 = pd_fn2
 
-    def mo_func(self):
-        return self._mo_fn
+    def _get_terms(self, x, y):
+        term1 = 1/4 * self.pd_fn(x - 1)
+        term2 = self.p * self.pd_fn(y - 2*self.pd_fn2(x) + 1)
+        return term1, term2
 
     def objective(self, x, y):
-        term1 = 1/4 * (x-1)**2
-        term2 = (y - 2*self.x2_fn(x) + 1).abs() ** self.p
-        return torch.stack([term1, term2])
+        term1, term2 = self._get_terms(x, y)
+        return term1 + term2
 
     def x0(self): return (-1.2, 1.6)
     def domain(self): return (-2, 2, -2, 2)
     def minima(self): return (1, 1)
 
-crosen8 = ChebushevRosenbrock().register('crosen', 'crosen8')
-crosen8max = ChebushevRosenbrock(mo_fn=lambda x: x.amax(0)).register('crosenmax', 'crosen8max')
-crosen16max = ChebushevRosenbrock(p=16, mo_fn=lambda x: x.amax(0)).register('crosen16max')
+crosen = ChebushevRosenbrock().register('crosen')
+crosenabs = ChebushevRosenbrock(pd_fn=torch.abs).register('crosenabs')
+crosenabs2 = ChebushevRosenbrock(pd_fn=torch.abs, pd_fn2=torch.square).register('crosenabs2')
+crosenabs3 = ChebushevRosenbrock(pd_fn=torch.square, pd_fn2=torch.abs).register('crosenabs3')
 
 
 
@@ -543,9 +551,12 @@ class IllConditioned(TestFunction):
     def domain(self): return (-10, 10, -10, 10)
     def minima(self): return (0, 0)
 
-ill_conditioned = IllConditioned().shifted(-1, 2).register('ill_conditioned', 'ill')
+ill1 = IllConditioned(1e-1).shifted(-1, 2).register('ill1')
+ill2 = IllConditioned(1e-2).shifted(-1, 2).register('ill2')
+ill3 = IllConditioned(1e-3).shifted(-1, 2).register('ill3')
+ill4 = IllConditioned(1e-4).shifted(-1, 2).register('ill', 'ill4')
+ill6 = IllConditioned(1e-6).shifted(-1, 2).register('ill6')
 ill_pseudoconvex = IllConditioned().divadd(0.1).shifted(-1, 2).register('ill_pseudoconvex', 'illpc')
-very_ill_conditioned = IllConditioned(1e-6).shifted(-1, 2).register('very_ill_conditioned', 'very_ill')
 
 
 class IllPiecewise(TestFunction):

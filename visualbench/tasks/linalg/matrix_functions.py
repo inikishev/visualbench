@@ -115,7 +115,7 @@ class MatrixLogarithm(Benchmark):
     """The objective is to find B such that exp(B) = A, where A is a square matrix."""
     def __init__(self, A, criterion:Callable=torch.nn.functional.mse_loss):
         super().__init__()
-        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
         self.B = torch.nn.Parameter(torch.zeros_like(self.A))
         self.criterion = criterion
 
