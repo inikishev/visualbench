@@ -70,6 +70,8 @@ class MBSOptimizerBenchmark:
         self.summaries_root = f"{self.root} - summaries"
         self.summary_dir = os.path.join(self.summaries_root, f"{to_valid_fname(self.sweep_name)}")
         self.hyperparam = hyperparam
+        self.tune = tune
+        self.opt_fn = opt_fn
 
         def run_bench(bench: "Benchmark", task_name: str, passes: int, sec: float, metrics:str | Sequence[str] | dict[str, bool], vid_scale:int|None, fps=60, binary_mul: float = 1, test_every: int | None = None):
             if task_name in skip: return
@@ -122,7 +124,7 @@ class MBSOptimizerBenchmark:
 
         self.run_bench = run_bench
 
-    def run(self, ML=True, synthetic=True, visual=True, twod=True, *, extra_visual=False):
+    def run(self, ML=True, synthetic=True, visual=True, twod=True, stochastic=True, *, extra_visual=False):
         if twod:
             self.run_2d()
 
@@ -135,6 +137,7 @@ class MBSOptimizerBenchmark:
         if ML:
             self.run_real()
             self.run_ml()
+            if stochastic: self.run_mls()
 
         if extra_visual:
             self.run_visual_extra()
@@ -202,6 +205,9 @@ class MBSOptimizerBenchmark:
 
         bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP(2, 3, [12,12,12,12,12,12,12], act_cls=models.act.Sine), expand=48).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - NeuralDrawer - Sine', passes=2000, sec=60, metrics='train loss', vid_scale=2)
+
+        bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP(2, 3, [1000], nn.ReLU, ortho_init=True), expand=48).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Visual - NeuralDrawer - Wide ReLU', passes=2000, sec=60, metrics='train loss', vid_scale=2)
 
         # ------------------------------- Colorization ------------------------------- #
         # ndim  = 1024
@@ -291,6 +297,7 @@ class MBSOptimizerBenchmark:
         bench = tasks.WavePINN(tasks.WavePINN.FLS(2, 1, hidden_size=256, n_hidden=3)).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'ML - Wave PDE - FLS', passes=2_000, sec=240, metrics='train loss', binary_mul=0.3, vid_scale=4)
 
+    def run_mls(self):
         # stochastic
         # ---------------------------- Logistic regression --------------------------- #
         # ndim = 385

@@ -8,7 +8,7 @@ from .colorization import Colorization
 from .covering import RigidBoxCovering
 from .cutest import CUTEst
 from .datasets import *
-from .drawing import LinesDrawer, NeuralDrawer, PartitionDrawer, RectanglesDrawer
+from .drawing import LinesDrawer, NeuralDrawer, PartitionDrawer, RectanglesDrawer, LayerwiseNeuralDrawer
 from .function_approximator import FunctionApproximator
 from .function_descent import (
     FunctionDescent,

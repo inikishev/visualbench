@@ -52,6 +52,7 @@ class MLP(nn.Module):
         dropout: float = 0,
         vis_shape: tuple[int,int] | None = None,
         max_tiles: int = 100,
+        ortho_init: bool = False,
         cls: Callable = nn.Linear,
     ):
         super().__init__()
@@ -68,6 +69,11 @@ class MLP(nn.Module):
         self.head = cls(channels[-2], channels[-1])
         self.vis_shape = vis_shape
         self.max_tiles = max_tiles
+
+        if ortho_init:
+            for p in self.parameters():
+                if p.ndim >= 2:
+                    torch.nn.init.orthogonal_(p, generator=torch.Generator(p.device).manual_seed(0))
 
     def forward(self, x):
         x = x.flatten(1,-1)

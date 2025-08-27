@@ -49,10 +49,13 @@ _YSCALES: dict[str, Any] = {
     "S - ChebushevRosenbrock-8": "log",
     "S - Inverse-fielder16 MSE": "log",
     "S - Rosenbrock 384": "log",
-    "S - Rotated quadratic 384": "log",
+    "S - Rotated quadratic 384": dict(value='symlog', linthresh=1e-12),
     "S - Nonsmooth Chebyshev-Rosenbrock 384": "log",
     "S - Rastrigin 384": "log",
     "MLS - MovieLens BS-32 - Matrix Factorization": "log",
+    "Visual - NeuralDrawer - ReLU+bn": "log",
+    "Visual - NeuralDrawer - ELU": "log",
+    "Visual - NeuralDrawer - Sine": "log",
 
     # ------------------------------------ old ----------------------------------- #
     # ML
@@ -711,7 +714,16 @@ def summary_table(root:str, n=128, ax=None):
     df = df.select(["run"] + vals)
 
     # HEHEHE... PLOT!!!!!!!
-    data = df.select(vals).to_numpy().transpose()
+    data = df.select(vals).to_numpy().transpose() # (rows, cols)
+
+    # in each row set all values below 75th percentile
+    # to largest value below 75th percentile
+    quantile = np.nanquantile(data, 0.75, axis=0, keepdims=True)
+
+    # find largest value in data below 75th percentile
+    value = np.nanmax(np.where(data < quantile, data, np.nanmin(data)))
+    data = np.where(data >= quantile, value, data)
+
     # cmap = plt.get_cmap("coolwarm").copy()
     # cmap.set_bad('black')
     cmap = mcolors.LinearSegmentedColormap.from_list("blue_to_red", ["blue", "red"])
