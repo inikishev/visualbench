@@ -74,7 +74,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._print_interval_s: float | None = 0.1
         self._print_timeout: bool = False
         self._plot_perturbed: bool = False
-        self._benchmark_mode: bool = False
+        self._performance_mode: bool = False
         self._show_titles_on_video: bool = True
         self._w_cols = 0.65 # larger values cause more columns on video
 
@@ -187,8 +187,8 @@ class Benchmark(torch.nn.Module, ABC):
         self._make_images = make_images
         return self
 
-    def set_benchmark_mode(self, enable: bool = True):
-        self._benchmark_mode = enable
+    def set_performance_mode(self, enable: bool = True):
+        self._performance_mode = enable
         self._make_images = not enable
         return self
 
@@ -332,7 +332,7 @@ class Benchmark(torch.nn.Module, ABC):
                 if enabled, will add a display of the image corresponding to the best loss so far.
         """
         if not self._make_images: warnings.warn(f'logging image {name} with make_images=False')
-        if self._benchmark_mode: warnings.warn(f'logging image {name} in BENCHMARK_MODE')
+        if self._performance_mode: warnings.warn(f'logging image {name} in performance_mode')
         if self._is_perturbed:
             name = f'{name} (perturbed)'
             log_difference=False; show_best=False

@@ -101,7 +101,7 @@ class MBSBenchmarkBenchmark:
 
             def logger_fn(value: float):
                 if dim > 10_000: clean_mem()
-                bench.reset().set_benchmark_mode().set_print_inverval(None)
+                bench.reset().set_performance_mode().set_print_inverval(None)
                 opt = opt_fn([p for p in bench.parameters() if p.requires_grad], value)
                 bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
                 if print_progress and bench.seconds_passed is not None and bench.seconds_passed > sec:
@@ -123,7 +123,7 @@ class MBSBenchmarkBenchmark:
                     best_run = sweep.best_runs(metric, maximize, 1)[0]
                     value = 0
                     if tune and hyperparam is not None: value = best_run.hyperparams[hyperparam]
-                    bench.reset().set_benchmark_mode(False).set_print_inverval(None)
+                    bench.reset().set_performance_mode(False).set_print_inverval(None)
                     opt = opt_fn(bench.parameters(), value)
                     bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every)
                     if not os.path.exists(self.summaries_root): os.mkdir(self.summaries_root)

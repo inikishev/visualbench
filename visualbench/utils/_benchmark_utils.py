@@ -80,7 +80,7 @@ def _log_params_and_projections_(self: "Benchmark") -> None:
     """conditionally logs parameters and projections if that is enabled, all in one function to reuse parameter_to_vector
 
     this runs before 1st step, and each train forward pass"""
-    if self._is_perturbed or self._benchmark_mode: return
+    if self._is_perturbed or self._performance_mode: return
     param_vec = None
 
     # --------------------------- log parameter vectors -------------------------- #

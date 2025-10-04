@@ -316,7 +316,7 @@ Benchmark has a logger object where all the metrics reside. For example you can 
 
 - don't forget to move benchmarks to CUDA! Most are much faster on CUDA than on CPU.
 
-- if you don't need visualization, use `benchmark.set_benchmark_mode(True)` to disable it which makes some benchmarks much faster by not running visualization code.
+- if you don't need visualization, use `benchmark.set_performance_mode(True)` to disable it which makes some benchmarks much faster by not running visualization code.
 
 - to disable the stupid printing use `benchmark.set_print_inverval(None)`.
 
@@ -362,7 +362,9 @@ class MatrixInverse(vb.Benchmark):
         self.log("AB identity loss", loss2)
         self.log("BA identity loss", loss3)
 
-        # log images (skip if benchmark mode is enabled which sets `self._make_images=True`)
+        # log images
+        # skip (possibly expensive) visualization ocde if performance mode is enabled
+        # which sets `self._make_images=False`
         if self._make_images:
 
             # to_uint8 normalizes them to and converts to uint8 data type

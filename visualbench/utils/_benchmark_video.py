@@ -165,7 +165,7 @@ def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: in
         _check_image(value, f'reference_images[{key}]')
 
     if len(logger_images) + len(lowest_images) == 0:
-        if self._benchmark_mode:
+        if self._performance_mode:
             raise RuntimeError(f'Images were not created for {self.__class__.__name__} because benchmark mode is enabled')
         raise NotImplementedError(f'Solution plotting is not implemented for {self.__class__.__name__}')
 
