@@ -259,7 +259,7 @@ study.optimize(objective, n_trials=1000)
 bench.render("Optuna.mp4", line_alpha=0.1)
 ```
 
-https://github.com/inikishev/visualbench/raw/refs/heads/main/assets/readme/Optuna.mp4
+https://github.com/user-attachments/assets/021846d8-626d-4f2a-a8cb-7d2143d28673
 
 ### Algebras
 
