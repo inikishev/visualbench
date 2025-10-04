@@ -3,10 +3,12 @@ channels:
   - conda-forge
 dependencies:
   - python
-  - torch
+  - pytorch # DIFFERENT FROM PIP!!!!!!!!!!!!!!!!!!!!!
   - numpy
+  - scipy
   - opencv # different from PIP!
   - matplotlib
+
   # - pip
   # - pip:
   #   - some-pip-only-package # For packages only on PyPI

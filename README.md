@@ -8,9 +8,11 @@ Many benchmarks have visualization where you can plot/render a video to see how 
 
 ### Installation
 
-```
+```bash
 pip install visualbench
 ```
+
+The dependencies are `pytorch`, `numpy`, `scipy`, `matplotlib` and `opencv-python`.
 
 ### Function descent
 
@@ -34,15 +36,15 @@ we can now plot a visualization:
 bench.plot()
 ```
 
-<img width="630" height="588" alt="image" src="https://github.com/user-attachments/assets/7c561126-c2ed-4476-ae5f-c1b374f0e9f3" />
+<img width="315" height="294" alt="image" src="https://github.com/user-attachments/assets/7c561126-c2ed-4476-ae5f-c1b374f0e9f3" />
 
-or render it to a video/GIF (I recommend video because its much faster to render)
+or render it to MP4/GIF (I recommend MP4 because its much faster to render)
 
 ```python
 bench.render("Adam.mp4")
 ```
 
-<img width="720" height="720" alt="image" src="https://github.com/user-attachments/assets/9839cb7e-d114-4b66-b473-b652ff3165d3" />
+<img width="360" height="360" alt="image" src="https://github.com/inikishev/visualbench/blob/main/assets/readme/Adam.gif" />
 
 ### Colorization
 
@@ -55,7 +57,7 @@ bench.run(opt, 1000)
 bench.render("Colorization.mp4")
 ```
 
-<img width="1028" height="423" alt="image" src="https://github.com/user-attachments/assets/e21a0929-939a-4906-b852-371bd32603fb" />
+<video controls src="https://github.com/inikishev/visualbench/blob/main/assets/readme/Colorization.mp4" title="Colorization"></video>
 
 ### NeuralDrawer
 
@@ -75,7 +77,7 @@ bench.run(opt, 1000)
 bench.render("NeuralDrawer.mp4", scale=2)
 ```
 
-<img width="582" height="206" alt="image" src="https://github.com/user-attachments/assets/366adac0-3c23-4b1a-bae3-0ab0e5f54bec" />
+<video controls src="https://github.com/inikishev/visualbench/blob/main/assets/readme/NeuralDrawer.mp4" title="NeuralDrawer"></video>
 
 # All problems
 
@@ -383,7 +385,7 @@ benchmark.plot(yscale="log") # plots everything that was logged
 benchmark.render("L-BFGS inverting a matrix.mp4", scale=4) # renders a video with images that were logged
 ```
 
-<img width="390" height="296" alt="image" src="https://github.com/user-attachments/assets/ffbb665c-5ceb-484a-9fa5-7272bdf57b2b" />
+<video controls src="https://github.com/inikishev/visualbench/blob/main/assets/readme/L-BFGS%20inverting%20a%20matrix.mp4" title="L-BFGS inverting a matrix"></video>
 
 # License
 
