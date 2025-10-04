@@ -1,8 +1,8 @@
-from torchvision import models
 from torch import nn
 
 def pretrained_squeezenet(in_channels: int = 3, out_channels: int = 1000):
     """for 2D inputs. if in_channels isn't 3 or out_channels isn't 1000, some layers will be replaced with untrained"""
+    from torchvision import models
     model = models.squeezenet1_1(weights=models.SqueezeNet1_1_Weights.DEFAULT) # or resnet34, resnet50, etc.
 
     if in_channels != 3:

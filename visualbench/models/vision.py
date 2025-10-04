@@ -1,11 +1,20 @@
 import math
 from collections.abc import Callable, Sequence
+from importlib.util import find_spec
 from typing import TYPE_CHECKING, Any
 
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torchvision.utils import make_grid
+
+
+def _raise_torchvision(*args, **kwargs):
+    raise ModuleNotFoundError("torchvision is required for linear layer visualization")
+
+if find_spec("torchvision") is not None:
+    from torchvision.utils import make_grid
+else:
+    make_grid = _raise_torchvision
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark

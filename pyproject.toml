@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
   "torch",
   "numpy",
-  "typing_extensions",
+  "matplotlib",
 ]
 
 # [tool.setuptools]

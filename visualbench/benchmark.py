@@ -14,10 +14,7 @@ from . import utils
 from .logger import Logger
 from .rng import RNG
 from .utils import (
-    _benchmark_plotting,
     _benchmark_utils,
-    _benchmark_video,
-    plt_tools,
     python_tools,
     torch_tools,
 )
@@ -660,6 +657,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         losses = {"train loss": train_loss, "test loss": test_loss, "train loss (perturbed)": train_loss_perturbed}
 
+        from .utils import plt_tools
         plt_tools.plot_loss(losses, ylim=ylim, yscale=yscale, smoothing=smoothing, ax=ax)
 
     def plot(
@@ -671,6 +669,7 @@ class Benchmark(torch.nn.Module, ABC):
         dpi: float | None = None,
         fig=None,
     ):
+        from .utils import _benchmark_plotting
         _benchmark_plotting.plot_summary(self, ylim=ylim, yscale=yscale, smoothing=smoothing, axsize=axsize, dpi=dpi, fig=fig)
 
     def render(self, file: PathLike | str, fps: int = 60, scale: int | float = 1, progress=True):
@@ -683,6 +682,7 @@ class Benchmark(torch.nn.Module, ABC):
                 upscales or downscales the video (2 means upscale by 2). Larger scale makes text clearer. Defaults to 1.
             progress (bool, optional): whether to show progress bar. Defaults to True.
         """
+        from .utils import _benchmark_video
         _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress, w_cols=self._w_cols)
 
 
