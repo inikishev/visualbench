@@ -281,7 +281,7 @@ bench.run(opt, max_steps=1000)
 bench.plot()
 ```
 
-<img width="630" height="588" alt="image" src="https://github.com/user-attachments/assets/9262f339-3fda-4ec5-beb6-0777ca5a3fdb" />
+<img width="450" height="auto" alt="image" src="https://github.com/user-attachments/assets/9262f339-3fda-4ec5-beb6-0777ca5a3fdb" />
 
 ### Multi-objective / Least squares optimization
 
@@ -306,7 +306,7 @@ bench.run(opt, max_steps=100)
 bench.plot()
 ```
 
-<img width="617" height="588" alt="image" src="https://github.com/user-attachments/assets/a3c9ae79-972a-42fc-8af4-6f850a7faf80" />
+<img width="450" height="auto" alt="image" src="https://github.com/user-attachments/assets/a3c9ae79-972a-42fc-8af4-6f850a7faf80" />
 
 ### Logger
 
