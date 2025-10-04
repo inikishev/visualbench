@@ -4,7 +4,6 @@ import random
 import numpy as np
 import torch
 import torch.nn.functional as F
-from monai.losses import DiceFocalLoss
 from torch.utils.data import Dataset
 
 from ...utils import CUDA_IF_AVAILABLE
@@ -131,11 +130,13 @@ class SynthSeg1d(DatasetBenchmark):
     input - ``(B, 1, seq_length)``
 
     output - ``(B, num_classes, seq_length)``
+
+    a good criterion is ``monai.losses.DiceFocalLoss(softmax=True)``
     """
     def __init__(
         self,
         model,
-        criterion=DiceFocalLoss(softmax=True,),
+        criterion, # = DiceFocalLoss(softmax=True,),
         batch_size: int | None = None,
         test_batch_size: int | None = None,
         test_split=0.8,

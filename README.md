@@ -320,8 +320,11 @@ Benchmark has a logger object where all the metrics reside. For example you can 
 
 - to disable the stupid printing use `benchmark.set_print_inverval(None)`.
 
+- benchmarks have a `benchmark.reset()` method, which resets the benchmark to initial state. It can be much faster than re-creating the benchmark from scratch in some cases, so it is good for hyperparameter tuning.
+
 - if you use optuna pruner, use `benchmark.set_trial(trial, metric="train loss")` and it will report that metric to optuna and raise `optuna.TrialPruned()`
 
+Here is an
 # Defining new benchmarks
 
 `Benchmark` is a subclass of `torch.nn.Module`.
