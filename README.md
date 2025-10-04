@@ -79,7 +79,7 @@ bench.render("NeuralDrawer.mp4", scale=2)
 
 <https://github.com/user-attachments/assets/99031a4f-d2aa-4640-b940-dc87c3316fdb>
 
-# All problems
+# <h1 align='center'>Problems</h1>
 
 #### Linear algebra
 
@@ -160,7 +160,7 @@ Datasets with two features (like `Moons`) support visualizing/rendering the deci
 - `OptimalControl` - optimize trajectory
 - `CUTEst` - wrapper for CUTEst (requires `pycustest`), with a custom torch.autograd.Function function that wraps CUTEst's gradients and hessian-vector products.
 
-# Gallery
+# <h1 align='center'>Gallery</h1>
 
 I have to make this repo public to enable github pages, so those links are temorarily empty!
 
@@ -168,7 +168,7 @@ I have to make this repo public to enable github pages, so those links are temor
 
 - [How much curvature do second order optimizers actually use?](wait)
 
-# Advanced
+# <h1 align='center'>Advanced</h1>
 
 ### Custom training loops
 
