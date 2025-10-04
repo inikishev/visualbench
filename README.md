@@ -256,10 +256,10 @@ def objective(trial: optuna.Trial):
 
 study.optimize(objective, n_trials=1000)
 
-bench.render("Optuna.gif", line_alpha=0.1)
+bench.render("Optuna.mp4", line_alpha=0.1)
 ```
 
-<video src='https://github.com/inikishev/visualbench/raw/refs/heads/main/assets/readme/Optuna.mp4' />
+https://github.com/inikishev/visualbench/raw/refs/heads/main/assets/readme/Optuna.mp4
 
 ### Algebras
 
