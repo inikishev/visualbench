@@ -1,0 +1,12 @@
+name: visualbench
+channels:
+  - conda-forge
+dependencies:
+  - python
+  - torch
+  - numpy
+  - opencv # different from PIP!
+  - matplotlib
+  # - pip
+  # - pip:
+  #   - some-pip-only-package # For packages only on PyPI

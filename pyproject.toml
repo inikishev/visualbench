@@ -10,6 +10,7 @@ dependencies = [
   "torch",
   "numpy",
   "matplotlib",
+  "opencv-python",
 ]
 
 # [tool.setuptools]
