@@ -57,7 +57,7 @@ bench.run(opt, 1000)
 bench.render("Colorization.mp4")
 ```
 
-<video controls src="https://github.com/inikishev/visualbench/blob/main/assets/readme/Colorization.mp4" title="Colorization"></video>
+https://github.com/user-attachments/assets/37b32d75-6f80-4c6b-a360-254aea368aa8
 
 ### NeuralDrawer
 
@@ -77,7 +77,7 @@ bench.run(opt, 1000)
 bench.render("NeuralDrawer.mp4", scale=2)
 ```
 
-<video controls src="https://github.com/inikishev/visualbench/blob/main/assets/readme/NeuralDrawer.mp4" title="NeuralDrawer"></video>
+https://github.com/user-attachments/assets/99031a4f-d2aa-4640-b940-dc87c3316fdb
 
 # All problems
 
@@ -385,7 +385,7 @@ benchmark.plot(yscale="log") # plots everything that was logged
 benchmark.render("L-BFGS inverting a matrix.mp4", scale=4) # renders a video with images that were logged
 ```
 
-<video controls src="https://github.com/inikishev/visualbench/blob/main/assets/readme/L-BFGS%20inverting%20a%20matrix.mp4" title="L-BFGS inverting a matrix"></video>
+https://github.com/user-attachments/assets/0c768529-2e71-4667-8908-86bbce515852
 
 # License
 
