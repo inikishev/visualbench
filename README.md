@@ -36,7 +36,7 @@ we can now plot a visualization:
 bench.plot()
 ```
 
-<img width="315" height="294" alt="image" src="https://github.com/user-attachments/assets/7c561126-c2ed-4476-ae5f-c1b374f0e9f3" />
+<img width="400" height="auto" alt="image" src="https://github.com/user-attachments/assets/7c561126-c2ed-4476-ae5f-c1b374f0e9f3" />
 
 or render it to MP4/GIF (I recommend MP4 because its much faster to render)
 
@@ -44,7 +44,7 @@ or render it to MP4/GIF (I recommend MP4 because its much faster to render)
 bench.render("Adam.mp4")
 ```
 
-<img width="360" height="360" alt="image" src="https://github.com/inikishev/visualbench/blob/main/assets/readme/Adam.gif" />
+<img width="400" height="auto" alt="image" src="https://github.com/inikishev/visualbench/blob/main/assets/readme/Adam.gif" />
 
 ### Colorization
 
