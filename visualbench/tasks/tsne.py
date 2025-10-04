@@ -1,6 +1,5 @@
 from typing import Any, Literal
 
-import imageio
 import numpy as np
 import torch
 from torch import nn

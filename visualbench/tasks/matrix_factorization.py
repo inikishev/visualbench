@@ -3,7 +3,6 @@ import zipfile
 from itertools import cycle
 from pathlib import Path
 
-import pandas as pd
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -49,6 +48,7 @@ class MFMovieLens(Benchmark):
 
     def _load_movie_lens(self):
         data_path = self.data_dir / "u.data"
+        import pandas as pd
 
         df = pd.read_csv(
             data_path,

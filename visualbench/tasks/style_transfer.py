@@ -4,8 +4,6 @@ from typing import Any, cast
 import torch
 import torch.nn.functional as F
 from torch import nn
-from torchvision import models
-from torchvision.transforms import v2
 
 from ..benchmark import Benchmark
 from ..utils import normalize, to_HW3, znormalize
@@ -16,6 +14,7 @@ class VGG(nn.Module):
         super().__init__()
         self.content_features = content_layers
         self.style_features = style_layers
+        from torchvision import models
         self.vgg = models.vgg19(weights=models.VGG19_Weights.DEFAULT).features[:29] # Up to layer 28 (index 28 is layer 29 actually) # type:ignore
 
     def forward(self, x):
@@ -40,6 +39,7 @@ def _grams_style_loss(gen, style):
 
 
 def _vgg_normalize(x):
+    from torchvision.transforms import v2
     return v2.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(znormalize(x))
 
 class StyleTransfer(Benchmark):
@@ -63,6 +63,7 @@ class StyleTransfer(Benchmark):
     ):
         super().__init__()
         #
+        from torchvision.transforms import v2
         if use_vgg_norm: content = _vgg_normalize(to_HW3(content).float().moveaxis(-1,0))
         else: content = znormalize(to_HW3(content)).float().moveaxis(-1,0)
         self.content = torch.nn.Buffer(v2.Resize((image_size, image_size))(content).unsqueeze(0).contiguous())

@@ -1,16 +1,25 @@
-from typing import cast
-from collections.abc import Sequence
 import math
+from collections.abc import Sequence
+from importlib.util import find_spec
+from typing import cast
 
-from torchvision.utils import make_grid
 import torch
-from torch import nn
 import torch.nn.functional as F
+from torch import nn
 
-from ...utils import to_CHW, normalize
 from ...benchmark import Benchmark
 from ...models.basic import MLP
+from ...utils import normalize, to_CHW
 from ...utils.padding import pad_to_shape
+
+
+def _raise_torchvision(*args, **kwargs):
+    raise ModuleNotFoundError("torchvision is required for linear layer visualization")
+
+if find_spec("torchvision") is not None:
+    from torchvision.utils import make_grid
+else:
+    make_grid = _raise_torchvision
 
 class NeuralDrawer(Benchmark):
     """inputs - 2, output - n_channels"""

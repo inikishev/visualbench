@@ -1,7 +1,7 @@
 import os
 import textwrap
 from typing import TYPE_CHECKING
-
+from importlib.util import find_spec
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -65,7 +65,7 @@ def _add_title(image: np.ndarray, title: str, size_per_px:float=0.04, wrap=True,
     return np.array(pil_image)
 
 def _maybe_progress(x, enable):
-    if enable:
+    if enable and find_spec("tqdm") is not None:
         from tqdm import tqdm
         return tqdm(x)
     return x

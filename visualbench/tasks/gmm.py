@@ -5,13 +5,13 @@ import numpy as np
 import torch
 from torch import nn
 from PIL import Image, ImageDraw
-from sklearn.datasets import make_blobs
 
 from visualbench.benchmark import Benchmark
 from visualbench.utils import totensor
 
 
 def _default_X(n_samples: int, n_components: int, n_features: int, seed: int | None = 0):
+    from sklearn.datasets import make_blobs
     X, y = make_blobs( # pylint:disable=unbalanced-tuple-unpacking # pyright:ignore[reportAssignmentType]
         n_samples=n_samples,
         centers=n_components,
