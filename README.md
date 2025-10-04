@@ -33,12 +33,14 @@ we can now plot a visualization:
 ```python
 bench.plot()
 ```
+<img width="630" height="588" alt="image" src="https://github.com/user-attachments/assets/7c561126-c2ed-4476-ae5f-c1b374f0e9f3" />
 
 or render it to a video/GIF (I recommend video because its much faster to render)
 
 ```python
 bench.render("Adam.mp4")
 ```
+<img width="720" height="720" alt="image" src="https://github.com/user-attachments/assets/9839cb7e-d114-4b66-b473-b652ff3165d3" />
 
 ### Colorization
 
@@ -50,6 +52,7 @@ opt = torch.optim.SGD(bench.parameters(), lr=2e-1, momentum=0.999)
 bench.run(opt, 1000)
 bench.render("Colorization.mp4")
 ```
+<img width="1028" height="423" alt="image" src="https://github.com/user-attachments/assets/e21a0929-939a-4906-b852-371bd32603fb" />
 
 ### NeuralDrawer
 
@@ -68,6 +71,7 @@ opt = heavyball.ForeachSOAP(bench.parameters(), lr=1e-2)
 bench.run(opt, 1000)
 bench.render("NeuralDrawer.mp4", scale=2)
 ```
+<img width="582" height="206" alt="image" src="https://github.com/user-attachments/assets/366adac0-3c23-4b1a-bae3-0ab0e5f54bec" />
 
 # All problems
 
@@ -244,8 +248,9 @@ def objective(trial: optuna.Trial):
 
 study.optimize(objective, n_trials=1000)
 
-bench.render("Optuna.mp4", line_alpha=0.1)
+bench.render("Optuna.gif", line_alpha=0.1)
 ```
+<img width="720" height="720" alt="image" src="https://github.com/user-attachments/assets/c4e4f51b-85d6-40af-b623-c29eea40741e" />
 
 ### Algebras
 
@@ -266,6 +271,7 @@ opt = torch.optim.SGD(bench.parameters(), lr=1e-2)
 bench.run(opt, max_steps=1000)
 bench.plot()
 ```
+<img width="630" height="588" alt="image" src="https://github.com/user-attachments/assets/9262f339-3fda-4ec5-beb6-0777ca5a3fdb" />
 
 ### Multi-objective / Least squares optimization
 
@@ -289,6 +295,7 @@ opt = tz.Optimizer(
 bench.run(opt, max_steps=100)
 bench.plot()
 ```
+<img width="617" height="588" alt="image" src="https://github.com/user-attachments/assets/a3c9ae79-972a-42fc-8af4-6f850a7faf80" />
 
 ### Logger
 
@@ -366,6 +373,7 @@ benchmark.run(optimizer, max_passes=1000)
 benchmark.plot(yscale="log") # plots everything that was logged
 benchmark.render("L-BFGS inverting a matrix.mp4", scale=4) # renders a video with images that were logged
 ```
+<img width="390" height="296" alt="image" src="https://github.com/user-attachments/assets/ffbb665c-5ceb-484a-9fa5-7272bdf57b2b" />
 
 # License
 
