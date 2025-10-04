@@ -1,9 +1,13 @@
+from os import PathLike
 from typing import Literal
 
 import cv2
 import numpy as np
 import torch
+from PIL import Image
+
 from .format import tonumpy
+
 
 def make_hw3(x: np.ndarray, allow_4_channels = False) -> np.ndarray:
     """Forces input tensor to be (H, W, 3) format.
@@ -30,6 +34,20 @@ def make_hw3(x: np.ndarray, allow_4_channels = False) -> np.ndarray:
     # (H, W, 4+), remove extra channels
     elif x.shape[-1] > maxv: x = x[:,:,:maxv]
     return x
+
+class _GIFWriter:
+    """mimics OpenCV writer"""
+    def __init__(self, outfile, codec, fps, shape):
+        self.outfile = outfile
+        self.fps = fps
+        self.frames = []
+
+    def write(self, frame):
+        self.frames.append(frame)
+
+    def release(self):
+        frames = [Image.fromarray(frame) for frame in self.frames]
+        frames[0].save(self.outfile, save_all=True, append_images=frames[1:], duration=1000/self.fps, loop=0)
 
 class OpenCVRenderer:
     """A frame by frame video renderer using OpenCV.
@@ -59,16 +77,19 @@ class OpenCVRenderer:
 
     def __init__(
         self,
-        outfile,
+        outfile: PathLike | str,
         fps = 60,
         codec="mp4v",
         scale: int | float = 1,
     ):
+        outfile = str(outfile)
+
         if fps < 1: raise ValueError(f"FPS must be at least 1, got {fps}")
-        if not outfile.lower().endswith(".mp4"):
+        if not outfile.lower().endswith((".mp4", ".gif")):
             outfile += ".mp4"
 
         self.outfile = outfile
+        self.is_gif = self.outfile.lower().endswith(".gif")
         self.fps = fps
         self.codec = codec
         self.scale = scale
@@ -84,7 +105,10 @@ class OpenCVRenderer:
         """
 
         # make sure it is hw3 and scale it
-        frame = make_hw3(tonumpy(frame))[:,:,::-1]
+        frame = make_hw3(tonumpy(frame))
+
+        if not self.is_gif:
+            frame = frame[:,:,::-1]
 
         if self.scale > 1:
             frame = np.repeat(np.repeat(frame, int(self.scale), 0), int(self.scale), 1)
@@ -97,7 +121,9 @@ class OpenCVRenderer:
         if self.writer is None:
             self.shape = frame.shape
 
-            self.writer = cv2.VideoWriter( # pylint:disable = no-member
+            if str(self.outfile).lower().endswith(".gif"): Writer = _GIFWriter
+            else: Writer = cv2.VideoWriter # pylint:disable = no-member
+            self.writer = Writer(
                 self.outfile,
                 cv2.VideoWriter_fourcc(*self.codec), # pyright:ignore[reportAttributeAccessIssue] # pylint:disable = no-member
                 self.fps,
@@ -124,8 +150,7 @@ class OpenCVRenderer:
     def __exit__(self, type, value, traceback):
         self.release()
 
-
-def render_frames(file, frames, fps = 60, norm: Literal['none', 'each', 'all'] = 'none', scale=1):
+def render_frames(file: PathLike | str, frames, fps = 60, norm: Literal['none', 'each', 'all'] = 'none', scale=1):
     if norm == 'all':
         frames = [tonumpy(f).astype(np.float32) for f in frames]
         min_v = min(f.min() for f in frames)
@@ -140,6 +165,7 @@ def render_frames(file, frames, fps = 60, norm: Literal['none', 'each', 'all'] =
         frames = [(f - f.min()) for f in frames]
         frames = [(f / (f.max() if f.max() != 0 else 1)) * 255 for f in frames]
         frames = [np.clip(f, 0, 255).astype(np.uint8) for f in frames]
+
 
     with OpenCVRenderer(file, fps, scale=scale) as r:
         for frame in frames:

@@ -5,9 +5,12 @@ from torch import nn
 
 
 class ScalarAffine(nn.Module):
-    def __init__(self, learnable: bool = True):
+    """computes ``w * x + b`` where ``w`` and ``b`` are learnable scalars.
+
+    if ``enable=False`` then this is a no-op and does nothing."""
+    def __init__(self, enable: bool = True):
         super().__init__()
-        if learnable:
+        if enable:
             self.w = nn.Parameter(torch.tensor(1., dtype=torch.float32, requires_grad=True), requires_grad=True)
             self.b = nn.Parameter(torch.tensor(0., dtype=torch.float32, requires_grad=True), requires_grad=True)
         else:
@@ -20,12 +23,15 @@ class ScalarAffine(nn.Module):
         return x
 
 class Sine(nn.Module):
+    """computes ``sine(x)``"""
     def forward(self, x: torch.Tensor): return x.sin()
 
 class Abs(nn.Module):
+    """computes ``abs(x)``"""
     def forward(self, x: torch.Tensor): return x.abs()
 
 class Square(nn.Module):
+    """computes ``x^2`` and optionally copies sign of x"""
     def __init__(self, copysign:bool=False):
         super().__init__()
         self.copysign = copysign
@@ -34,6 +40,7 @@ class Square(nn.Module):
         return x.square()
 
 class Exp(nn.Module):
+    """computes ``exp(x)`` and optionally copies sign of x"""
     def __init__(self, copysign:bool=False):
         super().__init__()
         self.copysign = copysign
@@ -42,6 +49,7 @@ class Exp(nn.Module):
         return x.exp()
 
 class Sqrt(nn.Module):
+    """computes ``sqrt(abs(x))`` and optionally copies sign of x"""
     def __init__(self, copysign:bool=False):
         super().__init__()
         self.copysign = copysign
@@ -50,6 +58,7 @@ class Sqrt(nn.Module):
         return x.abs().sqrt()
 
 class Hyperexp(nn.Module):
+    """computes ``x^x`` and optionally copies sign of x"""
     def __init__(self, copysign:bool=False):
         super().__init__()
         self.copysign = copysign
@@ -59,11 +68,13 @@ class Hyperexp(nn.Module):
         return x_abs**x_abs
 
 class HyperexpSoftplus(nn.Module):
+    """computes ``softplus(x)^softplus(x)``"""
     def forward(self, x: torch.Tensor):
         x = F.softplus(x) # pylint:disable=not-callable
         return x**x
 
 class LearnablePower(nn.Module):
+    """computes ``abs(x)^power`` where ``power`` is learnable."""
     def __init__(self, init=1.0, copysign:bool=False):
         super().__init__()
         self.power = nn.Parameter(torch.tensor(init, dtype=torch.float32, requires_grad=True), requires_grad=True)
@@ -122,6 +133,7 @@ class Spike(nn.Module):
         return (self.na(x).abs() + self.num) / (self.da(x).abs() + self.denom.pow(2).clip(min=self.min))
 
 class Gaussian(nn.Module):
+    """computes ``exp(-x^2)``"""
     def __init__(self, ):
         super().__init__()
 
@@ -129,6 +141,15 @@ class Gaussian(nn.Module):
         return x.square().neg().exp()
 
 class ActNet(nn.Module):
+    """repeatedly applies activation function with learnable per-step weights!
+
+    ```
+    x1 = act1(x0)
+    x2 = act2(w1 * x1)
+    x3 = act3(w2 * x2)
+    etc
+    ```
+    """
     def __init__(self, depth:int, act_cls = nn.ELU):
         super().__init__()
         self.depth = depth

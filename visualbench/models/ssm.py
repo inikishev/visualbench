@@ -18,14 +18,14 @@ def fast_conv_complex(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     len1, _ = a.shape
     _, len2, _ = b.shape
     T = 2**int(np.ceil(np.log2(len1 + len2 - 1)))
-    A = torch.fft.fft(a, n=T, dim=0)
-    B = torch.fft.fft(b, n=T, dim=1)
+    A = torch.fft.fft(a, n=T, dim=0) # pylint:disable=not-callable
+    B = torch.fft.fft(b, n=T, dim=1) # pylint:disable=not-callable
     C = A * B
-    c = torch.fft.ifft(C, n=T, dim=1)
+    c = torch.fft.ifft(C, n=T, dim=1) # pylint:disable=not-callable
     return c[:, :(len1 + len2 - 1)]
 
 # from https://github.com/lixilinx/Fully-Trainable-SSM/blob/main/state_space_models.pyhttps://github.com/lixilinx/Fully-Trainable-SSM/blob/main/state_space_models.py
-class ComplexStateSpaceModel(torch.nn.Module):
+class _ComplexStateSpaceModel(torch.nn.Module):
     """
     It returns a fully trainable complex state SSM defined as:
 
@@ -57,7 +57,7 @@ class ComplexStateSpaceModel(torch.nn.Module):
             enforce_stability: set to True to enforce the poles to stay inside unit disc,
                         otherwise poles can be outside of unit disc (unstable for long sequences).
         """
-        super(ComplexStateSpaceModel, self).__init__()
+        super(_ComplexStateSpaceModel, self).__init__()
         A = 2*torch.pi*torch.rand(state_size)
         A = torch.complex(torch.cos(A), torch.sin(A))
         self.enforce_stability = enforce_stability
@@ -131,7 +131,7 @@ class SSMNet(torch.nn.Module):
 
         layers = []
         for i,o in zip(channels[:-2], channels[1:-1]):
-            layers.append(ComplexStateSpaceModel(i, o, o, has_matrixD=False, has_bias=has_bias, resample_up=resample_up, resample_down=resample_down, enforce_stability=enforce_stability))
+            layers.append(_ComplexStateSpaceModel(i, o, o, has_matrixD=False, has_bias=has_bias, resample_up=resample_up, resample_down=resample_down, enforce_stability=enforce_stability))
 
         self.layers = nn.Sequential(*layers)
         self.head = nn.Linear(channels[-2], channels[-1])

@@ -203,8 +203,15 @@ class DatasetBenchmark(Benchmark):
         device = self.device
         self.model.train()
 
-        assert self.batch is not None
-        batch = self.batch
+        # this happens when user doesn't use `bench.run`
+        # fortunately it's actually fine
+        if self.batch is None:
+            assert self._dltrain_iter is not None
+            batch = next(self._dltrain_iter)
+
+        else:
+            batch = self.batch
+
         if self.batch_transform is not None:
             batch = self.batch_transform(self.batch)
 

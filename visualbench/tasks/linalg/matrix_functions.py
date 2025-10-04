@@ -56,7 +56,7 @@ class StochasticMatrixRoot(Benchmark):
     """The objective is to find B such that (B^P)x = Ax, where A is a square matrix and x is a random vector."""
     def __init__(self, A, p: int, batch_size: int = 1, criterion:Callable=torch.nn.functional.mse_loss, vec=True, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
         self.min = self.A.min().item(); self.max = self.A.max().item()
 
         # this keeps norm at 1 from applying matrix power

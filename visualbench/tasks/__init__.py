@@ -8,12 +8,21 @@ from .colorization import Colorization
 from .covering import RigidBoxCovering
 from .cutest import CUTEst
 from .datasets import *
-from .drawing import LinesDrawer, NeuralDrawer, PartitionDrawer, RectanglesDrawer, LayerwiseNeuralDrawer
+from .drawing import (
+    LayerwiseNeuralDrawer,
+    LinesDrawer,
+    NeuralDrawer,
+    PartitionDrawer,
+    RectanglesDrawer,
+)
 from .function_approximator import FunctionApproximator
 from .function_descent import (
     FunctionDescent,
+    MetaLearning,
+    NeuralDescent,
     SimultaneousFunctionDescent,
     test_functions,
+    TEST_FUNCTIONS,
 )
 from .glimmer import Glimmer
 from .gmm import GaussianMixtureNLL
@@ -38,7 +47,14 @@ from .rnn import RNNArgsort
 from .smale7 import Smale7
 from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
-from .synthetic import Sphere, Rosenbrock,ChebushevRosenbrock, RotatedQuadratic, Rastrigin, Ackley
+from .synthetic import (
+    Ackley,
+    ChebushevRosenbrock,
+    Rastrigin,
+    Rosenbrock,
+    RotatedQuadratic,
+    Sphere,
+)
 from .tsne import TSNE
 
 if TYPE_CHECKING or find_spec('gpytorch') is not None:

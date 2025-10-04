@@ -4,8 +4,6 @@ from typing import Any
 import torch
 from torch import nn
 from torch.nn import functional as F
-import sklearn.datasets
-from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
 
 from .dataset import DatasetBenchmark
 
@@ -14,9 +12,9 @@ class CaliforniaHousing(DatasetBenchmark):
     """
     regression
 
-    input - (B, 8)
+    input - ``(B, 8)``
 
-    output - (B, 1)
+    output - ``(B, 1)``
     """
     def __init__(
         self,
@@ -28,6 +26,7 @@ class CaliforniaHousing(DatasetBenchmark):
         normalize_x=True,
         normalize_y=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.fetch_california_housing(return_X_y=True)
         super().__init__(
             data_train = (x, y[...,None]), # type:ignore
@@ -45,9 +44,9 @@ class Moons(DatasetBenchmark):
     """
     binary classification
 
-    input - (B, 2)
+    input - ``(B, 2)``
 
-    output - (B, 1)
+    output - ``(B, 1)``
     """
     def __init__(
         self,
@@ -61,6 +60,7 @@ class Moons(DatasetBenchmark):
         shuffle_split=True,
         normalize_x=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.make_moons(n_samples = n_samples, noise = noise, random_state=0)
         super().__init__(
             data_train = (x, y[...,None]), # type:ignore
@@ -79,9 +79,9 @@ class OlivettiFaces(DatasetBenchmark):
     """
     classification (400 samples)
 
-    input - (B, 4096)
+    input - ``(B, 4096)``
 
-    output - (B, 40)
+    output - ``(B, 40)``
     """
     def __init__(
         self,
@@ -92,6 +92,7 @@ class OlivettiFaces(DatasetBenchmark):
         test_split=0.75,
         normalize_x=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.fetch_olivetti_faces(return_X_y=True)
         super().__init__(
             data_train = (x, y), # type:ignore
@@ -109,9 +110,9 @@ class OlivettiFacesAutoencoding(DatasetBenchmark):
     """
     autoencoding (400 samples)
 
-    input - (B, 4096)
+    input - ``(B, 4096)``
 
-    output - (B, 4096)
+    output - ``(B, 4096)``
     """
     def __init__(
         self,
@@ -122,6 +123,7 @@ class OlivettiFacesAutoencoding(DatasetBenchmark):
         test_split=0.75,
         normalize_x=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.fetch_olivetti_faces(return_X_y=True)
         super().__init__(
             data_train = (x, ), # type:ignore
@@ -139,9 +141,9 @@ class Digits(DatasetBenchmark):
     """
     classification (1,797 samples)
 
-    input - (B, 64)
+    input - ``(B, 64)``
 
-    output - (B, 10)
+    output - ``(B, 10)``
     """
     def __init__(
         self,
@@ -152,6 +154,7 @@ class Digits(DatasetBenchmark):
         test_split=0.75,
         normalize_x=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.load_digits(return_X_y=True)
         super().__init__(
             data_train = (x, y), # type:ignore
@@ -168,9 +171,9 @@ class Covertype(DatasetBenchmark):
     """
     classification (581,012 samples)
 
-    input - (B, 54)
+    input - ``(B, 54)``
 
-    output - (B, 7)
+    output - ``(B, 7)``
     """
     def __init__(
         self,
@@ -181,6 +184,7 @@ class Covertype(DatasetBenchmark):
         test_split=0.8,
         normalize_x=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.fetch_covtype(return_X_y=True)
         super().__init__(
             data_train = (x, y-1), # type:ignore
@@ -198,9 +202,9 @@ class KDDCup1999(DatasetBenchmark):
     """
     multi-target regression (4,898,431 samples) but by default loads 10%.
 
-    input - (B, 41)
+    input - ``(B, 41)``
 
-    output - (B, 23)
+    output - ``(B, 23)``
     """
     def __init__(
         self,
@@ -212,6 +216,8 @@ class KDDCup1999(DatasetBenchmark):
         normalize_x=True,
         percent10: bool = True,
     ):
+        import sklearn.datasets
+        from sklearn.preprocessing import LabelEncoder, OrdinalEncoder
         x,y = sklearn.datasets.fetch_kddcup99(return_X_y=True, percent10=percent10, random_state=0)
         x = OrdinalEncoder().fit_transform(x) # pyright:ignore[reportArgumentType]
         y = LabelEncoder().fit_transform(y)
@@ -229,11 +235,11 @@ class KDDCup1999(DatasetBenchmark):
 
 class Friedman1(DatasetBenchmark):
     """
-    regression (100 samples y default)
+    regression (100 samples by default)
 
-    input - (B, default=10)
+    input - ``(B, default=10)``
 
-    output - (B, 1)
+    output - ``(B, 1)``
     """
     def __init__(
         self,
@@ -247,6 +253,7 @@ class Friedman1(DatasetBenchmark):
         normalize_x=True,
         normalize_y=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.make_friedman1(n_samples=n_samples, n_features=n_features, random_state=0)
         super().__init__(
             data_train = (x, y[...,None]), # type:ignore
@@ -262,11 +269,11 @@ class Friedman1(DatasetBenchmark):
 
 class Friedman2(DatasetBenchmark):
     """
-    regression (100 samples y default)
+    regression (100 samples by default)
 
-    input - (B, 4)
+    input - ``(B, 4)``
 
-    output - (B, 1)
+    output - ``(B, 1)``
     """
     def __init__(
         self,
@@ -280,6 +287,7 @@ class Friedman2(DatasetBenchmark):
         normalize_x=True,
         normalize_y=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.make_friedman2(n_samples=n_samples, noise=noise, random_state=0)
         super().__init__(
             data_train = (x, y[...,None]), # type:ignore
@@ -294,11 +302,11 @@ class Friedman2(DatasetBenchmark):
 
 class Friedman3(DatasetBenchmark):
     """
-    regression (100 samples y default)
+    regression (100 samples by default)
 
-    input - (B, 4)
+    input - ``(B, 4)``
 
-    output - (B, 1)
+    output - ``(B, 1)``
     """
     def __init__(
         self,
@@ -312,6 +320,7 @@ class Friedman3(DatasetBenchmark):
         normalize_x=True,
         normalize_y=True,
     ):
+        import sklearn.datasets
         x,y = sklearn.datasets.make_friedman3(n_samples=n_samples, noise=noise, random_state=0)
         super().__init__(
             data_train = (x, y[...,None]), # type:ignore

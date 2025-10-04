@@ -1,7 +1,7 @@
 # pylint:disable=no-member
 """2D function descent"""
 
-
+import os
 from collections.abc import Callable, Iterable, Sequence
 
 import matplotlib.pyplot as plt
@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from ...benchmark import Benchmark
-from ...utils._benchmark_video import _maybe_progress
+from ...utils._benchmark_video import _maybe_progress, GIF_POST_PBAR_MESSAGE
 from ...utils.format import tonumpy, totensor
 from ...utils.funcplot import funcplot2d
 from ...utils.renderer import OpenCVRenderer
@@ -35,7 +35,7 @@ class FunctionDescent(Benchmark):
             function or string name of one of the test functions.
         x0 (ArrayLike): initial parameters
         bounds:
-            Only used for 2D functions. Either `(xmin, xmax, ymin, ymax)`, or `((xmin, xmax), (ymin, ymax))`.
+            Either ``(xmin, xmax, ymin, ymax)``, or ``((xmin, xmax), (ymin, ymax))`.`
             This is only used for plotting and defines the extent of what is plotted. If None,
             bounds are determined from minimum and maximum values of coords that have been visited.
         minima (_type_, optional): optinal coords of the minima. Defaults to None.
@@ -43,6 +43,7 @@ class FunctionDescent(Benchmark):
         device (torch.types.Device, optional): device. Defaults to "cuda".
         unpack (bool, optional): if True, function is called as `func(*x)`, otherwise `func(x)`. Defaults to True.
     """
+    _LOGGER_XY_KEY: str = "params"
     def __init__(
         self,
         func: Callable[..., torch.Tensor] | str | TestFunction,
@@ -75,7 +76,7 @@ class FunctionDescent(Benchmark):
         if minima is not None: self.minima = totensor(minima)
         else: self.minima = minima
 
-        self.params = torch.nn.Parameter(x0.requires_grad_(True))
+        self.xy = torch.nn.Parameter(x0.requires_grad_(True))
 
         if mo_func is not None:
             self.set_multiobjective_func(mo_func)
@@ -88,21 +89,21 @@ class FunctionDescent(Benchmark):
 
     def _get_domain(self):
         if self._domain is None:
-            params = self.logger.numpy('params')
+            params = self.logger.numpy(self._LOGGER_XY_KEY)
             return np.array(list(zip(params.min(0), params.max(0))))
         return np.array([[self._domain[0],self._domain[1]],[self._domain[2],self._domain[3]]])
 
     def get_loss(self):
-        params = self.params
+        xy = self.xy
         if self.unpack:
-            params = params.clone()
-            loss = self.func(params[0], params[1])
+            xy = xy.clone()
+            loss = self.func(xy[0], xy[1])
         else:
-            loss = self.func(params) # type:ignore
+            loss = self.func(xy) # type:ignore
         return loss
 
     @torch.no_grad
-    def plot(
+    def plot( # pyright:ignore[reportIncompatibleMethodOverride]
         self,
         cmap = 'gray',
         contour_levels = 25,
@@ -135,8 +136,8 @@ class FunctionDescent(Benchmark):
 
         funcplot2d(f_proc, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, log_contour=log_contour, lib=torch, ax=ax) # type:ignore
 
-        if 'params' in self.logger:
-            params = self.logger.numpy('params')
+        if self._LOGGER_XY_KEY in self.logger:
+            params = self.logger.numpy(self._LOGGER_XY_KEY)
             # params = np.clip(params, *bounds.T) # type:ignore
             losses = self.logger.numpy('train loss')
 
@@ -168,7 +169,7 @@ class FunctionDescent(Benchmark):
     @torch.no_grad
     def render( # pyright:ignore[reportIncompatibleMethodOverride] # pylint:disable=arguments-renamed
         self,
-        file: str,
+        file: str | os.PathLike,
         fps: int = 60,
         resolution: int = 720,
         log_contour: bool = True,
@@ -215,7 +216,7 @@ class FunctionDescent(Benchmark):
         plt.close(fig)
 
         # coords to pixel indexes
-        coord_history = self.logger.numpy('params')
+        coord_history = self.logger.numpy(self._LOGGER_XY_KEY)
         def _world_to_pixel(coords, domain_bounds, image_size):
             """Maps world coordinates to pixel coordinates."""
             coords = np.nan_to_num(coords, nan=0, posinf=1e10, neginf=-1e10)
@@ -269,3 +270,6 @@ class FunctionDescent(Benchmark):
                 cv2.circle(frame, p2, 4, marker_color_bgr, -1, lineType=cv2.LINE_AA)
 
                 renderer.write(frame)
+
+            if progress and str(file).lower().endswith(".gif"):
+                print(GIF_POST_PBAR_MESSAGE)

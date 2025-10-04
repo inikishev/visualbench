@@ -243,16 +243,19 @@ crosspow2 = PowSum(xpow=0.5, ypow=0.5, post_pow=2).shifted(1,-2).register('cross
 cross25pow4 = PowSum(xpow=0.5, ypow=0.5, post_pow=4).shifted(1,-2).register('cross25pow4')
 convex4pow25 = PowSum(xpow=4, ypow=4, post_pow=0.25).shifted(1,-2).register('convex4pow25')
 convex96pow025 = PowSum(xpow=9, ypow=6, post_pow=0.25).shifted(1,-2).register('convex96pow025')
+
+convex32_stretched = PowSum(xpow=3, ypow=2, x0=(-9, -70)).scaled(1, 10).shifted(1,-2).register('convex32s')
 stretched_sphere = PowSum(2, 2, x0=(-9, -70)).scaled(1, 10).shifted(1, -2).register('stretched')
 
 
 class Rosenbrock(TestFunction):
-    def __init__(self, a = 1., b = 100, pd_fn=torch.square, pd_fn2 = None):
+    def __init__(self, a = 1., b = 100, pd_fn=torch.square, pd_fn2 = None, mo:bool=False):
         self.a = a
         self.b = b
         self.pd_fn = pd_fn
         if pd_fn2 is None: pd_fn2 = pd_fn
         self.pd_fn2 = pd_fn2
+        self.mo = mo
 
     def _get_terms(self, x, y):
         term1 = self.pd_fn(self.a - x)
@@ -261,7 +264,11 @@ class Rosenbrock(TestFunction):
 
     def objective(self, x, y):
         term1, term2 = self._get_terms(x, y)
+        if self.mo: return torch.stack([term1, term2])
         return term1 + term2
+
+    def mo_func(self):
+        return lambda x: x.pow(2).sum(0)
 
     def x0(self): return (-1.1, 2.5)
     def domain(self): return (-2, 2, -1, 3)
@@ -272,6 +279,8 @@ rosenbrock_abs = Rosenbrock(pd_fn = torch.abs).register('rosen_abs',)
 rosenbrock_abs2 = Rosenbrock(pd_fn = torch.abs, pd_fn2=torch.square).register('rosen_abs2')
 rosenbrock_abs3 = Rosenbrock(pd_fn = torch.square, pd_fn2=torch.abs).register('rosen_abs3',)
 rosenbrock10 = Rosenbrock(b=10).register('rosen10', 'rosenbrock10')
+
+rosenbrock_mo = Rosenbrock(pd_fn=torch.abs, pd_fn2=torch.square, mo=True).register('rosen_mo', 'mo_rosen')
 
 class ChebushevRosenbrock(TestFunction):
     def __init__(self, p=1., a = 1/4, pd_fn=torch.square, pd_fn2 = None):
@@ -626,7 +635,7 @@ class Oscillating(TestFunction):
     def domain(self): return (-3,0.025,-1.5,1.5)
     def minima(self): return (0,0)
 
-    def objective(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def objective(self, x, y):
         x = -x # left to right
         mask = x > 0
         angle = self.b / (x + self.epsilon)
@@ -638,3 +647,34 @@ class Oscillating(TestFunction):
         return torch.where(mask, val_pos, val_neg)
 
 oscillating = Oscillating().shifted(1, -2).register('oscillating', 'osc')
+
+
+class Mycs1(TestFunction):
+    """strong curvature"""
+    def objective(self, x, y):
+        term1 = torch.exp(0.1 * x**2 + 0.5 * y**2)
+        term2 = (x - 2*y)**2
+        return term1 + term2
+
+    def x0(self): return (3,-3.5)
+    def domain(self): return (-4, 4, -4, 4)
+    def minima(self): return (0, 0)
+
+mycs1 = Mycs1().shifted(1, -2).register('mycs1')
+
+
+class Mycs2(TestFunction):
+    """newton oscillates"""
+    def objective(self, x, y):
+        term1 = torch.log(1 + torch.exp(5*x + 3*y - 1)) # Convex
+        term2 = torch.log(1 + torch.exp(-x - 2*y + 1)) # Convex
+        term3 = 2*x**2 + y**2 # Convex
+        return term1 + term2 + term3
+
+    def x0(self): return (0.8,0.6)
+    def domain(self): return (-1, 1, -1, 1)
+    def minima(self): return None
+
+mycs2 = Mycs2().shifted(1, -2).register('mycs2')
+
+

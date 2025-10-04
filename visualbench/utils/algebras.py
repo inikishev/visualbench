@@ -1,16 +1,14 @@
 import importlib.util
 from typing import TYPE_CHECKING, overload
+
 import torch
-if TYPE_CHECKING:
-    import torchalgebras as ta
-    from torchalgebras.base import MaybeAlgebraicTensor
+
+from . import torchalgebras as ta
+from .torchalgebras.base import MaybeAlgebraicTensor
+
 
 def get_algebra(algebra: "str | ta.Algebra | None"):
     if algebra is None: return None
-
-    try: import torchalgebras as ta
-    except ModuleNotFoundError: raise ModuleNotFoundError("Specifying an algebra requires `torchalgebras` installed") from None
-
     return ta.get_algebra(algebra)
 
 def _to_tensor(x):

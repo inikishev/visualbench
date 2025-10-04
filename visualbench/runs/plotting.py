@@ -30,9 +30,9 @@ REFERENCE_OPTS = (
     "torch.RMSprop",
     "torch.Adam",
     "torch.AdamW",
-    "torch.LBFGS",
-    "tz.BFGS-Backtracking",
-    "tz.Newton",
+    "torch.LBFGS(strong_wolfe)",
+    # "tz.BFGS-Backtracking",
+    # "tz.Newton",
     "tz.SOAP",
 )
 # endregion
@@ -56,6 +56,7 @@ _YSCALES: dict[str, Any] = {
     "Visual - NeuralDrawer - ReLU+bn": "log",
     "Visual - NeuralDrawer - ELU": "log",
     "Visual - NeuralDrawer - Sine": "log",
+    "Visual - NeuralDrawer - Wide ReLU": "log",
 
     # ------------------------------------ old ----------------------------------- #
     # ML
@@ -559,7 +560,7 @@ def bar_chart(
     task: "Task",
     metric: str,
     maximize: bool,
-    n=32,
+    n=24,
     main=None,
     references = None,
     scale: Scale = None,
@@ -662,7 +663,13 @@ def summary_df(root:str = "optimizers", include_partial:bool=True):
     return df
 
 
-def summary_table(root:str, n=128, ax=None):
+def summary_table(root:str, n=128, ax=None, main=None, references=None):
+    if main is None: main = []
+    if isinstance(main, str): main = [main]
+
+    if references is None: references = []
+    if isinstance(references, str): references = [references]
+
     if ax is None: ax = plt.gca()
 
     import polars as pl
@@ -671,58 +678,62 @@ def summary_table(root:str, n=128, ax=None):
     # remove 2d
     df = df.filter(pl.col('name').str.contains("2D - ").not_())
 
+    # remove graph layout
+    df = df.filter(pl.col('name').str.contains("Visual - Graph layout optimization").not_())
+
     # transpose so that optimizers are rows
     df = (df
           .select(col for col in df.columns if col != 'name')
           .transpose(include_header=True, header_name='run', column_names = pl.Series(df.select('name')).to_list()))
 
-    # schnormalize to (0,1)
+    # normalize to (0,1)
     vals = sorted(col for col, dtype in df.schema.items() if dtype.is_numeric())
 
     df = df.with_columns([
         ((pl.col(c) - pl.col(c).min()) / (pl.col(c).max() - pl.col(c).min())).alias(c) for c in vals
     ])
 
-    # previous sorter by sum
-    # expr = 0
-    # for v in vals:
-    #     weight = 1
-    #     if "Friedman 1" in v: weight = 0.5
-    #     if v.startswith("Real - "): weight = 0.75
-    #     if v.startswith(("S - ", "SS - ")): weight = 0.5
-    #     if v.startswith("Visual - "): weight = 0.25
-    #     expr = expr + pl.col(v).fill_null(pl.col(v).median()) * weight
-    # df = df.sort(expr).head(n)
 
     # sort by sum of ranks and take first n
     rank_expressions = []
     for v in vals:
         weight = 1
         if "Friedman 1" in v: weight = 0.5
-        if v.startswith("Real - "): weight = 0.75
-        if v.startswith(("S - ", "SS - ")): weight = 0.5
-        if v.startswith("Visual - "): weight = 0.25
+        if v.startswith("Real - "): weight = 0.6
+        if v.startswith(("S - ", "SS - ")): weight = 0.4
+        if v.startswith("Visual - "): weight = 0.2
 
         rank_expressions.append(
-            pl.col(v).fill_null(strategy="max").rank(method='average') * weight
+            pl.col(v).fill_null(strategy="max").rank(method='average').log(base=2) * weight
         )
 
-    df = df.sort(by=pl.sum_horizontal(rank_expressions)).head(n)
+    df = df.sort(by=pl.sum_horizontal(rank_expressions))
 
     # re-sort (somewhere it de-sorts)
     vals = sorted(col for col, dtype in df.schema.items() if dtype.is_numeric())
     df = df.select(["run"] + vals)
 
-    # HEHEHE... PLOT!!!!!!!
-    data = df.select(vals).to_numpy().transpose() # (rows, cols)
+    # remove all rows (opts) except ones who have records + top10, main and references
+    top10 = df.select(pl.col("run")).head(10).to_series().to_list()
+    holds_record = pl.any_horizontal(pl.col(c) == pl.col(c).min() for c in vals)
+
+    df = df.filter(holds_record | pl.col("run").is_in(main + references + top10))
+
+    # PLOT!!!!!!!
+    data = df.head(n).select(vals).to_numpy().transpose() # (rows, cols)
 
     # in each row set all values below 75th percentile
     # to largest value below 75th percentile
-    quantile = np.nanquantile(data, 0.75, axis=0, keepdims=True)
+    quantile = np.nanquantile(data, 0.75, axis=1, keepdims=True)
 
     # find largest value in data below 75th percentile
-    value = np.nanmax(np.where(data < quantile, data, np.nanmin(data)))
-    data = np.where(data >= quantile, value, data)
+    values_below = np.where(data < quantile, data, np.nan)
+    quantile_max = np.nanmax(values_below, axis=1, keepdims=True)
+    data = np.where(data >= quantile, quantile_max, data)
+
+    # normalize filtered data
+    data = data - np.nanmin(data, axis=1, keepdims=True)
+    data = data / np.nanmax(data, axis=1, keepdims=True).clip(min=1e-16)
 
     # cmap = plt.get_cmap("coolwarm").copy()
     # cmap.set_bad('black')
@@ -745,7 +756,7 @@ def summary_table(root:str, n=128, ax=None):
     ax.set_xticklabels(pl.Series(df.select('run')).to_list())
     ax.set_yticklabels(df.columns[1:])
     ax.tick_params(axis='x', labelsize=10)
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
+    plt.setp(ax.get_xticklabels(), rotation=60, ha="right", rotation_mode="anchor")
     ax.tick_params(axis='y', labelsize=8)
     return ax
 # endregion
@@ -849,7 +860,7 @@ def render_summary(
 
     # ------------------------------- plot summary ------------------------------- #
     ax = make_axes(1, figsize=(20,20))[0]
-    ax = summary_table(root, ax=ax)
+    ax = summary_table(root, ax=ax, main=main, references=references)
     plt.colorbar(ax.collections[0])
     # fig: Any = ax.get_figure()
     # fig.set_size_inches(20, 20)

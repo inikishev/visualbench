@@ -201,5 +201,5 @@ class GaussianMixtureNLL(Benchmark):
 if __name__ == "__main__":
     bench = GaussianMixtureNLL(GaussianMixtureNLL.blobs(5000, 8, 8), 8).cuda()
     opt = torch.optim.Adam(bench.parameters(), 1e-1)
-    bench.run(opt, 1000)
-    bench.plot_summary()
+    bench.run(opt, max_passes=1000)
+    bench.plot()

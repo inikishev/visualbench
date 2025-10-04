@@ -1,7 +1,7 @@
 import torch
 
 class AutogradCounter(torch.autograd.Function):
-
+    """counts autograd calls except it doesn't work"""
     @staticmethod
     def forward(x, counter, train):
         if train: counter.num_forwards += 1

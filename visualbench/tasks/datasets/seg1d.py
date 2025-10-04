@@ -128,9 +128,9 @@ class _SyntheticSegmentation1D(Dataset):
 
 class SynthSeg1d(DatasetBenchmark):
     """
-    input - (B, 1, seq_length)
+    input - ``(B, 1, seq_length)``
 
-    output - (B, num_classes, seq_length)
+    output - ``(B, num_classes, seq_length)``
     """
     def __init__(
         self,

@@ -3,8 +3,9 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable, Callable, Sequence
-from typing import Any, Literal, final
+from collections.abc import Callable, Iterable, Sequence
+from os import PathLike
+from typing import TYPE_CHECKING, Any, Literal, final
 
 import numpy as np
 import torch
@@ -12,8 +13,18 @@ import torch
 from . import utils
 from .logger import Logger
 from .rng import RNG
-from .utils import _benchmark_utils, plt_tools, python_tools, torch_tools, _benchmark_plotting, _benchmark_video
+from .utils import (
+    _benchmark_plotting,
+    _benchmark_utils,
+    _benchmark_video,
+    plt_tools,
+    python_tools,
+    torch_tools,
+)
 from .utils.autograd_counter import AutogradCounter
+
+if TYPE_CHECKING:
+    import optuna
 
 #class StopCondition(BaseException): pass
 class StopCondition(Exception): pass
@@ -68,6 +79,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._plot_perturbed: bool = False
         self._benchmark_mode: bool = False
         self._show_titles_on_video: bool = True
+        self._w_cols = 0.65 # larger values cause more columns on video
 
         self.reset()
 
@@ -106,13 +118,23 @@ class Benchmark(torch.nn.Module, ABC):
         self._test_every_epochs: int | None = None
         self._test_every_seconds: float | None = None
         self._last_test_time: float = 0
-
+        self._last_test_pass: float | None = None
 
         self.logger = Logger()
         self._test_scalar_metrics = defaultdict(list)
         self._test_other_metrics: dict[str, Any] = {}
         self._previous_images: dict[str, torch.Tensor | np.ndarray] = {} # for logging differences
         self._is_perturbed = False
+        self._trial: optuna.Trial | None = None
+        self._trial_report_metric: str | None = None
+        self._use_stop_condition_exception: bool = True
+        self._should_stop = False
+
+        # iters
+        if self._dltrain is None: self._dltrain_iter = None
+        else: self._dltrain_iter = itertools.cycle(self._dltrain)
+        if self._dltest is None: self._dltest_iter = None
+        else: self._dltest_iter = itertools.cycle(self._dltest)
 
         # restore original parameters on reset
         if self._initial_state_dict is not None:
@@ -141,7 +163,7 @@ class Benchmark(torch.nn.Module, ABC):
 
     @property
     def lowest_loss(self):
-        return float(self.logger.min("train loss"))
+        return float(self.logger.nanmin("train loss"))
 
     def set_noise(self, p: float | None = None, g: float | None = None):
         if p is not None: self._param_noise_alpha = p
@@ -181,6 +203,27 @@ class Benchmark(torch.nn.Module, ABC):
         self._multiobjective_func = func
         return self
 
+    def set_trial(self, trial: "optuna.Trial", metric: str):
+        self._trial = trial
+        self._trial_report_metric = metric
+        return self
+
+    def set_use_stop_condition_exception(self, enable=False):
+        self._use_stop_condition_exception = enable
+        return self
+
+    def set_test_intervals(
+        self,
+        test_every_forwards: int | None = None,
+        test_every_batches: int | None = None,
+        test_every_epochs: int | None = None,
+        test_every_seconds: float | None = None,
+    ):
+        """note - ``run`` overrides those values. This method is for when you don't use ``run``."""
+        self._test_every_forwards = test_every_forwards; self._test_every_steps = test_every_batches
+        self._test_every_epochs = test_every_epochs; self._test_every_seconds = test_every_seconds
+        return self
+
     def best_params(self, metric:str = "train loss", maximize:bool=False):
         if maximize: v = self.logger.closest(metric, self.logger.stepmax(metric))
         else: v = self.logger.closest("params", self.logger.stepmin(metric))
@@ -189,6 +232,11 @@ class Benchmark(torch.nn.Module, ABC):
         torch.nn.utils.vector_to_parameters(v, params)
         return params
 
+    def load_best_params(self, metric:str = "train loss", maximize:bool=False):
+        best = self.best_params(metric, maximize)
+        for p, b in zip(self.parameters(), best):
+            p.copy_(b)
+        return self
 
     @torch.no_grad
     def add_reference_image(self, name: str, image, to_uint8: bool, min: float | None = None, max: float | None = None):
@@ -210,6 +258,14 @@ class Benchmark(torch.nn.Module, ABC):
         elif image.dtype != torch.uint8:
             raise RuntimeError(f"Reference image needs to be in uint8 dtype, or to_uint8 needs to be True, got {image.dtype}")
         self._reference_images[name] = image.cpu()
+
+    def _trial_report(self, value):
+        if self._trial is not None:
+            self._trial.report(value=value, step=self.num_forwards)
+            if self._trial.should_prune():
+                print(f'pruning at {self.num_passes} passes')
+                import optuna
+                raise optuna.TrialPruned()
 
     @torch.no_grad
     def log(self, metric: str, value: Any, plot: bool = True):
@@ -241,6 +297,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         if self.training:
             if not metric.startswith(('train ', 'test ')): metric = f'train {metric}'
+            if metric == self._trial_report_metric: self._trial_report(value)
             self.logger.log(self.num_forwards, metric, value)
 
         else:
@@ -335,7 +392,9 @@ class Benchmark(torch.nn.Module, ABC):
         # terminate if stop condition reached
         if self.training:
             msg = _benchmark_utils._should_stop(self)
-            if msg is not None: raise StopCondition(msg)
+            if msg is not None:
+                self._should_stop = True
+                if self._use_stop_condition_exception: raise StopCondition(msg)
             if self._is_perturbed: _benchmark_utils._add_param_noise_(self, sub=False)
 
         # get loss and log it
@@ -397,7 +456,7 @@ class Benchmark(torch.nn.Module, ABC):
             # so it usually on 1st step as 0%x = 0
             # this happens after backward so there are .grad attributes already
             # so the only way this could cause issues is if forward pass calcualtes and uses gradients wrt parameters
-            if _benchmark_utils._should_run_test_epoch(self): self.test_epoch()
+            if _benchmark_utils._should_run_test_epoch(self): self._test_epoch()
 
             # increments
             self.num_forwards += 1
@@ -418,25 +477,8 @@ class Benchmark(torch.nn.Module, ABC):
 
         return loss
 
-    def get_x0(self):
-        return torch.nn.utils.parameters_to_vector(p for p in self.parameters() if p.requires_grad)
 
-    def loss_at(self, x: Any):
-        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
-        torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
-        return utils.tofloat(self.closure(backward=False))
-
-    def loss_grad_at(self, x:Any):
-        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
-        torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
-        loss = utils.tofloat(self.closure(backward=True))
-        grad = torch.cat(
-            [p.grad.ravel() if p.grad is not None else torch.zeros_like(p) for p in self.parameters() if p.requires_grad]
-        )
-        if isinstance(x, torch.Tensor): return loss, grad.to(x)
-        return loss, utils.tonumpy(grad)
-
-    def one_step(self, optimizer):
+    def _one_step(self, optimizer):
         """one batch or one step"""
         _benchmark_utils._update_noise_(self)
         self.pre_step()
@@ -451,53 +493,124 @@ class Benchmark(torch.nn.Module, ABC):
             for cb in self._post_step_callbacks: cb(self)
             self._is_perturbed = False
 
+            # test epoch every train steps
+            if self._dltest is not None:
+                if (self._test_every_steps is not None) and (self.num_steps % self._test_every_steps == 0):
+                    if (self._last_test_pass is None) or (self.num_passes != self._last_test_pass):
+                        self._test_epoch()
+
         else:
             self._is_perturbed = False
             self.closure(False)
 
-    def train_epoch(self, optimizer):
-        if self._dltrain is None: self.one_step(optimizer)
+    def _train_epoch(self, optimizer):
+        if self._dltrain is None: self._one_step(optimizer)
         else:
             for batch in self._dltrain:
                 self.batch = batch
-                self.one_step(optimizer)
+                self._one_step(optimizer)
+                if self._should_stop: break
 
         if self.training:
             self.num_epochs += 1
 
-    def test_epoch(self):
+            # test epoch every train epochs
+            if self._dltest is not None:
+                if (self._test_every_epochs is not None) and (self.num_steps % self._test_every_epochs == 0):
+                    if (self._last_test_pass is None) or (self.num_passes != self._last_test_pass):
+                        self._test_epoch()
+
+    def _test_epoch(self):
         assert self._dltest is not None
         self.eval()
         batch_backup = self.batch
 
         for batch in self._dltest:
             self.batch = batch
-            self.one_step(optimizer=None)
+            self._one_step(optimizer=None)
 
         self._last_test_time = time.time()
+        self._last_test_pass = self.num_passes
         self.batch = batch_backup
         self.train()
         _benchmark_utils._aggregate_test_metrics_(self) # this needs to be called after .train because log checks if training
+
+    # this is for non pytorch opts
+    def get_x0(self):
+        return torch.nn.utils.parameters_to_vector(p for p in self.parameters() if p.requires_grad)
+
+    def loss_at(self, x: np.ndarray | Any):
+        """returns float loss at ``x``, where ``x`` is 1d numpy array"""
+        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
+        torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
+        return utils.tofloat(self.closure(backward=False))
+
+    def loss_grad_at(self, x:Any):
+        """returns tuple ``(loss, grad)`` at ``x``, where ``x`` is 1d numpy array. Gradient is of the same length as ``x``."""
+        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
+        torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
+        loss = utils.tofloat(self.closure(backward=True))
+        grad = torch.cat(
+            [p.grad.ravel() if p.grad is not None else torch.zeros_like(p) for p in self.parameters() if p.requires_grad]
+        )
+        if isinstance(x, torch.Tensor): return loss, grad.to(x)
+        return loss, utils.tonumpy(grad)
 
 
     def run(
         self,
         optimizer: torch.optim.Optimizer,
+        max_steps: int | None = None,
         max_passes: int | None = None,
         max_forwards: int | None = None,
-        max_steps: int | None = None,
         max_epochs: int | None = None,
         max_seconds: float | None = None,
+        target_loss: float | None = None,
         test_every_forwards: int | None = None,
         test_every_batches: int | None = None,
         test_every_epochs: int | None = None,
         test_every_seconds: float | None = None,
-        target_loss: float | None = None,
 
         # stuff
         num_extra_passes: float | Callable[[int], float] = 0,
         step_callbacks: "Callable[[Benchmark], Any] | Sequence[Callable[[Benchmark], Any]] | None" = None,
+
+        catch_kb_interrupt: bool = False,
     ):
+        """Run this benchmark with an optimizer.
+
+        Args:
+            optimizer (torch.optim.Optimizer): optimizer with this benchmark parameters.
+            max_steps (int | None, optional):
+                terminates optimization after this number of optimization steps. Defaults to None.
+            max_passes (int | None, optional):
+                terminates optimization after this number of passes. For example one Adam step is one forward and one backward pass, so two passes in total. A line search may perform extra forward passes. Defaults to None.
+            max_forwards (int | None, optional):
+                terminates optimization after this number of forward passes. For example L-BFGS in pytorch performs multiple forward passes per step. Defaults to None.
+            max_epochs (int | None, optional):
+                terminates optimization after this number of epochs (for dataset-based objectives). Defaults to None.
+            max_seconds (float | None, optional):
+                terminates optimization after this many seconds. Defaults to None.
+            target_loss (float | None, optional):
+                terminates optimization when this train loss value is reached. Defaults to None.
+            test_every_forwards (int | None, optional):
+                evaluates test loss on test set every n forwad passes. Defaults to None.
+            test_every_batches (int | None, optional):
+                evaluates test loss on test set every n batches. Defaults to None.
+            test_every_epochs (int | None, optional):
+                evaluates test loss on test set every n epochs. Defaults to None.
+            test_every_seconds (float | None, optional):
+                evaluates test loss on test set every n seconds. Defaults to None.
+            num_extra_passes (float | Callable[[int], float], optional):
+                number of extra passes an optimizer is assumed to perform per step (e.g. AdaHessian calculates hessian-vector product every 10 steps, so this could be set to 0.1 assuming hessian-vector product is as expensive as one pass). The only thing this will affect is how early the optimization will terminate based on ``max_passes``. Defaults to 0.
+            step_callbacks (Callable[[Benchmark], Any] | Sequence[Callable[[Benchmark], Any]] | None, optional):
+                functions that accept ``Benchmark`` object and run after every step.
+            catch_kb_interrupt (bool, optional):
+                if True, catches KeyboardInterrupt and terminates optimization.
+
+        Returns:
+            _type_: _description_
+        """
         self._max_passes = max_passes; self._max_forwards = max_forwards
         self._max_steps = max_steps; self._max_epochs = max_epochs
         self._max_seconds = max_seconds; self._target_loss = target_loss
@@ -518,16 +631,20 @@ class Benchmark(torch.nn.Module, ABC):
 
         self.train()
 
+        exceptions: list = [StopCondition]
+        if catch_kb_interrupt: exceptions.append(KeyboardInterrupt)
+
         try:
             for _ in range(max_epochs) if max_epochs is not None else itertools.count():
-                self.train_epoch(optimizer)
+                self._train_epoch(optimizer)
+                if self._should_stop: break
 
-        except (StopCondition, KeyboardInterrupt):
-            if self._dltest is not None: self.test_epoch()
+        except tuple(exceptions):
+            if self._dltest is not None: self._test_epoch()
             if self._print_interval_s: _benchmark_utils._print_final_report(self)
 
         else:
-            if self._dltest is not None: self.test_epoch()
+            if self._dltest is not None: self._test_epoch()
             if self._print_interval_s: _benchmark_utils._print_final_report(self)
 
         return self
@@ -545,7 +662,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         plt_tools.plot_loss(losses, ylim=ylim, yscale=yscale, smoothing=smoothing, ax=ax)
 
-    def plot_summary(
+    def plot(
         self: "Benchmark",
         ylim: tuple[float, float] | Literal["auto"] | None = "auto",
         yscale=None,
@@ -556,8 +673,17 @@ class Benchmark(torch.nn.Module, ABC):
     ):
         _benchmark_plotting.plot_summary(self, ylim=ylim, yscale=yscale, smoothing=smoothing, axsize=axsize, dpi=dpi, fig=fig)
 
-    def render(self, file: str, fps: int = 60, scale: int | float = 1, progress=True):
-        _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress)
+    def render(self, file: PathLike | str, fps: int = 60, scale: int | float = 1, progress=True):
+        """Render a video/GIF (if this benchmark supports it)
+
+        Args:
+            file (PathLike | str): filename (e.g. ``"videos/video.mp3"`` or ``"animation.gif"``)
+            fps (int, optional): frames per second. Defaults to 60.
+            scale (int | float, optional):
+                upscales or downscales the video (2 means upscale by 2). Larger scale makes text clearer. Defaults to 1.
+            progress (bool, optional): whether to show progress bar. Defaults to True.
+        """
+        _benchmark_video._render(self, file, fps=fps, scale=scale, progress=progress, w_cols=self._w_cols)
 
 
     def tune(
@@ -578,7 +704,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         **run_kwargs
     ):
-        from .runs.run import mbs_search, _target_metrics_to_dict
+        from .runs.run import _target_metrics_to_dict, mbs_search
         metrics = _target_metrics_to_dict(metrics)
 
         def logger_fn(hyperparameter: float):

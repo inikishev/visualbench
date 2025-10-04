@@ -64,7 +64,9 @@ def _print_final_report(self: "Benchmark"):
         text = f'{text} loss = {format_number(self.logger.nanmin("train loss"), 3)}'
 
     else:
-        text = f'finished in {self.seconds_passed:.1f}s., made 0 steps, something is wrong'
+        if self.seconds_passed is None: s = "unknown"
+        else: s = f"{self.seconds_passed:.1f}"
+        text = f'finished in {s} s., made 0 steps, something is wrong'
 
     print(f'{text}                                      ')
 
@@ -180,18 +182,33 @@ def _should_stop(self: "Benchmark") -> str | None:
             if self._last_test_loss is not None and self._last_test_loss <= self._target_loss: return "target test loss reached"
         else:
             if self._last_train_loss is not None and self._last_train_loss <= self._target_loss: return "target train loss reached"
+
     return None
 
 
 
 def _should_run_test_epoch(self: "Benchmark", check_dltest:bool=True) -> bool:
     """runs after every train closure evaluation, returns True if should test"""
-    if check_dltest and self._dltest is None: return False
-    if self.num_forwards == 0: return True
-    if (self._test_every_forwards is not None) and (self.num_forwards % self._test_every_forwards == 0): return True
-    if (self._test_every_steps is not None) and (self.num_steps % self._test_every_steps == 0): return True
-    if (self._test_every_epochs is not None) and (self.num_epochs % self._test_every_epochs == 0): return True
-    if (self._test_every_seconds is not None) and (self._current_time - self._last_test_time >= self._test_every_seconds): return True
+    if check_dltest and self._dltest is None:
+        return False
+
+    if (self._last_test_pass is not None) and (self.num_passes == self._last_test_pass):
+        return False
+
+    if self.num_forwards == 0:
+        return True
+
+    if (self._test_every_forwards is not None) and (self.num_forwards % self._test_every_forwards == 0):
+        return True
+
+    if (self._test_every_seconds is not None) and (self._current_time - self._last_test_time >= self._test_every_seconds):
+        return True
+
+    # those two can't run after every closure, since we might perform multiple closure evaluations
+    # per step and per epoch, that would cause multiple redundant test epochs
+
+    # if (self._test_every_steps is not None) and (self.num_steps % self._test_every_steps == 0): return True
+    # if (self._test_every_epochs is not None) and (self.num_epochs % self._test_every_epochs == 0): return True
 
     return False
 
@@ -202,7 +219,9 @@ def _aggregate_test_metrics_(self: "Benchmark"):
     """Log test metric means into the logger and clear self._test_*_metrics"""
     # mean test scalar metrics
     for k,v in self._test_scalar_metrics.items():
-        self.logger.log(self.num_forwards, k, np.mean(v))
+        v_mean = np.mean(v)
+        if k == self._trial_report_metric: self._trial_report(v_mean.item())
+        self.logger.log(self.num_forwards, k, v_mean)
     self._test_scalar_metrics.clear()
 
     # other metrics like images

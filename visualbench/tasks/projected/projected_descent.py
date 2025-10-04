@@ -1,15 +1,22 @@
-from typing import Literal
+import itertools
 import math
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Sequence, Callable, Iterable
+from typing import Literal, cast, Any
 
 import torch
 from torch import nn
 from torch.nn import functional as F
 
 from ...benchmark import Benchmark
-from ...utils.format import totensor
-from ..synthetic import rosenbrock, chebushev_rosenbrock, ackley, rotated_quadratic, rastrigin
+from ...utils import algebras, format
+from ..synthetic import (
+    ackley,
+    chebushev_rosenbrock,
+    rastrigin,
+    rosenbrock,
+    rotated_quadratic,
+)
 
 
 @torch.no_grad
@@ -103,6 +110,11 @@ class ProjectedFunctionDescent(Benchmark):
         smoothing (float, optional): basis smoothing. Defaults to 0.95.
         n_visible (int | None, optional):
             number of last points to consider when determining rendering range. Defaults to 200.
+        expand (float, optional):
+            how much to expand visualization bounds. 0 means no expanding;
+            If size of current visualizaion bounds is ``(x, y)``, the size
+            of expanded bounds is ``(x + expand*x, y + expand*y)``.
+
         points (tuple, optional):
             tuple of three things that determine what points are used as the basis. Defaults to ('best', 0.9, 0.95).
         log_scale (bool, optional):
@@ -119,6 +131,7 @@ class ProjectedFunctionDescent(Benchmark):
         resolution: int = 128,
         smoothing: float = 0.95,
         n_visible:int | None = 200,
+        expand: float = 1,
 
         points: tuple[_PointType,_PointType,_PointType] = ('best', 0.9, 0.95),
         log_scale:bool = False,
@@ -126,7 +139,7 @@ class ProjectedFunctionDescent(Benchmark):
         super().__init__(bounds=bounds, make_images=make_images, seed=seed, log_params=False)
 
         self._resolution = resolution
-        self._x = nn.Parameter(totensor(x0))
+        self._x = nn.Parameter(format.totensor(x0))
         if self._x.ndim != 1: raise RuntimeError(self._x.shape)
         self._smoothing = smoothing
 
@@ -143,6 +156,7 @@ class ProjectedFunctionDescent(Benchmark):
         self._points = points
         self._n_visible = n_visible
         self._log_scale = log_scale
+        self._expand = expand
 
     @abstractmethod
     def evaluate(self, x: torch.Tensor) -> torch.Tensor:
@@ -198,10 +212,15 @@ class ProjectedFunctionDescent(Benchmark):
 
         xrange = xmax - xmin + 1e-9
         yrange = ymax - ymin + 1e-9
-        xmin -= xrange / 2
-        xmax += xrange / 2
-        ymin -= yrange / 2
-        ymax += yrange / 2
+
+        if self._expand != 0:
+            xterm = xrange * (self._expand / 2)
+            xmin -= xterm
+            xmax += xterm
+
+            yterm = yrange * (self._expand / 2)
+            ymin -= yterm
+            ymax += yterm
 
         X, Y = torch.meshgrid(
             torch.linspace(xmin, xmax, self._resolution, device=basis.device,),
@@ -370,72 +389,148 @@ class BumpyBowl(ProjectedFunctionDescent):
         return bowl_loss + rastrigin_loss
 
 
-class NNLoss(ProjectedFunctionDescent):
-    """Neural network"""
+class NeuralNet(ProjectedFunctionDescent):
     def __init__(
         self,
-        input_dim=2,
-        hidden_dim=16,
-        output_dim=1,
-        n_samples=50,
-        act = F.relu,
-        log_scale:bool=True,
+        X: Any,
+        y: Any,
+        widths: Iterable[int] = (2, 16, 1),
+        act: Callable = F.relu,
+        algebra: Any = None,
+        log_scale: bool = True,
         **kwargs
     ):
-        self.input_dim = input_dim
-        self.hidden_dim = hidden_dim
-        self.output_dim = output_dim
+        widths = list(widths)
+        if len(widths) < 2:
+            raise ValueError("`widths` must have at least two elements (input and output layers).")
 
-        self.w1_s = (hidden_dim, input_dim)
-        self.b1_s = (hidden_dim,)
-        self.w2_s = (output_dim, hidden_dim)
-        self.b2_s = (output_dim,)
-
-        self.w1_n = hidden_dim * input_dim
-        self.b1_n = hidden_dim
-        self.w2_n = output_dim * hidden_dim
-        self.b2_n = output_dim
-
-        n_params = self.w1_n + self.b1_n + self.w2_n + self.b2_n
-
-        x0 = torch.empty(n_params)
-
-        super().__init__(x0, log_scale=log_scale, **kwargs)
-
-        nn.init.kaiming_uniform_(self._x.view(1,-1), a=math.sqrt(5), generator=self.rng.torch())
-        self.X = nn.Buffer(torch.randn(n_samples, input_dim, generator=self.rng.torch()))
-        self.y = nn.Buffer(torch.sinc(self.X.norm(dim=-1)).unsqueeze(-1))
+        self.widths = widths
+        self.n_layers = len(widths) - 1
+        self.input_dim = widths[0]
         self.act = act
 
-    def _unflatten_params(self, x: torch.Tensor):
-        batch_shape = x.shape[:-1] # (*batch_dims, D)
-        x_p = x.movedim(-1, 0) # (D, *batch_dims)
+        # Calculate shapes and parameter counts for each layer
+        self.layer_shapes = []
+        self.layer_n_params = []
+        n_params = 0
+        for i in range(self.n_layers):
+            in_dim, out_dim = self.widths[i], self.widths[i+1]
+            w_shape, b_shape = (out_dim, in_dim), (out_dim,)
+            w_n, b_n = out_dim * in_dim, out_dim
+            n_params += w_n + b_n
+            self.layer_shapes.append({'w': w_shape, 'b': b_shape})
+            self.layer_n_params.append({'w': w_n, 'b': b_n})
+
+        # Initialize parameters and call parent constructor
+        x0 = torch.randn(n_params, generator=torch.Generator().manual_seed(0))
+        super().__init__(x0, log_scale=log_scale, **kwargs)
+
+        # Use Kaiming initialization for the parameter vector
+        nn.init.kaiming_uniform_(self._x.view(1, -1), a=math.sqrt(5), generator=self.rng.torch())
+
+        self.X = nn.Buffer(format.to_HW(X))
+        self.y = nn.Buffer(format.to_HW(y))
+        self.algebra = algebras.get_algebra(algebra)
+
+
+    def _unflatten_params(self, x: torch.Tensor) -> tuple[list[torch.Tensor], list[torch.Tensor]]:
+        """
+        Unflattens the parameter vector `x` into lists of weight matrices and bias vectors.
+        """
+        batch_shape = x.shape[:-1]
+        x_p = x.movedim(-1, 0)
         permute_order = list(range(1, x_p.ndim)) + [0]
+        weights, biases = [], []
+        current_pos = 0
 
-        w1_flat, x_p = x_p[:self.w1_n], x_p[self.w1_n:]
-        b1_flat, x_p = x_p[:self.b1_n], x_p[self.b1_n:]
-        w2_flat, x_p = x_p[:self.w2_n], x_p[self.w2_n:]
-        b2_flat = x_p[:self.b2_n]
+        for i in range(self.n_layers):
+            w_n, b_n = self.layer_n_params[i]['w'], self.layer_n_params[i]['b']
+            w_shape, b_shape = self.layer_shapes[i]['w'], self.layer_shapes[i]['b']
 
-        w1 = w1_flat.permute(permute_order).reshape(*batch_shape, *self.w1_s)
-        b1 = b1_flat.permute(permute_order).reshape(*batch_shape, *self.b1_s)
-        w2 = w2_flat.permute(permute_order).reshape(*batch_shape, *self.w2_s)
-        b2 = b2_flat.permute(permute_order).reshape(*batch_shape, *self.b2_s)
+            w_flat = x_p[current_pos : current_pos + w_n]
+            weights.append(w_flat.permute(permute_order).reshape(*batch_shape, *w_shape))
+            current_pos += w_n
 
-        return w1, b1, w2, b2
+            b_flat = x_p[current_pos : current_pos + b_n]
+            biases.append(b_flat.permute(permute_order).reshape(*batch_shape, *b_shape))
+            current_pos += b_n
 
+        return weights, biases
+
+    def evaluate(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Performs a forward pass and computes the MSE loss for a given parameter vector `x`.
+        """
+        weights, biases = self._unflatten_params(x)
+        h = self.X
+
+        for i in range(self.n_layers):
+            w, b = weights[i], biases[i]
+            h = algebras.matmul(h, w.transpose(-1, -2), algebra=self.algebra)
+            h = h + b.unsqueeze(-2)
+
+            # Apply activation function for all but the last layer
+            if i < self.n_layers - 1:
+                h = self.act(h)
+
+        y_pred = h
+        y_true = self.y.expand_as(y_pred)
+        return F.mse_loss(y_pred, y_true, reduction='none').mean(dim=(-2, -1))
+
+def _symmetrize_tensor(T: torch.Tensor) -> torch.Tensor:
+    if T.ndim == 1: return T
+    permutations = list(itertools.permutations(range(T.ndim), r=T.ndim))
+
+    T_symm = torch.zeros_like(T)
+    for perm in permutations:
+        T_symm.add_(T.permute(perm), alpha = 1/len(permutations))
+
+    return T_symm
+
+_LETTERS = 'abcdefghijklmnopqrstuvwxyz'
+def _poly_eval(x: torch.Tensor, coeffs: list[torch.Tensor], penalty: float):
+    val = cast(torch.Tensor, 0)
+    for i,T in enumerate(coeffs, 1):
+        s1 = ''.join(_LETTERS[:i]) # abcd
+        s2 = ',...'.join(_LETTERS[:i]) # a,b,c,d
+        # this would make einsum('abcd,a,b,c,d', T, x, x, x, x)
+        val += torch.einsum(f"...{s1},...{s2}", T, *(x for _ in range(i))) / math.factorial(i)
+
+    if penalty > 0:
+        val += penalty * torch.linalg.vector_norm(x, dim=-1) ** (len(coeffs) + 1) # pylint:disable=not-callable
+
+    return val
+
+class Polynomial(ProjectedFunctionDescent):
+    def __init__(
+        self,
+        dim=10,
+        ord=3,
+        symmetric: bool = True,
+        penalty: float = 1,
+        **kwargs
+    ):
+
+        x0 = torch.randn(dim, generator=torch.Generator().manual_seed(0))
+
+        super().__init__(x0, log_scale=False, **kwargs)
+
+        self.ord = ord
+        self.penalty = penalty
+
+        generator = self.rng.torch()
+        coeffs = []
+        for i in range(1, ord+1):
+            shape = [dim for _ in range(i)]
+            T = torch.randn(shape, generator=generator)
+            if symmetric: T = _symmetrize_tensor(T)
+            coeffs.append(T)
+
+        for i, c in enumerate(coeffs):
+            self.register_buffer(f"coeff_{i}", c)
 
 
     def evaluate(self, x: torch.Tensor) -> torch.Tensor:
-        w1, b1, w2, b2 = self._unflatten_params(x)
-        h = self.act(torch.einsum('...oi,...ni->...no', w1, self.X) + b1.unsqueeze(-2))
-        y_pred = torch.einsum('...oi,...ni->...no', w2, h) + b2.unsqueeze(-2)
-        y = self.y.expand_as(y_pred)
-        return F.mse_loss(y_pred, y, reduction='none').mean(dim=(-2, -1))
+        coeffs = [getattr(self, f"coeff_{i}") for i in range(self.ord)]
 
-class NNLossSin(NNLoss):
-    """NN loss with sin act and smaller init"""
-    def __init__(self, **kwargs):
-        super().__init__(act=torch.sin, **kwargs)
-        with torch.no_grad():
-            self._x *= 0.1
+        return _poly_eval(x, coeffs, penalty=self.penalty)

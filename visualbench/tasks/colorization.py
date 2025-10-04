@@ -1,6 +1,10 @@
+from collections.abc import Sequence
+
 import torch
 from torch import nn
+
 from ..benchmark import Benchmark
+
 
 def _sections_mask(init: torch.Tensor, n_nodes, withds):
     mask = torch.ones_like(init, dtype=torch.bool)
@@ -76,11 +80,17 @@ class Colorization(Benchmark):
     Renders:
         pixels.
 
-    Tip: for some presets use this: ``vb.Colorization.snake()`` or ``vb.Colorization.small()``
+    Tip: for some presets use this: ``bench = vb.Colorization.snake()`` or ``bench = vb.Colorization.small()`` or
+    ``bench = vb.Colorization.tiny()``.
 
     Inspired by https://distill.pub/2017/momentum/"""
-    def __init__(self, init: torch.Tensor, mask: torch.Tensor, white_idxs, order: int = 1, power: float = 2):
+    def __init__(self, init: torch.Tensor | None = None, mask: torch.Tensor | None = None, white_idxs: Sequence[Sequence[int]] | None = None, order: int = 1, power: float = 2):
         super().__init__(bounds=(0,1))
+
+        if init is None: init = torch.zeros(96, 256)
+        if mask is None: mask =_better_snake_mask(init, 4)
+        if white_idxs is None: white_idxs = ((0, 0), )
+
         mask = mask.float()
         white_mask = torch.zeros_like(mask)
         image = init * mask

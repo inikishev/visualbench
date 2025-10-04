@@ -14,7 +14,11 @@ from .dataset import DatasetBenchmark
 class WDBC(DatasetBenchmark):
     """You need wdbc.data https://archive.ics.uci.edu/dataset/17/breast+cancer+wisconsin+diagnostic.
 
-    569 samples, each sample has 30 features and one binary target
+    binary classification, 569 samples.
+
+    input - ``(B, 30)``
+
+    output - ``(B, 1)``
     """
 
     def __init__(

@@ -1,3 +1,4 @@
+from functools import partial
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
@@ -43,7 +44,7 @@ class CustomDataset(DatasetBenchmark):
         shuffle_split=False,
         normalize: bool | Sequence[bool] = False,
         dtypes: torch.dtype | Sequence[torch.dtype] = torch.float32,
-        data_device: torch.types.Device = CUDA_IF_AVAILABLE,
+        data_device: torch.types.Device = 'cpu',
         decision_boundary = False,
         resolution = 192,
         boundary_act = None,
@@ -92,7 +93,7 @@ class TorchvisionDataset(CustomDataset):
         boundary_act = None,
         download:bool=True,
         truncate: int | None = None,
-        seed = 0
+        seed = 0,
     ):
         ds_train = cls(root=root, transform=transform, train=True, download=download)
         ds_test = cls(root=root, transform=transform, train=False, download=download)
@@ -117,6 +118,13 @@ class TorchvisionDataset(CustomDataset):
         )
 
 class MNIST(TorchvisionDataset):
+    """
+    classification
+
+    input - ``(B, 1, 28, 28)``
+
+    output - ``(B, 10)``
+    """
     def __init__(
         self,
         root: str,
@@ -148,6 +156,13 @@ class MNIST(TorchvisionDataset):
         )
 
 class CIFAR10(TorchvisionDataset):
+    """
+    classification
+
+    input - ``(B, 3, 32, 32)``
+
+    output - ``(B, 10)``
+    """
     def __init__(
         self,
         root: str,
@@ -179,6 +194,13 @@ class CIFAR10(TorchvisionDataset):
         )
 
 class CIFAR100(TorchvisionDataset):
+    """
+    classification
+
+    input - ``(B, 3, 32, 32)``
+
+    output - ``(B, 100)``
+    """
     def __init__(
         self,
         root: str,
@@ -210,6 +232,13 @@ class CIFAR100(TorchvisionDataset):
         )
 
 class FashionMNIST(TorchvisionDataset):
+    """
+    classification
+
+    input - ``(B, 1, 28, 28)``
+
+    output - ``(B, 10)``
+    """
     def __init__(
         self,
         root: str,
@@ -241,6 +270,13 @@ class FashionMNIST(TorchvisionDataset):
         )
 
 class FashionMNISTAutoencoding(TorchvisionDataset):
+    """
+    autoencoding
+
+    input - ``(B, 1, 28, 28)``
+
+    output - ``(B, 1, 28, 28)``
+    """
     def __init__(
         self,
         root: str,
@@ -272,33 +308,3 @@ class FashionMNISTAutoencoding(TorchvisionDataset):
             truncate=truncate,
         )
 
-class EMNIST(TorchvisionDataset):
-    def __init__(
-        self,
-        root: str,
-        model: torch.nn.Module,
-        criterion: Callable = F.cross_entropy,
-        batch_size: int | None = None,
-        test_batch_size: int | None = None,
-
-        normalize: bool | Sequence[bool] = (True, False),
-        data_device: torch.types.Device = CUDA_IF_AVAILABLE,
-        download:bool=True,
-        seed = 0,
-        truncate:int | None = None,
-    ):
-        super().__init__(
-            cls=datasets.EMNIST,
-            root=root,
-            model=model,
-            criterion=criterion,
-            batch_size=batch_size,
-            test_batch_size=test_batch_size,
-            transform = v2.Compose([v2.ToImage(), v2.ToDtype(torch.float32)]),
-            normalize=normalize,
-            dtypes=(torch.float32, torch.int64),
-            data_device=data_device,
-            download=download,
-            seed=seed,
-            truncate=truncate,
-        )

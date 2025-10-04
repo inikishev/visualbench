@@ -1,0 +1,29 @@
+3x3 font.jpeg is from https://www.reddit.com/r/typography/comments/1gkvtol/3x3_pixel_typeface/
+
+attngrad-96.png is gradient of something in attention block from some model from transformers library, but I forgot what it was
+
+biang-96.png is from https://commons.wikimedia.org/wiki/File:Bi%C3%A1ng_%28regular_script%29.svg
+
+emojis-96.png are random emojis
+
+frog-96.png is a frame from https://www.youtube.com/@NinjaFrog777/videos
+
+geometry-96.png CC0 image from wikicommons, SORRY I CAN'T FIND IT ANYMORE!!!
+
+grid-96.png I generated it
+
+maze-96.png I generated it
+
+qr-96.jpg I generated it
+
+rubic-96.png is from https://speedsolving.fandom.com/wiki/Rubik%27s_Cube?file=Rubik%27s_Cube_transparency.png
+
+sanic-96.jpg is an 8 year old image from my images folder and I think it is a screenshot from one of the sanic games.
+
+spiral-96.png I generated it
+
+test-96.jpg was generated in like 2012 ago by google doodle generator and its still my favourite image
+
+text-96.png lorem ipsum is from the lorem ipsum.
+
+weevil-96.png is from http://growingorganic.com/ipm-guide/weevils/

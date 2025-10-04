@@ -16,6 +16,8 @@ from .renderer import OpenCVRenderer, make_hw3, render_frames
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
 
+GIF_POST_PBAR_MESSAGE = "rendering GIF, this can take some time (tip: saving as mp4 is much faster)"
+
 def _better_load_default(size):
     """loads default font out of more fonts beacuse default one is so bad its crazy"""
     for font_path in ("arial.ttf", "/usr/share/fonts/google-noto-vf/NotoSans[wght].ttf"):
@@ -80,7 +82,7 @@ def _repeat_to_largest(images: dict[str, np.ndarray]):
             images[k] = np.repeat(np.repeat(img, ratio, 0), ratio, 1)
     return images
 
-def _make_collage(images: dict[str, np.ndarray], titles:bool):
+def _make_collage(images: dict[str, np.ndarray], titles:bool, w_cols):
     """make a collage from images"""
     if len(images) == 1: return next(iter(images.values())), 1
 
@@ -94,7 +96,7 @@ def _make_collage(images: dict[str, np.ndarray], titles:bool):
     # it is now (image, H, W, 3)
 
     # compose them
-    ncols = len(stacked) ** (0.65 * (max_shape[0]/max_shape[1]))
+    ncols = len(stacked) ** (w_cols * (max_shape[0]/max_shape[1]))
     nrows = round(len(stacked) / ncols)
     ncols = round(ncols)
     nrows = max(nrows, 1)
@@ -136,7 +138,7 @@ def _rescale(x, scale):
     return x
 
 @torch.no_grad
-def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1, progress=True,):
+def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: int | float = 1, progress=True, w_cols=0.65):
     """renders a video of how current and best solution evolves on each step, if applicable to this benchmark."""
 
     logger_images = {}
@@ -196,7 +198,7 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
                 images[f"{key} - best"] = image
 
             # make a collage
-            collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()}, titles=self._show_titles_on_video)
+            collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()}, titles=self._show_titles_on_video, w_cols=w_cols)
 
             title = f"train loss: {str(format_number(loss,  5)).ljust(7, '0')[:7]}"
             if "test loss" in self.logger:
@@ -206,5 +208,7 @@ def _render(self: "Benchmark", file: str, fps: int = 60, scale: int | float = 1,
             renderer.write(_add_title(collage, title, size_per_px=0.04/ncols, wrap=False))
 
         path = os.path.abspath(renderer.outfile)
+        if progress and str(file).lower().endswith(".gif"):
+            print(GIF_POST_PBAR_MESSAGE)
 
     return path

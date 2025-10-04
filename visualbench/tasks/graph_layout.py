@@ -253,7 +253,7 @@ class GraphLayout(Benchmark):
 
         return torch.stack([attraction, repulsion])
 
-    @torch.no_grad()
+    @torch.no_grad
     def _update_camera(self):
         """Updates camera center and scale using an exponential moving average for smoothness."""
         if self.num_nodes == 0:
@@ -263,8 +263,9 @@ class GraphLayout(Benchmark):
         alpha = self.camera_smoothing_factor
 
         # 1. Smoothly update camera center to the mean of node positions
-        target_center = torch.mean(pos, dim=0)
-        self.camera_center = alpha * target_center + (1 - alpha) * self.camera_center
+        target_center = torch.mean(pos, dim=0).nan_to_num_(0, self.canvas_size, -self.canvas_size)
+        self.camera_center.lerp_(target_center, 1-alpha).nan_to_num_(0, self.canvas_size, -self.canvas_size)
+
 
         # 2. Calculate target scale to fit all nodes based on the new camera center
         if self.num_nodes > 1:

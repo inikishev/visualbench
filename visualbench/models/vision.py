@@ -42,7 +42,7 @@ def BatchNormNd(ndim: int):
 
 
 class TinyConvNet(nn.Module):
-    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls=nn.ELU):
+    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls: Callable = nn.ReLU,):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
         Conv = ConvNd(len(in_size))
@@ -64,7 +64,7 @@ class TinyConvNet(nn.Module):
 
 class TinyWideConvNet(nn.Module):
     """3,626 params if ndim=1."""
-    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int,  act_cls = nn.ELU, dropout=0.5):
+    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int,  act_cls: Callable = nn.ReLU, dropout=0.5):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
         ndim = len(in_size)
@@ -102,7 +102,7 @@ class TinyWideConvNet(nn.Module):
 
 class TinyLongConvNet(nn.Module):
     """1,338 params if ndim=1"""
-    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls = nn.ELU, dropout=0.0):
+    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls: Callable = nn.ReLU, dropout=0.0):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
         ndim = len(in_size)
@@ -155,7 +155,7 @@ class TinyLongConvNet(nn.Module):
 
 class ConvNet(nn.Module):
     """134,410 params if ndim=1"""
-    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls:Callable = nn.ELU, dropout=0.2):
+    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls:Callable = nn.ReLU, dropout=0.2):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
         ndim = len(in_size)
@@ -213,7 +213,7 @@ class ConvNet(nn.Module):
 
 class FastConvNet(nn.Module):
     """134,410 params if ndim=1"""
-    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls = nn.ELU, dropout=0.2):
+    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls: Callable = nn.ReLU, dropout=0.2):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
         ndim = len(in_size)
@@ -265,7 +265,7 @@ class FastConvNet(nn.Module):
 
 class MobileNet(nn.Module):
     """6,228 params if ndim=1"""
-    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls = nn.ReLU, dropout=0.5):
+    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls: Callable = nn.ReLU, dropout=0.5):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
         ndim = len(in_size)
@@ -338,6 +338,7 @@ class ConvNetAutoencoder(nn.Module):
         dropout=None,
         sparse_reg: float | None = None,
         squeeze:bool=True,
+        vae:bool=False,
 
     ):
         super().__init__()
@@ -347,6 +348,7 @@ class ConvNetAutoencoder(nn.Module):
         self.enc = nn.Sequential(
             *[convblocknd(i, o, 2, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, ndim=ndim) for i, o in zip(channels[:-1], channels[1:])]
         )
+
 
         rev = list(reversed(channels))
         self.dec = nn.Sequential(
@@ -362,8 +364,14 @@ class ConvNetAutoencoder(nn.Module):
         self.out_size = out_size
         self.squeeze = squeeze
         self.out_channels = out_channels
+        self.vae = vae
         self.ndim = ndim
         self.x_vis = None
+
+    def reparameterization(self, mean, var):
+        epsilon = torch.randn_like(var)
+        z = mean + var*epsilon
+        return z
 
     def forward(self, x):
         if x.ndim == self.ndim+1: x = x.unsqueeze(1)
@@ -397,3 +405,6 @@ class ConvNetAutoencoder(nn.Module):
 
         grid = make_grid(x, nrow=max(math.ceil(math.sqrt(x.size(0))), 1), padding=1, normalize=True, scale_each=True)
         benchmark.log_image("outputs", grid, to_uint8=True)
+
+
+

@@ -87,9 +87,9 @@ def get_mnist1d( # pylint:disable = dangerous-default-value
 
 class Mnist1d(DatasetBenchmark):
     """
-    Input - (B, 40)
+    Input - ``(B, 40)``
 
-    output - logits (B, 10)
+    output - logits ``(B, 10)``
     """
     def __init__(
         self,
@@ -98,8 +98,9 @@ class Mnist1d(DatasetBenchmark):
         criterion=F.cross_entropy,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
+        train_split: float = 0.8,
     ):
-        (x,y), (x_test, y_test) = get_mnist1d(num_samples=num_samples)
+        (x,y), (x_test, y_test) = get_mnist1d(num_samples=num_samples, train_split=train_split)
         super().__init__(
             data_train = (x, y),
             data_test = (x_test, y_test),

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from ..benchmark import Benchmark
 
 
-tz.set_compilation(True)
+tz.enable_compilation(True)
 
 
 LOSSES = ("train loss", "test loss")
@@ -103,7 +103,7 @@ class MBSBenchmarkBenchmark:
                 if dim > 10_000: clean_mem()
                 bench.reset().set_benchmark_mode().set_print_inverval(None)
                 opt = opt_fn([p for p in bench.parameters() if p.requires_grad], value)
-                bench.run(opt, passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
+                bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
                 if print_progress and bench.seconds_passed is not None and bench.seconds_passed > sec:
                     print(f"{sweep_name}: '{task_name}' timeout, {bench.seconds_passed} > {sec}!")
                 return bench.logger
@@ -125,7 +125,7 @@ class MBSBenchmarkBenchmark:
                     if tune and hyperparam is not None: value = best_run.hyperparams[hyperparam]
                     bench.reset().set_benchmark_mode(False).set_print_inverval(None)
                     opt = opt_fn(bench.parameters(), value)
-                    bench.run(opt, passes, max_seconds=sec, test_every_forwards=test_every)
+                    bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every)
                     if not os.path.exists(self.summaries_root): os.mkdir(self.summaries_root)
                     if not os.path.exists(self.summary_dir): os.mkdir(self.summary_dir)
                     bench.render(f'{video_path} __TEMP__', scale=vid_scale, fps=fps, progress=False)
@@ -144,21 +144,21 @@ class MBSBenchmarkBenchmark:
         if zo: self.run_zo()
 
     def run_noop(self):
-        opt = lambda p, lr: tz.Modular(p, tz.m.LR(0))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.LR(0))
         self.run_optimizer(opt, "Noop", tune=False, max_dim=None)
 
     def run_stochastic(self):
         opt = lambda p, lr: torch.optim.SGD(p, lr)
         self.run_optimizer(opt, "SGD", tune=True, max_dim=None)
 
-        opt = lambda p, lr: torch.optim.SGD(p, lr, momentum=0.95, nesterov=True)
-        self.run_optimizer(opt, "NAG", tune=True, max_dim=None)
+        opt = lambda p, lr: torch.optim.SGD(p, lr, momentum=0.9, nesterov=True)
+        self.run_optimizer(opt, "NAG(0.9)", tune=True, max_dim=None)
+
+        opt = lambda p, lr: torch.optim.SGD(p, lr, momentum=0.99, nesterov=True)
+        self.run_optimizer(opt, "NAG(0.99)", tune=True, max_dim=None)
 
         opt = lambda p, lr: torch.optim.Adagrad(p, lr)
         self.run_optimizer(opt, "Adagrad", tune=True, max_dim=None)
-
-        opt = lambda p, lr: tz.Modular(p, tz.m.LMAdagrad(), tz.m.LR(lr))
-        self.run_optimizer(opt, "LMAdagrad", tune=True, max_dim=None)
 
         opt = lambda p, lr: torch.optim.RMSprop(p, lr)
         self.run_optimizer(opt, "RMSprop", tune=True, max_dim=None)
@@ -166,20 +166,25 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: torch.optim.Adam(p, lr)
         self.run_optimizer(opt, "Adam", tune=True, max_dim=None)
 
+        opt = lambda p, lr: torch.optim.Adam(p, lr, betas=(0.95, 0.95))
+        self.run_optimizer(opt, "Adam(0.95, 0.95)", tune=True, max_dim=None)
+
         opt = lambda p, lr: torch.optim.AdamW(p, lr)
         self.run_optimizer(opt, "AdamW", tune=True, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.SOAP(), tz.m.LR(lr))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.GGT(), tz.m.LR(lr))
+        self.run_optimizer(opt, "GGT", tune=True, max_dim=None)
+
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(), tz.m.LR(lr))
         self.run_optimizer(opt, "SOAP", tune=True, max_dim=None)
 
         # PSGD Kron
-        import heavyball
-        if torch.empty(0, device=self.benchmark.device).is_cpu: heavyball.utils.compile_mode = None
-        opt = lambda p, lr: heavyball.ForeachCachedPSGDKron(p, lr, memory_save_mode="smart_one_diag", store_triu_as_line=False)
+        import pytorch_optimizer
+        opt = lambda p, lr: pytorch_optimizer.Kron(p, lr, memory_save_mode="smart_one_diag", store_triu_as_line=False)
         self.run_optimizer(opt, "PSGD Kron", tune=True, max_dim=None)
 
         # Muon
-        opt = lambda p, lr: tz.Modular(
+        opt = lambda p, lr: tz.Optimizer(
             p,
             tz.m.NAG(0.95),
             tz.m.Split(
@@ -191,26 +196,26 @@ class MBSBenchmarkBenchmark:
         self.run_optimizer(opt, "Muon", tune=True, max_dim=None)
 
     def run_non_stochastic(self):
-        opt = lambda p, lr: tz.Modular(p, tz.m.BirginMartinezRestart(tz.m.PolakRibiere()), tz.m.StrongWolfe(a_init='first-order', c2=0.1))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.BirginMartinezRestart(tz.m.PolakRibiere()), tz.m.StrongWolfe(a_init='first-order', c2=0.1))
         self.run_optimizer(opt, "PolakRibiere-StrongWolfe", tune=False, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.AdaptiveHeavyBall())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.AdaptiveHeavyBall())
         self.run_optimizer(opt, "AdaptiveHeavyBall", tune=False, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.AdGD())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.AdGD())
         self.run_optimizer(opt, "AdGD", tune=False, max_dim=None)
 
         opt = lambda p, lr: torch.optim.Rprop(p, lr)
         self.run_optimizer(opt, "Rprop", tune=True, max_dim=None)
 
     def run_vr(self):
-        opt = lambda p, lr: tz.Modular(p, tz.m.SVRG(self.passes//4), tz.m.LBFGS(), tz.m.Backtracking())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.SVRG(self.passes//4), tz.m.LBFGS(), tz.m.Backtracking())
         self.run_optimizer(opt, "SVRG-LBFGS-Backtracking", tune=False, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.Online(tz.m.LBFGS()), tz.m.Backtracking())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.Online(tz.m.LBFGS()), tz.m.Backtracking())
         self.run_optimizer(opt, "OnlineLBFGS-Backtracking", tune=False, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.SVRG(self.passes//4), tz.m.Adam(), tz.m.LR(lr))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.SVRG(self.passes//4), tz.m.Adam(), tz.m.LR(lr))
         self.run_optimizer(opt, "SVRG-Adam", tune=True, max_dim=None)
 
 
@@ -220,76 +225,45 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: torch.optim.LBFGS(p, line_search_fn='strong_wolfe')
         self.run_optimizer(opt, "LBFGS", tune=False, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.LBFGS(), tz.m.RelativeWeightDecay(0.2), tz.m.Backtracking())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.LBFGS(), tz.m.RelativeWeightDecay(0.2), tz.m.Backtracking())
         self.run_optimizer(opt, "LBFGS-RelativeWeightDecay-Backtracking", tune=False, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.BFGS(), tz.m.Backtracking())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.BFGS(), tz.m.Backtracking())
         self.run_optimizer(opt, "BFGS-Backtracking", tune=False, max_dim=5000)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.LevenbergMarquardt(tz.m.RestartOnStuck(tz.m.SR1(inverse=False))))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.LevenbergMarquardt(tz.m.RestartOnStuck(tz.m.SR1(inverse=False))))
         self.run_optimizer(opt, "LevenbergMarquardt(SR1)", tune=False, max_dim=5000)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.RestartOnStuck(tz.m.ShorR()), tz.m.StrongWolfe(a_init='quadratic'))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.RestartOnStuck(tz.m.ShorR()), tz.m.StrongWolfe(a_init='quadratic'))
         self.run_optimizer(opt, "ShorR-StrongWolfe", tune=False, max_dim=5000)
 
     def run_newton(self):
-        opt = lambda p, lr: tz.Modular(p, tz.m.Newton(), tz.m.Backtracking())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.Newton(), tz.m.Backtracking())
         self.run_optimizer(opt, "Newton-Backtracking", tune=False, max_dim=400, num_extra_passes=lambda ndim: ndim+1)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.Newton(eigval_tfm=lambda x: x.abs().clip(min=1e-8)), tz.m.Backtracking())
-        self.run_optimizer(opt, "Newton(abs)-Backtracking", tune=False, max_dim=400, num_extra_passes=lambda ndim: ndim+1)
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.Newton(eigval_fn=lambda x: x.abs().clip(min=1e-8)), tz.m.Backtracking())
+        self.run_optimizer(opt, "SPFN-Backtracking", tune=False, max_dim=400, num_extra_passes=lambda ndim: ndim+1)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.LevenbergMarquardt(tz.m.Newton()))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.LevenbergMarquardt(tz.m.Newton()))
         self.run_optimizer(opt, "LevenbergMarquardt(Newton)", tune=False, max_dim=400, num_extra_passes=lambda ndim: ndim+1)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.NewtonCGSteihaug(hvp_method='forward'))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.NewtonCGSteihaug(hvp_method='fd_forward'))
         self.run_optimizer(opt, "NewtonCGSteihaug", tune=False, max_dim=None)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.SixthOrder5P())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.SixthOrder5P())
         self.run_optimizer(opt, "SixthOrder5P", tune=False, max_dim=400, num_extra_passes=lambda ndim: 5*ndim+5)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.experimental.NewtonNewton(), tz.m.Backtracking())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.experimental.NewtonNewton(), tz.m.Backtracking())
         self.run_optimizer(opt, "NewtonNewton-Backtracking", tune=False, max_dim=50, num_extra_passes=lambda ndim: ndim**2)
 
-        opt = lambda p, lr: tz.Modular(p, tz.m.HigherOrderNewton())
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.experimental.HigherOrderNewton())
         self.run_optimizer(opt, "HigherOrderNewton", tune=False, max_dim=10, num_extra_passes=lambda ndim: ndim**3)
 
 
     def run_zo(self):
-        opt = lambda p, lr: tz.Modular(p, tz.m.SPSA(), tz.m.LR(lr))
-        self.run_optimizer(opt, "SPSA", tune=True, max_dim=None)
-
-        opt = lambda p, lr: tz.Modular(p, tz.m.GaussianSmoothing(n_samples=10), tz.m.LR(lr))
-        self.run_optimizer(opt, "GaussianSmoothing(10)", tune=True, max_dim=None)
-
-        opt = lambda p, lr: tz.Modular(p, tz.m.GaussianSmoothing(), tz.m.ScipyMinimizeScalar(maxiter=10))
-        self.run_optimizer(opt, "GaussianSmoothing(100)-ScipyMinimizeScalar", tune=False, max_dim=None)
-
-        opt = lambda p, lr: tz.Modular(p, tz.m.FDM(), tz.m.BFGS(), tz.m.Backtracking())
-        self.run_optimizer(opt, "FDM-BFGS-Backtracking", tune=False, max_dim=None)
-
         from torchzero.optim.wrappers.scipy import ScipyMinimize
         opt = lambda p, lr: ScipyMinimize(p, 'powell')
         self.run_optimizer(opt, "Powell", tune=False, max_dim=1000)
-
-        from torchzero.optim.wrappers.nlopt import NLOptWrapper
-        opt = lambda p, lr: NLOptWrapper(p, 'LN_SBPLX')
-        self.run_optimizer(opt, "SBPLX", tune=False, max_dim=1000)
-
-        opt = lambda p, lr: ScipyMinimize(p, 'cobyla')
-        self.run_optimizer(opt, "COBYLA", tune=False, max_dim=200)
-
-        from torchzero.optim.wrappers.nevergrad import NevergradWrapper
-        import nevergrad as ng
-        opt = lambda p, lr: NevergradWrapper(p, ng.optimizers.RandomSearchPlusMiddlePoint, budget=self.passes, mutable_sigma=True)
-        self.run_optimizer(opt, "RandomSearchPlusMiddlePoint", tune=False, max_dim=20_000)
-
-        opt = lambda p, lr: NevergradWrapper(p, ng.optimizers.DE, budget=self.passes, mutable_sigma=True)
-        self.run_optimizer(opt, "DE", tune=False, max_dim=20_000)
-
-        opt = lambda p, lr: NevergradWrapper(p, ng.optimizers.UltraSmoothDiscreteLenglerOnePlusOne, budget=self.passes, mutable_sigma=True)
-        self.run_optimizer(opt, "UltraSmoothDiscreteLenglerOnePlusOne", tune=False, max_dim=20_000)
-
 
 
 
