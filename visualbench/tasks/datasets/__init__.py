@@ -6,5 +6,7 @@ from .sklearn import CaliforniaHousing, Moons, OlivettiFaces, OlivettiFacesAutoe
 from .mnist1d import Mnist1d, Mnist1dAutoencoding
 
 from .seg1d import SynthSeg1d
-from .torchvision import CustomDataset,TorchvisionDataset, MNIST,FashionMNIST,FashionMNISTAutoencoding, CIFAR10, CIFAR100
 from .other import WDBC
+
+if TYPE_CHECKING or find_spec("torchvision") is not None:
+    from .torchvision import CustomDataset,TorchvisionDataset, MNIST,FashionMNIST,FashionMNISTAutoencoding, CIFAR10, CIFAR100
