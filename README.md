@@ -1,5 +1,3 @@
-# This message being up means I haven't finished setting up the repo!!!!! Because to make a PyPi project you have to have a repository already on github
-
 # <h1 align='center'>visualbench</h1>
 
 Fast benchmarks for optimization algorithms - PyTorch optimizers as well as solvers from any other libraries such as scipy.optimize, optuna, etc.
@@ -162,9 +160,11 @@ Datasets with two features (like `Moons`) support visualizing/rendering the deci
 
 # Gallery
 
-More videos
+I have to make this repo public to enable github pages, so those links are temorarily empty!
 
-How much curvature do second order optimizers actually use?
+- [More videos](wait)
+
+- [How much curvature do second order optimizers actually use?](wait)
 
 # Advanced
 
