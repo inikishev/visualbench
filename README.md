@@ -12,6 +12,8 @@ pip install visualbench
 
 The dependencies are `pytorch`, `numpy`, `scipy`, `matplotlib` and `opencv-python`.
 
+Few benchmarks also use `torchvision`, `scikit-learn`, `mnist1d`, `gpytorch`.
+
 ### Function descent
 
 Useful to debug optimizers:
@@ -55,7 +57,7 @@ bench.run(opt, 1000)
 bench.render("Colorization.mp4")
 ```
 
-https://github.com/user-attachments/assets/37b32d75-6f80-4c6b-a360-254aea368aa8
+<https://github.com/user-attachments/assets/37b32d75-6f80-4c6b-a360-254aea368aa8>
 
 ### NeuralDrawer
 
@@ -75,7 +77,7 @@ bench.run(opt, 1000)
 bench.render("NeuralDrawer.mp4", scale=2)
 ```
 
-https://github.com/user-attachments/assets/99031a4f-d2aa-4640-b940-dc87c3316fdb
+<https://github.com/user-attachments/assets/99031a4f-d2aa-4640-b940-dc87c3316fdb>
 
 # All problems
 
@@ -259,7 +261,7 @@ study.optimize(objective, n_trials=1000)
 bench.render("Optuna.mp4", line_alpha=0.1)
 ```
 
-https://github.com/user-attachments/assets/021846d8-626d-4f2a-a8cb-7d2143d28673
+<https://github.com/user-attachments/assets/021846d8-626d-4f2a-a8cb-7d2143d28673>
 
 ### Algebras
 
@@ -324,7 +326,42 @@ Benchmark has a logger object where all the metrics reside. For example you can 
 
 - if you use optuna pruner, use `benchmark.set_trial(trial, metric="train loss")` and it will report that metric to optuna and raise `optuna.TrialPruned()`
 
-Here is an
+Here is an example of performing hyperparameter optimization with optuna:
+
+```python
+import torch
+import optuna
+import visualbench as vb
+
+bench = vb.Mnist1d(
+    vb.models.MLP([40, 64, 96, 128, 256, 10], act_cls=torch.nn.ELU),
+    batch_size=32, test_batch_size=None,
+).cuda()
+
+bench.set_test_intervals(test_every_forwards=10) # test every 10 forward passes
+bench.set_print_inverval(None) # disable printing
+
+def objective(trial: optuna.Trial):
+    # reset benchmark - much faster than creating from scratch
+    # as it doesn't have to re-process the dataset
+    bench.reset()
+
+    # create opt
+    lr = trial.suggest_float("lr", 1e-5, 1, log=True)
+    beta1 = trial.suggest_float("beta1", 0, 1)
+    beta2 = trial.suggest_float("beta2", 0, 1)
+    opt = torch.optim.AdamW(bench.parameters(), lr=lr, betas=(beta1, beta2))
+
+    # run and return last test loss
+    bench.run(opt, 1_000)
+    return bench.logger.nanmin("test loss") # or bench.logger.last("test loss")
+
+study = optuna.create_study()
+study.optimize(objective, timeout=600)
+print(f'{study.best_params = }')
+print(f'{study.best_value = }')
+```
+
 # Defining new benchmarks
 
 `Benchmark` is a subclass of `torch.nn.Module`.
@@ -390,7 +427,7 @@ benchmark.plot(yscale="log") # plots everything that was logged
 benchmark.render("L-BFGS inverting a matrix.mp4", scale=4) # renders a video with images that were logged
 ```
 
-https://github.com/user-attachments/assets/0c768529-2e71-4667-8908-86bbce515852
+<https://github.com/user-attachments/assets/0c768529-2e71-4667-8908-86bbce515852>
 
 # License
 
