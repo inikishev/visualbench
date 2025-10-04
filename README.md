@@ -2,7 +2,7 @@
 
 Fast benchmarks for optimization algorithms - PyTorch optimizers as well as solvers from any other libraries such as scipy.optimize, optuna, etc.
 
-Many benchmarks have visualization where you can plot/render a video to see how the solution is being optimized.
+Many benchmarks support visualization where you can plot or render a video to see how the solution is being optimized.
 
 ### Installation
 
