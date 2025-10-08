@@ -115,7 +115,10 @@ class MLBench(OptimizerBenchPack):
         # --------------------------- Matrix factorization --------------------------- #
         # ...
         path = "/var/mnt/hdd/datasets/MovieLens 100K"
-        if not os.path.exists(path): path = load_movie_lens()
+        if not os.path.exists(path):
+            path = "MovieLens-100k/ml-100k"
+            if not os.path.exists(path):
+                path = load_movie_lens()
         bench = tasks.MFMovieLens(path, batch_size=32, device='cuda').cuda()
         bench_name = 'MLS - MovieLens BS-32 - Matrix Factorization'
         self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)

@@ -7,7 +7,7 @@ def load_movie_lens():
     output_filename = "ml-100k.zip"
 
     import requests
-    response = requests.get(url, stream=True)
+    response = requests.get(url, stream=True, timeout=100)
     response.raise_for_status()
 
     with open(output_filename, "wb") as f:
@@ -20,7 +20,7 @@ def load_movie_lens():
     return "MovieLens-100k/ml-100k"
 
 def colab_pack():
-    from google.colab import files # pylint:disable=import-error,no-name-in-module
+    from google.colab import files # pylint:disable=import-error,no-name-in-module # pyright:ignore[reportMissingImports]
 
     shutil.make_archive("MLBench", 'zip', "MLBench")
 
@@ -72,7 +72,7 @@ def performance_tweaks(
     # optimizes contraction order for einsum operation
     if hasattr(torch.backends, "opt_einsum"):
         if opt_einsum is not None:
-            torch.backends.opt_einsum.enabled = opt_einsum
+            torch.backends.opt_einsum.enabled = opt_einsum # pyright:ignore[reportAttributeAccessIssue]
 
         # larger search time (1 s. on 1st call) but very fast einsum
-        if opt_einsum_strategy is not None: torch.backends.opt_einsum.strategy = opt_einsum_strategy
+        if opt_einsum_strategy is not None: torch.backends.opt_einsum.strategy = opt_einsum_strategy # pyright:ignore[reportAttributeAccessIssue]
