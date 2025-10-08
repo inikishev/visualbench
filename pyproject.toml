@@ -1,10 +1,17 @@
+# NEW VERSION TUTORIAL FOR MYSELF
+# STEP 1 - COMMIT NEW CHANGES AND PUSH THEM
+# STEP 2 - BUMP VERSION AND COMMIT IT (DONT PUSH!!!!)
+# STEP 3 - CREATE TAG WITH THAT VERSION
+# STEP 4 - PUSH (SYNC) CHANGES
+# STEP 5 - PUSH TAG
+
 [build-system]
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "visualbench"
-version = "1.0.0"
+version = "1.0.1"
 requires-python = ">=3.12"
 dependencies = [
   "torch",
