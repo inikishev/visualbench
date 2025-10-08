@@ -1,4 +1,5 @@
 """not for laptop"""
+import os
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -6,9 +7,10 @@ import torch
 from monai.losses.dice import DiceFocalLoss
 from torch import nn
 
-from .. import models, tasks, data
+from .. import data, models, tasks
 from ..utils import CUDA_IF_AVAILABLE
 from .benchpack import OptimizerBenchPack
+from .colab_utils import load_movie_lens
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
@@ -111,7 +113,9 @@ class MLBench(OptimizerBenchPack):
 
         # --------------------------- Matrix factorization --------------------------- #
         # ...
-        bench = tasks.MFMovieLens("/var/mnt/hdd/datasets/MovieLens 100K", batch_size=32, device='cuda').cuda()
+        path = "/var/mnt/hdd/datasets/MovieLens 100K"
+        if not os.path.exists(path): path = load_movie_lens()
+        bench = tasks.MFMovieLens(path, batch_size=32, device='cuda').cuda()
         bench_name = 'MLS - MovieLens BS-32 - Matrix Factorization'
         self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
 
