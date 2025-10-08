@@ -41,6 +41,7 @@ class MLBench(OptimizerBenchPack):
         root: str = "MLBench",
         print_records: bool = True,
         print_progress: bool = True,
+        print_time: bool = False,
         save: bool = True,
         accelerate: bool = True,
         load_existing: bool = True,

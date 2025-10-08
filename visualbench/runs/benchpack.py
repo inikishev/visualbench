@@ -1,3 +1,4 @@
+import time
 import os
 import random
 from collections.abc import Callable, Iterable, Sequence
@@ -46,6 +47,7 @@ class OptimizerBenchPack:
         # storage
         print_records: bool = True,
         print_progress: bool = True,
+        print_time: bool = False,
         save: bool = True,
         accelerate: bool = True,
         load_existing: bool = True,
@@ -79,6 +81,7 @@ class OptimizerBenchPack:
             dim = sum(p.numel() for p in bench.parameters() if p.requires_grad)
             if max_dim is not None and dim > max_dim: return
 
+            start = time.time()
             clean_mem()
 
              # skip CPU because accelerator state can't change.
@@ -124,6 +127,9 @@ class OptimizerBenchPack:
                     bench.render(f'{video_path} __TEMP__', scale=vid_scale, fps=fps, progress=False)
                     os.rename(f'{video_path} __TEMP__.mp4', f'{video_path}.mp4')
 
+            if print_time:
+                if print_progress: print("                                                                      ", end="\r")
+                print(f"{task_name} took {(time.time() - start):.2f} s.")
 
         self.run_bench = run_bench
 
