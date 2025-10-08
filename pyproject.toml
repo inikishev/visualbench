@@ -27,3 +27,9 @@ dependencies = [
 [tool.setuptools.packages]
 find = {}  # Scanning implicit namespaces is active by default
 #1
+
+[tool.setuptools.package-data]
+# The key is the package name.
+# The value is a list of file patterns to include.
+# "data/**/*" means include all files in the 'data' subdirectory, recursively.
+visualbench = ["data/**/*"]

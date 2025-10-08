@@ -1,5 +1,7 @@
 import os
 from collections.abc import Sequence
+from importlib import resources
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -8,48 +10,51 @@ from torch.nn import functional as F
 from ..utils import normalize, to_3HW
 from ..utils.image import _imread
 
-_path = os.path.dirname(__file__)
+# _path = os.path.dirname(__file__)
 
-QRCODE96 = os.path.join(_path, 'qr-96.jpg')
+def _get_path(fname:str):
+    return Path(str(resources.files("visualbench").joinpath("data", fname)))
+
+QRCODE96 = _get_path('qr-96.jpg')
 """QR code that links to my github account"""
 
-ATTNGRAD96 = os.path.join(_path, 'attngrad-96.png')
+ATTNGRAD96 = _get_path('attngrad-96.png')
 """Piece of gradient of some model from transformers library except I don't remember which one"""
 
-SANIC96 = os.path.join(_path, 'sanic-96.jpg')
+SANIC96 = _get_path('sanic-96.jpg')
 """is an 8 year old image from my images folder and I think it is a screenshot from one of the sanic games"""
 
-FROG96 = os.path.join(_path, 'frog-96.png')
+FROG96 = _get_path('frog-96.png')
 """frame from https://www.youtube.com/@NinjaFrog777/videos"""
 
-WEEVIL96 = os.path.join(_path, 'weevil-96.png')
+WEEVIL96 = _get_path('weevil-96.png')
 """is from http://growingorganic.com/ipm-guide/weevils/"""
 
-TEST96 = os.path.join(_path, 'test-96.jpg')
+TEST96 = _get_path('test-96.jpg')
 """this was generated in like 2012 ago by google doodle generator and its still my favourite image and it is called test"""
 
-MAZE96 = os.path.join(_path, 'maze-96.png')
+MAZE96 = _get_path('maze-96.png')
 """a generic maze"""
 
-TEXT96 = os.path.join(_path, 'text-96.png')
+TEXT96 = _get_path('text-96.png')
 """lorem ipsum from lorem ipsum text"""
 
-GEOM96 = os.path.join(_path, 'geometry-96.png')
+GEOM96 = _get_path('geometry-96.png')
 """CC0 image from wikicommons, SORRY I CAN'T FIND THE LINK ANYMORE!!!"""
 
-RUBIC96 = os.path.join(_path, 'rubic-96.png')
+RUBIC96 = _get_path('rubic-96.png')
 """is from https://speedsolving.fandom.com/wiki/Rubik%27s_Cube?file=Rubik%27s_Cube_transparency.png"""
 
-SPIRAL96 = os.path.join(_path, 'spiral-96.png')
+SPIRAL96 = _get_path('spiral-96.png')
 """A colorful spiral"""
 
-BIANG96 = os.path.join(_path, 'biang-96.png')
+BIANG96 = _get_path('biang-96.png')
 """apparently its the hardest hieroglyph and it is from https://commons.wikimedia.org/wiki/File:Bi%C3%A1ng_%28regular_script%29.svg"""
 
-EMOJIS96 = os.path.join(_path, 'emojis-96.png')
+EMOJIS96 = _get_path('emojis-96.png')
 """some random emojis"""
 
-GRID96 = os.path.join(_path, 'grid-96.png')
+GRID96 = _get_path('grid-96.png')
 """Grid of black and white cells"""
 
 def get_qrcode():
@@ -165,7 +170,7 @@ def get_ill_conditioned(size: int | tuple[int,int], cond:float=1e17):
 
 def get_font_dict(dtype=torch.bool, device=None):
     """returns a dictionary which maps letters, numbers and +-*/|. to 3x3 binary images."""
-    path = os.path.join(_path, '3x3 font.jpeg')
+    path = _get_path('3x3 font.jpeg')
     image = to_3HW(_imread(path).float()).mean(0)
     image = torch.where(image > 128, 1, 0).contiguous().to(dtype=dtype, device=device)
 

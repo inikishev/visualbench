@@ -1,10 +1,12 @@
 import warnings
+from os import PathLike
 from typing import Any
 
 import numpy as np
 import torch
 
 from .image import _imread
+
 
 def _imread_normalize(x) -> torch.Tensor:
     x = _imread(x).float()
@@ -22,7 +24,7 @@ def is_scalar(x: Any) -> bool:
     return isinstance(x, (int,float,bool))
 
 def totensor(x, device=None, dtype=None, clone=None) -> torch.Tensor:
-    if isinstance(x, str): x = _imread_normalize(x)
+    if isinstance(x, (str, PathLike)): x = _imread_normalize(x)
 
     if isinstance(x, torch.Tensor): x = x.to(dtype=dtype, device=device, copy=False)
 
@@ -42,7 +44,7 @@ def totensor(x, device=None, dtype=None, clone=None) -> torch.Tensor:
     return x
 
 def tonumpy(x) -> np.ndarray:
-    if isinstance(x, str): x = _imread_normalize(x)
+    if isinstance(x, (str, PathLike)): x = _imread_normalize(x)
     if isinstance(x, np.ndarray): return x
     if isinstance(x, torch.Tensor): return x.numpy(force=True)
     return np.asarray(x)
