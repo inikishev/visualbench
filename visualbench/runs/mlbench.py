@@ -7,7 +7,6 @@ from monai.losses.dice import DiceFocalLoss
 from torch import nn
 
 from .. import models, tasks, data
-from ..models.ode import NeuralODE
 from ..utils import CUDA_IF_AVAILABLE
 from .benchpack import OptimizerBenchPack
 
