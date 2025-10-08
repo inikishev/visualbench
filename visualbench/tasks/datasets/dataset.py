@@ -21,7 +21,7 @@ class DatasetBenchmark(Benchmark):
         batch_size: int | None = None,
         test_batch_size: int | None = None,
         data_test=None,
-        test_split: int | float | None = None,
+        train_split: int | float | None = None,
         shuffle_split=False,
         normalize: bool | Sequence[bool] = False,
         dtypes: torch.dtype | Sequence[torch.dtype] = torch.float32,
@@ -41,8 +41,9 @@ class DatasetBenchmark(Benchmark):
             batch_size (int | None, optional): batch size, None for fullbatch. Defaults to None.
             test_batch_size (int | None, optional): test batch size, None for fullbatch. Defaults to None.
             data_test (_type_, optional): sequence of things to collate, e.g. (X, y)
-            test_split (int | float | None, optional):
-                splits data_train into train and test, can be int or float. Defaults to None.
+            train_split (int | float | None, optional):
+                splits data_train into train and test, this value controls amount of data that goes into train.
+                For example 0.8 means 80%, or 100 means 100 samples. Can be int or float. Defaults to None.
             shuffle_split (bool, optional):
                 whether to shuffle before splitting data_train into train and test sets. Defaults to False.
             normalize (bool | Sequence[bool], optional):
@@ -76,9 +77,9 @@ class DatasetBenchmark(Benchmark):
                 raise ValueError(f"Got different number of elements in data_test: {[len(i) for i in data_test]}")
 
         # if data_test is None and test_split is not None, split data into train and test based on test_split
-        elif test_split is not None:
-            if isinstance(test_split, float):
-                test_split = int(test_split * n_samples)
+        elif train_split is not None:
+            if isinstance(train_split, float):
+                train_split = int(train_split * n_samples)
 
             # shuffle data before splitting to train/test
             if shuffle_split:
@@ -86,8 +87,8 @@ class DatasetBenchmark(Benchmark):
                 data_train = [torch.index_select(i, 0, indices) for i in data_train]
 
             # split
-            data_test = [i[test_split:] for i in data_train] # needs to be 1st
-            data_train = [i[:test_split] for i in data_train]
+            data_test = [i[train_split:] for i in data_train] # needs to be 1st
+            data_train = [i[:train_split] for i in data_train]
 
         # normalize along 1st dim
         if isinstance(normalize, bool): normalize = [normalize] * len(data_train)
@@ -149,6 +150,7 @@ class DatasetBenchmark(Benchmark):
         self.criterion = criterion
         self.batch_transform = batch_transform
         self._show_titles_on_video = False
+        self.set_multiobjective_func(torch.mean)
 
         self.decision_boundary = decision_boundary
         if decision_boundary:
@@ -194,6 +196,13 @@ class DatasetBenchmark(Benchmark):
         for module in self.modules():
             if hasattr(module, "flatten_parameters"):
                 module.flatten_parameters() # pyright:ignore[reportCallIssue]
+
+        if isinstance(self._dltrain, TensorDataLoader):
+            self._dltrain.reset_rng()
+
+        if isinstance(self._dltest, TensorDataLoader):
+            self._dltest.reset_rng()
+
         return self
 
     def penalty(self, preds):
@@ -226,13 +235,22 @@ class DatasetBenchmark(Benchmark):
         if self.test_start_idx is not None:
             loss = self.criterion(y_hat, y, reduction='none')
 
-            train_loss = loss[:self.test_start_idx].mean() + penalty
+            if self._multiobjective:
+                train_loss = loss[:self.test_start_idx]
+                train_loss = train_loss + penalty / loss.numel()
+            else:
+                train_loss = loss[:self.test_start_idx].mean() + penalty
+
             test_loss = loss[self.test_start_idx:].mean() + penalty
 
             self.log('test loss', test_loss)
 
         else:
-            train_loss = self.criterion(y_hat, y) + penalty
+            if self._multiobjective:
+                train_loss = self.criterion(y_hat, y, reduction='none')
+                train_loss = train_loss + penalty / train_loss.numel()
+            else:
+                train_loss = self.criterion(y_hat, y) + penalty
 
         if self.training and self._make_images and hasattr(self.model, "after_get_loss"):
             self.model.after_get_loss(self) # pyright:ignore[reportCallIssue]

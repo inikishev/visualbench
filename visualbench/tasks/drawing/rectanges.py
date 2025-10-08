@@ -44,8 +44,8 @@ class RectanglesDrawer(Benchmark):
         penalty: float = 1,
         loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = F.mse_loss,
     ):
-        target_image = normalize(to_HW3(target_image).float(), 0, 1).moveaxis(-1, 0)
         super().__init__()
+        target_image = normalize(to_HW3(target_image, generator=self.rng.torch()).float(), 0, 1).moveaxis(-1, 0)
         # 3HW image
         self.register_buffer('target_image', target_image)
         self.add_reference_image('target', (target_image*255).detach().cpu().numpy().astype(np.uint8), to_uint8=False)

@@ -244,6 +244,7 @@ class MuonCoeffs(Benchmark):
             self.y_kj = nn.Buffer(y_kj)
 
         self._show_titles_on_video = False
+        self.set_multiobjective_func(torch.sum)
 
     def get_loss(self):
         steepness_loss, intermediate_losses, aesthetic_aux_loss, diff_ratio = loss(x=self.x, params=self.params, eps=self.eps, precision=self.precision)
@@ -285,7 +286,12 @@ class MuonCoeffs(Benchmark):
                 )
                 self.log_image("image", frame, to_uint8 = False, show_best=True)
 
-        return self.w_steepness*steepness_loss + self.w_stability*stability_loss + self.w_contraction*aesthetic_aux_loss + self.w_flatness*diff_ratio
+        return torch.stack([
+            self.w_steepness*steepness_loss,
+            self.w_stability*stability_loss,
+            self.w_contraction*aesthetic_aux_loss,
+            self.w_flatness*diff_ratio
+        ])
 
     @torch.no_grad
     def best_coeffs(self):

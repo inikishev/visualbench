@@ -34,7 +34,7 @@ class StochasticMatrixRecovery(Benchmark):
         elif isinstance(A, tuple) and len(A) == 2: A = torch.randn((1, *A), generator=generator)
         else:
             self._make_images = True
-            A = format.to_CHW(A)
+            A = format.to_CHW(A, generator=self.rng.torch())
         self.A = nn.Buffer(A)
         self.min = self.A.min().item(); self.max = self.A.max().item()
         self.B = nn.Parameter(torch.zeros_like(self.A))

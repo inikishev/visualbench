@@ -26,7 +26,7 @@ class WDBC(DatasetBenchmark):
         criterion=F.binary_cross_entropy_with_logits,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=400,
+        train_split=400,
     ):
         # load the dataset
         with open(wdbc_path, 'r', encoding='utf8') as f:
@@ -46,5 +46,5 @@ class WDBC(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size=test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
         )

@@ -2,6 +2,7 @@
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
+import monai.losses
 import torch
 from kornia.losses import ssim_loss
 from sklearn.datasets import make_swiss_roll
@@ -285,6 +286,7 @@ class MBSOptimizerBenchmark(OptimizerBenchPack):
         # 9+3=12 ~ 3m. 44s.
         bench = tasks.datasets.SynthSeg1d(
             models.vision.ConvNetAutoencoder(1, 1, 5, 32, hidden=(64,96,128)),
+            criterion = monai.losses.DiceFocalLoss(softmax=True),
             num_samples=10_000, batch_size=64, test_batch_size=512
         ).cuda()
         self.run_bench(bench, 'MLS - SynthSeg BS-64 - ConvNet', passes=4_000, sec=240, test_every=50, metrics='test loss', vid_scale=None, binary_mul=0.3)

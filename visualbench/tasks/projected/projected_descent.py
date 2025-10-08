@@ -428,8 +428,8 @@ class NeuralNet(ProjectedFunctionDescent):
         # Use Kaiming initialization for the parameter vector
         nn.init.kaiming_uniform_(self._x.view(1, -1), a=math.sqrt(5), generator=self.rng.torch())
 
-        self.X = nn.Buffer(format.to_HW(X))
-        self.y = nn.Buffer(format.to_HW(y))
+        self.X = nn.Buffer(format.to_HW(X, generator=self.rng.torch()))
+        self.y = nn.Buffer(format.to_HW(y, generator=self.rng.torch()))
         self.algebra = algebras.get_algebra(algebra)
 
 

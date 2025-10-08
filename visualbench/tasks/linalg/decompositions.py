@@ -33,7 +33,7 @@ class QR(Benchmark):
     ):
 
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_CHW(A))
+        self.A = torch.nn.Buffer(format.to_CHW(A, generator=self.rng.torch()))
         self.min, self.max = self.A.min().item(), self.A.max().item()
         self.mode = mode
         self.criterion = criterion
@@ -103,7 +103,7 @@ class SVD(Benchmark):
     ):
 
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_CHW(A))
+        self.A = torch.nn.Buffer(format.to_CHW(A, generator=self.rng.torch()))
 
         self.criterion = criterion
         self.ortho: linalg_utils.OrthoMode = ortho
@@ -171,7 +171,7 @@ class Eigendecomposition(Benchmark):
     ):
 
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 
@@ -236,7 +236,7 @@ class EigenWithInverse(Benchmark):
     ):
 
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 
@@ -308,7 +308,7 @@ class Cholesky(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 
@@ -356,7 +356,7 @@ class LDL(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 
@@ -411,7 +411,7 @@ class LU(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_CHW(A).float())
+        self.A = torch.nn.Buffer(format.to_CHW(A, generator=self.rng.torch()).float())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
 
@@ -470,7 +470,7 @@ class LUP(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_CHW(A).float())
+        self.A = torch.nn.Buffer(format.to_CHW(A, generator=self.rng.torch()).float())
         self.ortho: linalg_utils.OrthoMode = ortho
         self.binary_weight = binary_weight
         self.criterion = criterion
@@ -539,7 +539,7 @@ class Polar(Benchmark):
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A)).float())
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.criterion = criterion
         self.ortho: linalg_utils.OrthoMode = ortho
         self.algebra = algebras.get_algebra(algebra)
@@ -657,7 +657,7 @@ class NNMF(Benchmark):
         if true_rank is None: true_rank = rank
         A = _make_lowrank(A, true_rank, self.rng.seed)
 
-        A = format.to_CHW(A)
+        A = format.to_CHW(A, generator=self.rng.torch())
         self.A = torch.nn.Buffer(A - A.amin().clip(max=0))
 
         self.criterion = criterion

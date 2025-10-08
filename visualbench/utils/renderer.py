@@ -79,7 +79,7 @@ class OpenCVRenderer:
         self,
         outfile: PathLike | str,
         fps = 60,
-        codec="mp4v",
+        codec="avc1",
         scale: int | float = 1,
     ):
         outfile = str(outfile)

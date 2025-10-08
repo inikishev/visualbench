@@ -29,7 +29,7 @@ class Preconditioner(Benchmark):
     If ``inverse``, optimizes inverse preconditioner, so PA has a better condition number than A"""
     def __init__(self, A, p: Any=2, inverse:bool=True, algebra=None):
         super().__init__()
-        self.A = nn.Buffer(format.to_CHW(A))
+        self.A = nn.Buffer(format.to_CHW(A, generator=self.rng.torch()))
         *b, m, n = self.A.shape
         self.P = nn.Parameter(linalg_utils.orthogonal((*b, n, max(n, m)), generator=self.rng.torch()))
 

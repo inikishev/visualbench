@@ -2,6 +2,7 @@ import os
 
 import matplotlib.pyplot as plt
 import torch
+
 import visualbench as vb
 
 
@@ -36,3 +37,13 @@ def test_rendering_doesnt_error():
     benchmark.render("test.mp4")
     os.remove("test.mp4")
 
+
+def test_datasets_work():
+    benchmark = vb.SynthSeg1d(
+        vb.models.vision.ConvNetAutoencoder(1, 1, 5, 32),
+        batch_size=32,
+        test_batch_size=128,
+        criterion=torch.nn.functional.cross_entropy
+    )
+    opt = torch.optim.Adam(benchmark.parameters(), 1e-1)
+    benchmark.run(opt, 10)

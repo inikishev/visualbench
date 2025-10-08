@@ -318,49 +318,15 @@ Benchmark has a logger object where all the metrics reside. For example you can 
 
 - don't forget to move benchmarks to CUDA! Most are much faster on CUDA than on CPU.
 
+- whenever a benchmark accepts an image or a matrix, you can pass numpy array, torch tensor, or path to an image.
+
 - if you don't need visualization, use `benchmark.set_performance_mode(True)` to disable it which makes some benchmarks much faster by not running visualization code.
 
 - to disable the stupid printing use `benchmark.set_print_inverval(None)`.
 
 - benchmarks have a `benchmark.reset()` method, which resets the benchmark to initial state. It can be much faster than re-creating the benchmark from scratch in some cases, so it is good for hyperparameter tuning.
 
-- if you use optuna pruner, use `benchmark.set_trial(trial, metric="train loss")` and it will report that metric to optuna and raise `optuna.TrialPruned()`
-
-Here is an example of performing hyperparameter optimization with optuna:
-
-```python
-import torch
-import optuna
-import visualbench as vb
-
-bench = vb.Mnist1d(
-    vb.models.MLP([40, 64, 96, 128, 256, 10], act_cls=torch.nn.ELU),
-    batch_size=32, test_batch_size=None,
-).cuda()
-
-bench.set_test_intervals(test_every_forwards=10) # test every 10 forward passes
-bench.set_print_inverval(None) # disable printing
-
-def objective(trial: optuna.Trial):
-    # reset benchmark - much faster than creating from scratch
-    # as it doesn't have to re-process the dataset
-    bench.reset()
-
-    # create opt
-    lr = trial.suggest_float("lr", 1e-5, 1, log=True)
-    beta1 = trial.suggest_float("beta1", 0, 1)
-    beta2 = trial.suggest_float("beta2", 0, 1)
-    opt = torch.optim.AdamW(bench.parameters(), lr=lr, betas=(beta1, beta2))
-
-    # run and return last test loss
-    bench.run(opt, 1_000)
-    return bench.logger.nanmin("test loss") # or bench.logger.last("test loss")
-
-study = optuna.create_study()
-study.optimize(objective, timeout=600)
-print(f'{study.best_params = }')
-print(f'{study.best_value = }')
-```
+- if you use optuna pruner, use `benchmark.set_optuna_trial(trial, metric="train loss")` and it will report that metric to optuna and raise `optuna.TrialPruned()` when requested. See the hyperparameter optimization with Optuna example
 
 # Defining new benchmarks
 
@@ -397,7 +363,9 @@ class MatrixInverse(vb.Benchmark):
         loss2 = torch.nn.functional.mse_loss(AB, self.eye)
         loss3 = torch.nn.functional.mse_loss(BA, self.eye)
 
-        # log losses
+        # log individual losses
+        # note that if metric name doesn't start with "train " or "test ",
+        # it be inserted in front of the name (this is by design)
         self.log("AB BA loss", loss1)
         self.log("AB identity loss", loss2)
         self.log("BA identity loss", loss3)

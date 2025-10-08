@@ -36,7 +36,7 @@ class LinesDrawer(Benchmark):
     ):
         super().__init__()
 
-        target_image = normalize(to_HW3(target_image)).moveaxis(-1, 0)
+        target_image = normalize(to_HW3(target_image, generator=self.rng.torch())).moveaxis(-1, 0)
         self.target_image = nn.Buffer(target_image)
         self.add_reference_image('target', target_image, to_uint8=True)
 

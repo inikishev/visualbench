@@ -9,7 +9,7 @@ from torch import nn
 
 from ...benchmark import Benchmark
 from ...models.basic import MLP
-from ...utils import normalize, to_CHW
+from ...utils import normalize, to_CHW, maybe_per_sample_loss
 from ...utils.padding import pad_to_shape
 
 
@@ -56,6 +56,8 @@ class NeuralDrawer(Benchmark):
         self.add_reference_image("target", self.image, to_uint8=True)
         self._show_titles_on_video = False
 
+        self.set_multiobjective_func(torch.mean)
+
     def get_loss(self):
 
         with torch.no_grad():
@@ -87,7 +89,7 @@ class NeuralDrawer(Benchmark):
         else: preds = full_preds[mask]
         if idxs is not None: preds = preds[idxs]
 
-        loss = self.criterion(preds, targets)
+        loss = maybe_per_sample_loss(self.criterion, (preds, targets), per_sample=self._multiobjective)
 
         with torch.no_grad():
             if self._make_images:

@@ -1,4 +1,5 @@
 import copy
+from collections.abc import Iterable, Callable
 from typing import Any
 
 import numpy as np
@@ -74,3 +75,17 @@ def apply_overflow_cmap(HW: torch.Tensor) -> torch.Tensor:
     blue_overflow[:,:,2] *= 2
     frame = ((frame - red_overflow + blue_overflow) * 255).clip(0,255).to(torch.uint8).detach().cpu()
     return frame
+
+def vec_to_tensors(vec: torch.Tensor, reference: Iterable[torch.Tensor]) -> list[torch.Tensor]:
+    tensors = []
+    cur = 0
+    for r in reference:
+        numel = r.numel()
+        tensors.append(vec[cur:cur+numel].view_as(r))
+        cur += numel
+    return tensors
+
+
+def maybe_per_sample_loss(loss: Callable, args: tuple, per_sample=False):
+    if per_sample: return loss(*args, reduction='none').ravel()
+    return loss(*args)

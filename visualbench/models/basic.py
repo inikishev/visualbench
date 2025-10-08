@@ -207,21 +207,40 @@ class RNN(nn.Module):
         num_layers (int): number of layers in rnn
         rnn (Callable[..., nn.Module], optional):
             rnn class like nn.RNN, nn.LSTM or nn.GRU or something else. Defaults to nn.LSTM.
+        all_layers (bool, optional):
+            if True, passes outputs of all layers for last time step,
+            if False (default), only passes last layer output
+
     """
-    def __init__(self, in_channels, out_channels, hidden_size, num_layers, rnn: Callable[..., nn.Module]=nn.LSTM):
+    def __init__(self, in_channels, out_channels, hidden_size, num_layers, rnn: Callable[..., nn.Module]=nn.LSTM, all_layers:bool=False):
 
         super().__init__()
         self.in_channels = in_channels
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
         self.rnn = rnn(in_channels, hidden_size, num_layers, batch_first=True)
+        self.all_layers = all_layers
+
+        if all_layers: hidden_size = hidden_size * num_layers
         self.fc = nn.Linear(hidden_size, out_channels)
 
-    def forward(self, x):
-         # from (batch_size, 40) to (batch_size, 40, 1) otherwise known as (batch_size, seq_length, input_size)
-        if x.ndim == 2 and self.in_channels == 1: x = x.unsqueeze(2)
+    def forward(self, x: torch.Tensor):
+        if x.ndim == 2 and self.in_channels == 1:
+            # from (batch_size, 40) to (batch_size, 40, 1) otherwise known as (batch_size, seq_length, in_channels)
+            x = x.unsqueeze(2)
+        else:
+            # from (batch_size, in_channels, seq_length) to (batch_size, seq_length, in_channels)
+            x = x.swapaxes(1,2)
 
-        out, _ = self.rnn(x) # out: (batch_size, seq_length, hidden_size)
-        out = out[:, -1, :] # last timestep's output (batch_size, hidden_size)
-        out = self.fc(out) # (batch_size, num_classes)
-        return out
+        out, hn = self.rnn(x) # out: (batch_size, seq_length, hidden_size)
+        if isinstance(hn, tuple): hn = hn[0] # lstm also returns cell states
+
+        if self.all_layers:
+            # hidden is (num_layers, batch_size, hidden_size)
+            # outpit of all layers for last time step
+            x = hn.swapaxes(0,1).flatten(1,-1) # (batch_size, num_layers * hidden_size)
+
+        else:
+            # out is (batch_size, seq_len, hidden_size)
+            # output of last layer for all time steps
+            x = out[:, -1, :] # last timestep's output (batch_size, hidden_size)
+
+        return self.fc(x) # (batch_size, num_classes)

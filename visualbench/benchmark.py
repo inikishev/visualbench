@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from os import PathLike
-from typing import TYPE_CHECKING, Any, Literal, final
+from typing import TYPE_CHECKING, Any, Literal, final, overload
 
 import numpy as np
 import torch
@@ -200,7 +200,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._multiobjective_func = func
         return self
 
-    def set_trial(self, trial: "optuna.Trial", metric: str):
+    def set_optuna_trial(self, trial: "optuna.Trial", metric: str):
         self._trial = trial
         self._trial_report_metric = metric
         return self
@@ -221,6 +221,11 @@ class Benchmark(torch.nn.Module, ABC):
         self._test_every_epochs = test_every_epochs; self._test_every_seconds = test_every_seconds
         return self
 
+    def set_seed(self, seed: int | RNG | None):
+        self._seed = seed
+        self.rng = RNG(self._seed)
+        return self
+
     def best_params(self, metric:str = "train loss", maximize:bool=False):
         if maximize: v = self.logger.closest(metric, self.logger.stepmax(metric))
         else: v = self.logger.closest("params", self.logger.stepmin(metric))
@@ -229,6 +234,7 @@ class Benchmark(torch.nn.Module, ABC):
         torch.nn.utils.vector_to_parameters(v, params)
         return params
 
+    @torch.no_grad
     def load_best_params(self, metric:str = "train loss", maximize:bool=False):
         best = self.best_params(metric, maximize)
         for p, b in zip(self.parameters(), best):
@@ -260,7 +266,6 @@ class Benchmark(torch.nn.Module, ABC):
         if self._trial is not None:
             self._trial.report(value=value, step=self.num_forwards)
             if self._trial.should_prune():
-                print(f'pruning at {self.num_passes} passes')
                 import optuna
                 raise optuna.TrialPruned()
 
@@ -491,10 +496,8 @@ class Benchmark(torch.nn.Module, ABC):
             self._is_perturbed = False
 
             # test epoch every train steps
-            if self._dltest is not None:
-                if (self._test_every_steps is not None) and (self.num_steps % self._test_every_steps == 0):
-                    if (self._last_test_pass is None) or (self.num_passes != self._last_test_pass):
-                        self._test_epoch()
+            if (self._test_every_steps is not None) and (self.num_steps % self._test_every_steps == 0):
+                self._maybe_test_epoch()
 
         else:
             self._is_perturbed = False
@@ -512,10 +515,8 @@ class Benchmark(torch.nn.Module, ABC):
             self.num_epochs += 1
 
             # test epoch every train epochs
-            if self._dltest is not None:
-                if (self._test_every_epochs is not None) and (self.num_steps % self._test_every_epochs == 0):
-                    if (self._last_test_pass is None) or (self.num_passes != self._last_test_pass):
-                        self._test_epoch()
+            if (self._test_every_epochs is not None) and (self.num_steps % self._test_every_epochs == 0):
+                self._maybe_test_epoch()
 
     def _test_epoch(self):
         assert self._dltest is not None
@@ -532,26 +533,132 @@ class Benchmark(torch.nn.Module, ABC):
         self.train()
         _benchmark_utils._aggregate_test_metrics_(self) # this needs to be called after .train because log checks if training
 
+    def _maybe_test_epoch(self):
+        if self._dltest is not None:
+            if (self._last_test_pass is None) or (self.num_passes != self._last_test_pass):
+                self._test_epoch()
+
     # this is for non pytorch opts
     def get_x0(self):
         return torch.nn.utils.parameters_to_vector(p for p in self.parameters() if p.requires_grad)
 
-    def loss_at(self, x: np.ndarray | Any):
-        """returns float loss at ``x``, where ``x`` is 1d numpy array"""
-        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
-        torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
-        return utils.tofloat(self.closure(backward=False))
+    @overload
+    def loss_at(self, x: np.ndarray | list | tuple) -> np.ndarray: ...
+    @overload
+    def loss_at(self, x: torch.Tensor) -> torch.Tensor: ...
+    def loss_at(self, x):
+        """Evaluates objective value at point ``x``, where ``x`` is ``numpy.ndarray`` or ``torch.Tensor``
+        vector with same length as number of parameters in this benchmark.
 
-    def loss_grad_at(self, x:Any):
-        """returns tuple ``(loss, grad)`` at ``x``, where ``x`` is 1d numpy array. Gradient is of the same length as ``x``."""
+        If ``x`` is a tensor, returns tensor, otherwise returns a numpy scalar
+        or numpy array for multi-objective benchmarks.
+        """
         xt = utils.totensor(x, device=self.device, dtype=self.dtype)
         torch.nn.utils.vector_to_parameters(xt, (p for p in self.parameters() if p.requires_grad))
-        loss = utils.tofloat(self.closure(backward=True))
-        grad = torch.cat(
-            [p.grad.ravel() if p.grad is not None else torch.zeros_like(p) for p in self.parameters() if p.requires_grad]
-        )
+
+        if isinstance(x, torch.Tensor):
+            loss = self.closure(backward=False)
+            return loss
+
+        with torch.no_grad():
+            loss = self.closure(backward=False)
+            return loss.numpy(force=True)
+
+
+    @overload
+    def loss_grad_at(self, x:np.ndarray | list | tuple) -> tuple[float, np.ndarray]: ...
+    @overload
+    def loss_grad_at(self, x:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]: ...
+    def loss_grad_at(self, x):
+        """Evaluates objective value and gradient at point ``x``,
+        where ``x`` is ``numpy.ndarray`` or ``torch.Tensor``
+        vector with same length as number of parameters in this benchmark.
+
+        Returns ``(value, gradient)`` tuple, where ``gradient`` is a vector of same length as ``x``.
+
+        If ``x`` is a tensor, ``gradient`` is a tensor, otherwise it is a numpy array.
+
+        Note: this currently doesn't support multiobjective benchmarks.
+        """
+        params = [p for p in self.parameters() if p.requires_grad]
+        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
+        torch.nn.utils.vector_to_parameters(xt, params)
+
+        with torch.enable_grad():
+            loss = self.closure(backward=False)
+            grad_list = torch.autograd.grad(loss, params, allow_unused=True, materialize_grads=True)
+
+        grad = torch.cat([g.ravel() for g in grad_list])
+
         if isinstance(x, torch.Tensor): return loss, grad.to(x)
-        return loss, utils.tonumpy(grad)
+        return float(loss.item()), grad.numpy(force=True)
+
+    @overload
+    def loss_grad_hess_at(self, x:np.ndarray | list | tuple) -> tuple[float, np.ndarray, np.ndarray]: ...
+    @overload
+    def loss_grad_hess_at(self, x:torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]: ...
+    def loss_grad_hess_at(self, x):
+        """Evaluates objective value, gradient and hessian at point ``x``,
+        where ``x`` is ``numpy.ndarray`` or ``torch.Tensor``
+        vector with same length as number of parameters in this benchmark.
+
+        Returns ``(value, gradient, hessian)`` tuple, where ``gradient`` is a vector of same length as ``x``,
+        and ``hessian`` has shape ``(ndim, ndim)``
+
+        If ``x`` is a tensor, ``gradient`` and ``hessian`` are tensors,
+        otherwise they are numpy arrays.
+
+        Note: this currently doesn't support multiobjective benchmarks.
+        """
+        params = [p for p in self.parameters() if p.requires_grad]
+        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
+        torch.nn.utils.vector_to_parameters(xt, params)
+
+        with torch.enable_grad():
+            loss = self.closure(backward=False)
+            grad_list = torch.autograd.grad(loss, params, allow_unused=True, materialize_grads=True, create_graph=True)
+            grad = torch.cat([g.ravel() for g in grad_list])
+            I = torch.eye(len(grad), device=grad.device, dtype=grad.dtype)
+            hessian_list = torch.autograd.grad(
+                grad, params, I, allow_unused=True, materialize_grads=True, is_grads_batched=True)
+
+        n_out = hessian_list[0].shape[0]
+        hessian = torch.cat([j.reshape(n_out, -1) for j in hessian_list], dim=1)
+
+        if isinstance(x, torch.Tensor): return loss, grad.to(x), hessian.to(x)
+        return float(loss.item()), grad.numpy(force=True), hessian.numpy(force=True)
+
+    @overload
+    def loss_grad_hvp_at(self, x:np.ndarray | list | tuple, v: np.ndarray | list | tuple) -> tuple[float, np.ndarray, np.ndarray]: ...
+    @overload
+    def loss_grad_hvp_at(self, x:torch.Tensor, v: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]: ...
+    def loss_grad_hvp_at(self, x, v):
+        """Evaluates objective value, gradient and hessian-vector product
+        with ``v`` at point ``x``, where ``x`` is ``numpy.ndarray`` or ``torch.Tensor``
+        vector with same length as number of parameters in this benchmark.
+
+        Returns ``(value, gradient, hvp)`` tuple, where ``gradient`` and ``hvp`` are vectors of same length as ``x``,
+
+        If ``x`` is a tensor, ``gradient`` and ``hvp`` are tensors,
+        otherwise they are numpy arrays.
+
+        Note: this currently doesn't support multiobjective benchmarks.
+        """
+        params = [p for p in self.parameters() if p.requires_grad]
+        xt = utils.totensor(x, device=self.device, dtype=self.dtype)
+        vt = utils.totensor(v, device=self.device, dtype=self.dtype)
+        torch.nn.utils.vector_to_parameters(xt, params)
+
+        with torch.enable_grad():
+            loss = self.closure(backward=False)
+            grad_list = torch.autograd.grad(loss, params, allow_unused=True, materialize_grads=True, create_graph=True)
+            vt_list = torch_tools.vec_to_tensors(vt, reference=grad_list)
+            hvp_list = torch.autograd.grad(grad_list, params, vt_list, allow_unused=True, materialize_grads=True)
+
+        grad = torch.cat([g.ravel() for g in grad_list])
+        hvp = torch.cat([h.ravel() for h in hvp_list])
+        if isinstance(x, torch.Tensor): return loss, grad.to(x), hvp.to(x)
+        return float(loss.item()), grad.numpy(force=True), hvp.numpy(force=True)
 
 
     def run(
@@ -637,11 +744,11 @@ class Benchmark(torch.nn.Module, ABC):
                 if self._should_stop: break
 
         except tuple(exceptions):
-            if self._dltest is not None: self._test_epoch()
+            self._maybe_test_epoch()
             if self._print_interval_s: _benchmark_utils._print_final_report(self)
 
         else:
-            if self._dltest is not None: self._test_epoch()
+            self._maybe_test_epoch()
             if self._print_interval_s: _benchmark_utils._print_final_report(self)
 
         return self

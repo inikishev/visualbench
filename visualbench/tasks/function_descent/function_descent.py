@@ -33,15 +33,17 @@ class FunctionDescent(Benchmark):
     Args:
         func (Callable | str):
             function or string name of one of the test functions.
-        x0 (ArrayLike): initial parameters
+            Use ``FunctionDescent.list_funcs()`` to print all functions.
+        x0 (ArrayLike): initial parameters (if None, func must be a string)
         bounds:
             Either ``(xmin, xmax, ymin, ymax)``, or ``((xmin, xmax), (ymin, ymax))`.`
             This is only used for plotting and defines the extent of what is plotted. If None,
             bounds are determined from minimum and maximum values of coords that have been visited.
-        minima (_type_, optional): optinal coords of the minima. Defaults to None.
+        minima (tuple[float, float], optional): optinal coords of the minima for plotting. Defaults to None.
         dtype (torch.dtype, optional): dtype. Defaults to torch.float32.
         device (torch.types.Device, optional): device. Defaults to "cuda".
-        unpack (bool, optional): if True, function is called as `func(*x)`, otherwise `func(x)`. Defaults to True.
+        unpack (bool, optional):
+            if True, function is called as ``func(x[0], x[1])``, otherwise ``func(x)``. Defaults to True.
     """
     _LOGGER_XY_KEY: str = "params"
     def __init__(

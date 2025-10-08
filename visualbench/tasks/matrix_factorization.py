@@ -9,6 +9,7 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 from ..benchmark import Benchmark
+from ..utils import maybe_per_sample_loss
 from ..utils.light_dataloader import TensorDataLoader
 from ..utils._benchmark_utils import _should_run_test_epoch
 
@@ -45,6 +46,7 @@ class MFMovieLens(Benchmark):
         self.iter_train = cycle(self.dl_train)
         self.criterion = criterion
         self.to(device)
+        self.set_multiobjective_func(torch.mean)
 
     def _load_movie_lens(self):
         data_path = self.data_dir / "u.data"
@@ -98,7 +100,7 @@ class MFMovieLens(Benchmark):
         users, items, ratings = users.to(self.device), items.to(self.device), ratings.to(self.device)
 
         preds = self.model(users, items)
-        loss = self.criterion(preds, ratings)
+        loss = maybe_per_sample_loss(self.criterion, (preds,ratings), per_sample=self._multiobjective)
 
         if _should_run_test_epoch(self, check_dltest=False):
             self._test_epoch()

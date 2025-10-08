@@ -164,58 +164,39 @@ class TinyLongConvNet(nn.Module):
 
 class ConvNet(nn.Module):
     """134,410 params if ndim=1"""
-    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls:Callable = nn.ReLU, dropout=0.2):
+    def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, widths=(32, 64, 128, 256), kernel_size=3, act_cls:Callable = nn.ReLU, dropout=0.2):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
-        ndim = len(in_size)
+        self.ndim = len(in_size)
 
-        Conv = ConvNd(ndim)
-        Dropout = DropoutNd(ndim)
-        BatchNorm = BatchNormNd(ndim)
-        MaxPool = MaxPoolNd(ndim)
+        Conv = ConvNd(self.ndim)
+        Dropout = DropoutNd(self.ndim)
+        BatchNorm = BatchNormNd(self.ndim)
+        MaxPool = MaxPoolNd(self.ndim)
 
-        self.c1 = nn.Sequential(
-            Conv(in_channels, 32, kernel_size=3, bias=False),
-            MaxPool(2),
-            act_cls(),
-            BatchNorm(32, track_running_stats=False),
-            Dropout(dropout) if dropout > 0 else nn.Identity(),
-        )
+        layers = []
+        widths = [in_channels] + list(widths)
+        for i,o in zip(widths[:-1], widths[1:]):
 
-        self.c2 = nn.Sequential(
-            Conv(32, 64, kernel_size=3, bias=False),
-            MaxPool(2),
-            act_cls(),
-            BatchNorm(64, track_running_stats=False),
-            Dropout(dropout) if dropout > 0 else nn.Identity(),
-        )
+            layers.append(
+                nn.Sequential(
+                    Conv(i, o, kernel_size=kernel_size, bias=False),
+                    MaxPool(2),
+                    act_cls(),
+                    BatchNorm(o, track_running_stats=False),
+                    Dropout(dropout) if dropout > 0 else nn.Identity(),
+                )
+            )
 
-        self.c3 = nn.Sequential(
-            Conv(64, 128, kernel_size=3, bias=False),
-            MaxPool(2),
-            act_cls(),
-            BatchNorm(128, track_running_stats=False),
-            Dropout(dropout) if dropout > 0 else nn.Identity(),
-        )
-
-        self.c4 = nn.Sequential(
-            Conv(128, 256, kernel_size=3, bias=False),
-            MaxPool(2),
-            act_cls(),
-            BatchNorm(256, track_running_stats=False),
-            Dropout(dropout) if dropout > 0 else nn.Identity(),
-        )
-
+        self.layers = nn.Sequential(*layers)
         dummy = torch.randn(1,in_channels,*in_size)
-        dummy = self.c4(self.c3(self.c2(self.c1(dummy)))).flatten(1,-1)
+        dummy = self.layers(dummy).flatten(1,-1)
         self.linear = nn.Linear(dummy.size(1), out_channels)
 
     def forward(self, x):
-        if x.ndim == 2: x = x.unsqueeze(1)
-        x = self.c1(x)
-        x = self.c2(x)
-        x = self.c3(x)
-        return self.linear(x)
+        if x.ndim == self.ndim + 1: x = x.unsqueeze(1)
+        x = self.layers(x)
+        return self.linear(x.flatten(1,-1))
 
 
 
@@ -347,7 +328,6 @@ class ConvNetAutoencoder(nn.Module):
         dropout=None,
         sparse_reg: float | None = None,
         squeeze:bool=True,
-        vae:bool=False,
 
     ):
         super().__init__()
@@ -373,14 +353,8 @@ class ConvNetAutoencoder(nn.Module):
         self.out_size = out_size
         self.squeeze = squeeze
         self.out_channels = out_channels
-        self.vae = vae
         self.ndim = ndim
         self.x_vis = None
-
-    def reparameterization(self, mean, var):
-        epsilon = torch.randn_like(var)
-        z = mean + var*epsilon
-        return z
 
     def forward(self, x):
         if x.ndim == self.ndim+1: x = x.unsqueeze(1)

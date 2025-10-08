@@ -22,7 +22,7 @@ class CaliforniaHousing(DatasetBenchmark):
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.8,
+        train_split=0.8,
         normalize_x=True,
         normalize_y=True,
     ):
@@ -34,7 +34,7 @@ class CaliforniaHousing(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             normalize=(normalize_x, normalize_y),
         )
@@ -56,7 +56,7 @@ class Moons(DatasetBenchmark):
         test_batch_size: int | None = None,
         n_samples = 1024,
         noise = 0.2,
-        test_split=None,
+        train_split=None,
         shuffle_split=True,
         normalize_x=True,
     ):
@@ -68,7 +68,7 @@ class Moons(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=shuffle_split,
             normalize=(normalize_x, False),
             decision_boundary=True,
@@ -89,7 +89,7 @@ class OlivettiFaces(DatasetBenchmark):
         criterion=F.cross_entropy,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.75,
+        train_split=0.75,
         normalize_x=True,
     ):
         import sklearn.datasets
@@ -100,7 +100,7 @@ class OlivettiFaces(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             dtypes = (torch.float32, torch.int64),
             normalize=(normalize_x, False),
@@ -120,7 +120,7 @@ class OlivettiFacesAutoencoding(DatasetBenchmark):
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.75,
+        train_split=0.75,
         normalize_x=True,
     ):
         import sklearn.datasets
@@ -131,7 +131,7 @@ class OlivettiFacesAutoencoding(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             normalize=(normalize_x,),
         )
@@ -151,7 +151,7 @@ class Digits(DatasetBenchmark):
         criterion=F.cross_entropy,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.75,
+        train_split=0.75,
         normalize_x=True,
     ):
         import sklearn.datasets
@@ -162,7 +162,7 @@ class Digits(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             dtypes = (torch.float32, torch.int64),
             normalize=(normalize_x, False),
@@ -181,7 +181,7 @@ class Covertype(DatasetBenchmark):
         criterion=F.cross_entropy,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.8,
+        train_split=0.8,
         normalize_x=True,
     ):
         import sklearn.datasets
@@ -192,7 +192,7 @@ class Covertype(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             dtypes = (torch.float32, torch.int64),
             normalize=(normalize_x, False),
@@ -212,7 +212,7 @@ class KDDCup1999(DatasetBenchmark):
         criterion=F.cross_entropy,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.8,
+        train_split=0.8,
         normalize_x=True,
         percent10: bool = True,
     ):
@@ -227,7 +227,7 @@ class KDDCup1999(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             dtypes = (torch.float32, torch.int64),
             normalize=(normalize_x, False),
@@ -249,7 +249,7 @@ class Friedman1(DatasetBenchmark):
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.8,
+        train_split=0.8,
         normalize_x=True,
         normalize_y=True,
     ):
@@ -261,7 +261,7 @@ class Friedman1(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             normalize=(normalize_x, normalize_y),
         )
@@ -283,7 +283,7 @@ class Friedman2(DatasetBenchmark):
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.8,
+        train_split=0.8,
         normalize_x=True,
         normalize_y=True,
     ):
@@ -295,7 +295,7 @@ class Friedman2(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             normalize=(normalize_x, normalize_y),
         )
@@ -316,7 +316,7 @@ class Friedman3(DatasetBenchmark):
         criterion=F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.8,
+        train_split=0.8,
         normalize_x=True,
         normalize_y=True,
     ):
@@ -328,7 +328,7 @@ class Friedman3(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            test_split=test_split,
+            train_split=train_split,
             shuffle_split=True,
             normalize=(normalize_x, normalize_y),
         )

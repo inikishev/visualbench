@@ -128,7 +128,6 @@ class GraphLayout(Benchmark):
     Args:
         adj (Sequence[Sequence[int]]): Adjacency list representation of the graph.
                             adj[i] contains the list of neighbors for node i.
-        canvas_size (int): The width and height of the visualization canvas.
         k_attraction (float): Strength of the attraction force between connected nodes.
         k_repulsion (float): Strength of the repulsion force between all nodes.
         epsilon (float): Small value added to distances to prevent division by zero.
@@ -136,6 +135,7 @@ class GraphLayout(Benchmark):
                                         If None, random positions are used.
         node_radius (int): Radius of nodes in visualization.
         line_thickness (int): Thickness of edges in visualization.
+        resolution (int): The width and height of the visualization canvas.
         camera_smoothing_factor (float): Smoothing factor for camera movement (0 < alpha <= 1).
                                         Smaller values result in smoother, slower camera motion.
     """
@@ -146,7 +146,6 @@ class GraphLayout(Benchmark):
     def __init__(
         self,
         adj: Sequence[Sequence[int]],
-        canvas_size: int = 400,
         k_attraction: float = 1.0,
         k_repulsion: float = 1e7,
         epsilon: float = 1e-4,
@@ -157,6 +156,7 @@ class GraphLayout(Benchmark):
         node_color: tuple[int, int, int] = (255, 0, 0),
         edge_color: tuple[int, int, int] = (0, 255, 0),
         bg_color: tuple[int, int, int] = (0, 0, 0),
+        resolution: int = 400,
         camera_smoothing_factor: float = 0.2,
     ):
         super().__init__()
@@ -167,7 +167,7 @@ class GraphLayout(Benchmark):
 
         self.num_nodes = num_nodes
         self.adj = adj
-        self.canvas_size = canvas_size
+        self.canvas_size = resolution
         self.k_attraction = k_attraction
         self.k_repulsion = k_repulsion
         self.epsilon = epsilon
@@ -182,7 +182,7 @@ class GraphLayout(Benchmark):
 
         # node positions
         if init_pos is None:
-            positions = torch.rand(num_nodes, 2, dtype=torch.float32, generator=self.rng.torch()) * canvas_size
+            positions = torch.rand(num_nodes, 2, dtype=torch.float32, generator=self.rng.torch()) * resolution
         else:
             positions = torch.as_tensor(init_pos, dtype=torch.float32)
 

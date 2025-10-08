@@ -139,7 +139,7 @@ class SynthSeg1d(DatasetBenchmark):
         criterion, # = DiceFocalLoss(softmax=True,),
         batch_size: int | None = None,
         test_batch_size: int | None = None,
-        test_split=0.8,
+        train_split=0.8,
         num_samples=10_000,
         seq_length=32,
         num_classes=5,
@@ -155,14 +155,14 @@ class SynthSeg1d(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size = test_batch_size,
-            test_split=test_split,
-            dtypes = (torch.float32, torch.uint64),
+            train_split=train_split,
+            dtypes = (torch.float32, torch.float32),
             data_device = device,
         )
 
 
-if __name__ == "__main__":
-    dataset = _SyntheticSegmentation1D(num_samples=1000)
-    print(f"Dataset size: {len(dataset)}")
-    sample, label = dataset[0]
-    print(f"Sample shape: {sample.shape}, Label shape: {label.shape}")
+# if __name__ == "__main__":
+#     dataset = _SyntheticSegmentation1D(num_samples=1000)
+#     print(f"Dataset size: {len(dataset)}")
+#     sample, label = dataset[0]
+#     print(f"Sample shape: {sample.shape}, Label shape: {label.shape}")

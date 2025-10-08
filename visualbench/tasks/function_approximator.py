@@ -8,7 +8,7 @@ from torch.nn import functional as F
 
 import visualbench as vb
 from visualbench.benchmark import Benchmark
-from visualbench.utils import totensor
+from visualbench.utils import totensor, maybe_per_sample_loss
 
 
 @torch.no_grad
@@ -88,6 +88,7 @@ class FunctionApproximator(Benchmark):
 
         self.resolution = resolution
         self._show_titles_on_video = False
+        self.set_multiobjective_func(torch.mean)
 
     @staticmethod
     def SINE(periods=4, n=1024):
@@ -109,10 +110,10 @@ class FunctionApproximator(Benchmark):
             xs.append(x)
 
         if self.batch_size is None:
-            loss = self.criterion(x, self.target)
+            loss = maybe_per_sample_loss(self.criterion, (x, self.target), per_sample=self._multiobjective)
         else:
             idxs = torch.randperm(self.target.size(0))[:self.batch_size]
-            loss = self.criterion(x[idxs], self.target[idxs])
+            loss = maybe_per_sample_loss(self.criterion, (x[idxs], self.target[idxs]), per_sample=self._multiobjective)
             with torch.no_grad():
                 self.log('test loss', self.criterion(x, self.target))
 

@@ -152,7 +152,7 @@ class MatrixIdempotent(Benchmark):
     """
     def __init__(self, A, n: int, chain:Literal['first', 'last'] | None = 'last', criterion:Callable=torch.nn.functional.mse_loss, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
 
         # this keeps norm at 1 from applying matrix power
         nuc = torch.linalg.matrix_norm(self.A, 'nuc', keepdim=True) # pylint:disable=not-callable
@@ -217,7 +217,7 @@ class StochasticMatrixIdempotent(Benchmark):
     """
     def __init__(self, A, n: int, batch_size: int = 1, chain:Literal['first', 'last'] | None = 'last', criterion=torch.nn.functional.mse_loss, vec=True, algebra=None, seed=0):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(to_square(to_CHW(A)))
+        self.A = torch.nn.Buffer(to_square(to_CHW(A, generator=self.rng.torch())))
 
         # this keeps norm at 1 from applying matrix power
         nuc = torch.linalg.matrix_norm(self.A, 'nuc', keepdim=True) # pylint:disable=not-callable

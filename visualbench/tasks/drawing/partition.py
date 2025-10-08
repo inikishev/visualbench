@@ -27,7 +27,7 @@ class PartitionDrawer(Benchmark):
         self.softmax_beta = nn.Parameter(torch.tensor(min_softmax_beta, dtype=torch.float32))
         self.min_softmax_beta = min_softmax_beta
 
-        image = to_HW3(image).float()
+        image = to_HW3(image, generator=self.rng.torch()).float()
         image = image - image.min()
         image = image / image.max()
         self.target = nn.Buffer(image)

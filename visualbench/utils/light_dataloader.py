@@ -26,6 +26,21 @@ class _SupportsLenAndGetitem(Protocol[_T_co]):
     def __len__(self) -> int: ...
     def __getitem__(self, __k: int, /) -> _T_co: ...
 
+def _get_generator(seed: int|None|torch.Generator, device):
+    if isinstance(seed, torch.Generator):
+        generator = seed
+        seed = generator.seed()
+    elif seed is not None:
+        generator = torch.Generator(device).manual_seed(seed)
+    else:
+        generator = None
+        seed = None
+
+    generator_state = None
+    if generator is not None:
+        generator_state = generator.get_state().clone()
+
+    return generator, generator_state, seed
 
 # ----------------------------- tensor dataloader ---------------------------- #
 
@@ -60,6 +75,7 @@ class TensorDataLoader(Generic[_TensorOrTuple]):
         """
 
         self.data: _TensorOrTuple = data
+        self._shuffled_data = None
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.memory_efficient = memory_efficient
@@ -67,14 +83,16 @@ class TensorDataLoader(Generic[_TensorOrTuple]):
         self._istensor = isinstance(self.data, torch.Tensor)
         self.device = self.data.device if isinstance(self.data, torch.Tensor) else self.data[0].device
 
-        self.seed = seed
-        if isinstance(self.seed, torch.Generator): self.generator = self.seed
-        elif seed is not None: self.generator = torch.Generator(self.device).manual_seed(seed)
-        else: self.generator = None
+        self.generator, self.generator_state, self.seed = _get_generator(seed, self.device)
+
+    def reset_rng(self):
+        if self.generator is None: return
+        assert self.generator_state is not None
+        self.generator.set_state(self.generator_state.clone())
 
     def data_length(self):
         ref = self.data if self._istensor else self.data[0]
-        return ref.size(0)
+        return ref.size(0) # pyright:ignore[reportAttributeAccessIssue]
 
     def __len__(self):
         return math.ceil(self.data_length() / self.batch_size)
@@ -83,14 +101,16 @@ class TensorDataLoader(Generic[_TensorOrTuple]):
         if self.shuffle:
             idxs = torch.randperm(self.data_length(), generator = self.generator, device = self.device)
             if self._istensor:
-                self.data = torch.index_select(self.data, 0, idxs)
+                self._shuffled_data = torch.index_select(self.data, 0, idxs) # pyright:ignore[reportCallIssue,reportArgumentType]
             else:
-                self.data = [torch.index_select(i, 0, idxs) for i in self.data]
+                self._shuffled_data = [torch.index_select(i, 0, idxs) for i in self.data]
+        else:
+            self._shuffled_data = self.data
 
         if self._istensor:
-            yield from self.data.split(self.batch_size)
+            yield from self._shuffled_data.split(self.batch_size) # pyright:ignore[reportAttributeAccessIssue]
         else:
-            yield from zip(*(i.split(self.batch_size) for i in self.data))
+            yield from zip(*(i.split(self.batch_size) for i in self._shuffled_data))
 
     def _memory_efficient_iter(self) -> Generator[_TensorOrTuple, None, None]:
         if self.shuffle:
@@ -98,13 +118,13 @@ class TensorDataLoader(Generic[_TensorOrTuple]):
 
             for batch_indices in idxs.split(self.batch_size):
                 if self._istensor:
-                    yield self.data[batch_indices]
+                    yield self.data[batch_indices] # pyright:ignore[reportCallIssue,reportArgumentType]
                 else:
                     yield [i[batch_indices] for i in self.data]
 
         else:
             if self._istensor:
-                yield from self.data.split(self.batch_size)
+                yield from self.data.split(self.batch_size) # pyright:ignore[reportAttributeAccessIssue]
             else:
                 yield from zip(*(i.split(self.batch_size) for i in self.data))
 
@@ -149,9 +169,17 @@ class LightDataLoader(Generic[_SampleOrTuple]):
 
         self._use_getitems = hasattr(self.data, "__getitems__")
 
-        self.seed = seed
-        if isinstance(self.seed, np.random.Generator): self.generator = self.seed
-        else: self.generator = np.random.default_rng(seed)
+        if isinstance(seed, np.random.Generator):
+            self.generator = seed
+            self.seed = None
+
+        else:
+            self.seed = seed
+            self.generator = np.random.default_rng(seed)
+
+
+    def reset_rng(self):
+        if self.seed is not None: self.generator = np.random.default_rng(self.seed)
 
     def __len__(self):
         return math.ceil(len(self.data) / self.batch_size)
