@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "visualbench"
-version = "1.0.2"
+version = "1.0.3"
 requires-python = ">=3.12"
 dependencies = [
   "torch",
