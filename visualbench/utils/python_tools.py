@@ -47,9 +47,9 @@ def reduce_dim(x:Iterable[Iterable[X]]) -> list[X]: # pylint:disable=E0602
     return functools.reduce(operator.iconcat, x, [])
 
 
-class SortedSet[T](UserList[T]):
+class SortedSet(UserList):
     """not efficient"""
-    def add(self, v: T):
+    def add(self, v):
         if v not in self: self.append(v)
 
     def intersection(self, other):
