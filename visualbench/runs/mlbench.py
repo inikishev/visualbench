@@ -96,12 +96,12 @@ class MLBench(OptimizerBenchPack):
 
     def run_ml(self):
         """non-stochastic ML tasks"""
-        # ------------------------------ PINN (Wave PDE) ----------------------------- #
-        # ndim = 132,611
-        # 22s. ~ 7m. 20s.
-        # 9+3=12 ~ 4m. 20s.
-        bench = tasks.WavePINN(tasks.WavePINN.FLS(2, 1, hidden_size=256, n_hidden=3)).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'ML - Wave PDE - FLS', passes=10_000, sec=600, metrics='train loss', vid_scale=4)
+        # # ------------------------------ PINN (Wave PDE) ----------------------------- #
+        # # ndim = 132,611
+        # # 22s. ~ 7m. 20s.
+        # # 9+3=12 ~ 4m. 20s.
+        # bench = tasks.WavePINN(tasks.WavePINN.FLS(2, 1, hidden_size=256, n_hidden=3)).to(CUDA_IF_AVAILABLE)
+        # self.run_bench(bench, 'ML - Wave PDE - FLS', passes=10_000, sec=600, metrics='train loss', vid_scale=4)
 
     def run_mls(self):
         """stochastic ML tasks"""
