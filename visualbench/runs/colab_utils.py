@@ -42,6 +42,7 @@ def performance_tweaks(
     gradcheck: bool | None=False,
     gradgradcheck: bool | None=False,
 ):
+    """note that deterministic is none only for this one"""
     import torch
     # causes cuDNN to benchmark multiple convolution algorithms and select the fastest
     if cudnn_bench is not None: torch.backends.cudnn.benchmark = cudnn_bench
@@ -69,8 +70,9 @@ def performance_tweaks(
     if emit_nvtx is not None: torch.autograd.profiler.emit_nvtx(emit_nvtx) # type:ignore
 
     # optimizes contraction order for einsum operation
-    if opt_einsum is not None:
-        torch.backends.opt_einsum.enabled = opt_einsum
+    if hasattr(torch.backends, "opt_einsum"):
+        if opt_einsum is not None:
+            torch.backends.opt_einsum.enabled = opt_einsum
 
-    # larger search time (1 s. on 1st call) but very fast einsum
-    if opt_einsum_strategy is not None: torch.backends.opt_einsum.strategy = opt_einsum_strategy
+        # larger search time (1 s. on 1st call) but very fast einsum
+        if opt_einsum_strategy is not None: torch.backends.opt_einsum.strategy = opt_einsum_strategy
