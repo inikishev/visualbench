@@ -43,7 +43,7 @@ class MLBench(OptimizerBenchPack):
         save: bool = True,
         accelerate: bool = True,
         load_existing: bool = True,
-        render_vids: bool = False,
+        render_vids: bool = True,
 
         # pass stuff
         num_extra_passes: float | Callable[[int], float] = 0,
@@ -52,7 +52,7 @@ class MLBench(OptimizerBenchPack):
         init_fn = lambda opt_fn, bench, value: opt_fn([p for p in bench.parameters() if p.requires_grad], value)
     ):
         kwargs = locals().copy()
-        del kwargs["self"]
+        del kwargs["self"], kwargs["__class__"]
         super().__init__(**kwargs)
 
     def run(self):
@@ -64,33 +64,33 @@ class MLBench(OptimizerBenchPack):
 
     def run_2d(self):
         bench = tasks.FunctionDescent('booth')
-        self.run_bench(bench, '2D - booth', passes=200, sec=10, metrics='train loss', vid_scale=1, fps=10)
+        self.run_bench(bench, '2D - booth', passes=200, sec=10, metrics='train loss', vid_scale=1, fps=10, binary_mul=3)
 
         bench = tasks.FunctionDescent('rosen')
-        self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1)
+        self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1, binary_mul=3)
 
         bench = tasks.FunctionDescent('rosenabs')
-        self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1)
+        self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1, binary_mul=3)
 
         bench = tasks.FunctionDescent('mycs1')
-        self.run_bench(bench, '2D - mycs1', passes=500, sec=60, metrics='train loss', vid_scale=1)
+        self.run_bench(bench, '2D - mycs1', passes=500, sec=60, metrics='train loss', vid_scale=1, binary_mul=3)
 
 
     def run_visual(self):
         # basic
         # ------------------------------ Rosenbrock-256 ------------------------------ #
         bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - Rosenbrock 384', passes=2000, sec=30, metrics='train loss', vid_scale=4)
+        self.run_bench(bench, 'S - Rosenbrock 384', passes=2000, sec=30, metrics='train loss', vid_scale=4, binary_mul=3)
 
         # ------------------------------- neural drawer ------------------------------ #
         bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP([2,16,16,16,16,16,16,16,3], act_cls=nn.ReLU, bn=True), expand=48).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2000, sec=60, metrics='train loss', vid_scale=2)
+        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2000, sec=60, metrics='train loss', vid_scale=2, binary_mul=3)
 
         # ------------------------------- Colorization ------------------------------- #
         # ndim  = 1024
         # 3.2s. ~ 1m. 4s.
         bench = tasks.Colorization().to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Colorization', passes=2_000, sec=60, metrics='train loss', vid_scale=4)
+        self.run_bench(bench, 'Visual - Colorization', passes=2_000, sec=60, metrics='train loss', vid_scale=2, binary_mul=3)
 
     def run_ml(self):
         """non-stochastic ML tasks"""
@@ -116,15 +116,15 @@ class MLBench(OptimizerBenchPack):
         bench_name = 'MLS - MovieLens BS-32 - Matrix Factorization'
         self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
 
-        # ------------------------------- MLP (MNIST-1D) ------------------------------ #
-        # ndim = 56,874
-        # 9.4s ~ 2m. 28s.
+        # ------------------------------- RNN (MNIST-1D) ------------------------------ #
+        # ndim = 20,410
+        # 11s. ~ 3m. 30s.
         bench = tasks.datasets.Mnist1d(
-            models.MLP([40, 64, 96, 128, 256, 10], act_cls=nn.ELU),
-            batch_size=64
+            models.RNN(1, 10, hidden_size=40, num_layers=2, rnn=torch.nn.RNN),
+            batch_size=128,
         ).to(CUDA_IF_AVAILABLE)
-        bench_name = "MLS - MNIST-1D BS-64 - MLP(40-64-96-128-256-10)"
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics = "test loss", vid_scale=None)
+        bench_name = 'MLS - MNIST-1D BS-128 - RNN(2x40)'
+        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None, binary_mul=0.5)
 
         # ------------------------------- RNN (XOR) ------------------------------ #
         # ndim = 20,410

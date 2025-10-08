@@ -39,8 +39,8 @@ class EnglishWords(DatasetBenchmark):
     - ``"word"`` - ``(batch_size, 27, length)```
     - ``"phonetic"`` - ``(batch_size, 87, length)```
     - ``"stress_syllable"`` - ``(batch_size, 16, 2)```
-    - ``"stress_pos"`` - ``(batch_size, 1)``
-    - ``"syllable_len"`` - ``(batch_size, 1)``
+    - ``"stress_pos"`` - ``(batch_size, something)``
+    - ``"syllable_len"`` - ``(batch_size, something)``
     """
 
     def __init__(
@@ -73,7 +73,7 @@ class EnglishWords(DatasetBenchmark):
         X = _load_one_hot_col(df, input, input_length)
 
         if target in ("stress_pos", "syllable_len"):
-            y = df[target].to_torch().unsqueeze(1)
+            y = F.one_hot(df[target].to_torch().long()) # pylint:disable=not-callable
         else:
             if target == "stress_syllable": target_length = 2
             y = _load_one_hot_col(df, target, target_length)
