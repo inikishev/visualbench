@@ -1,6 +1,6 @@
 # pylint: disable=undefined-variable
 from collections.abc import Mapping, MutableMapping, Sequence
-
+from typing import Any
 
 def normalize_string(s:str):
     return ''.join([c.lower() for c in s if c.isalnum()])
@@ -10,23 +10,23 @@ __all__ = [
 ]
 
 
-class RelaxedMultikeyDict[VT](MutableMapping[str, VT]):
+class RelaxedMultikeyDict(MutableMapping[str, Any]):
     def __init__(self):
-        self._prim_to_values: dict[str, VT] = dict()
+        self._prim_to_values: dict[str, Any] = dict()
         """Mapping from primary keys to values"""
         self._relaxed_to_prim: dict[str, str] = dict()
         """Mapping from relaxed keys to primary keys"""
         self._relaxed_to_keys: dict[str, str] = dict()
         """Mapping from relaxed keys to original (non-relaxed) keys"""
 
-    def __getitem__(self, key:str) -> VT:
+    def __getitem__(self, key:str) -> Any:
         return self._prim_to_values[self._relaxed_to_prim[normalize_string(key)]]
 
     def __contains__(self, keys: str | Sequence[str]) -> bool: # type:ignore
         if isinstance(keys, str): return normalize_string(keys) in self._relaxed_to_prim
         return len(set(self._relaxed_to_prim.keys()).intersection([normalize_string(i) for i in keys])) > 0
 
-    def __setitem__(self, keys:str | Sequence[str], value: VT):
+    def __setitem__(self, keys:str | Sequence[str], value: Any):
         if isinstance(keys, str): keys = (keys, )
         relaxed_keys = [normalize_string(i) for i in keys]
 
@@ -73,7 +73,7 @@ class RelaxedMultikeyDict[VT](MutableMapping[str, VT]):
     def relaxed_to_orig(self, key:str):
         return self._relaxed_to_keys[normalize_string(key)]
 
-    def update(self, other: "Mapping[str | Sequence[str], VT] | RelaxedMultikeyDict[VT]") -> None:
+    def update(self, other): # type:ignore
         if isinstance(other, RelaxedMultikeyDict):
             self._prim_to_values.update(other._prim_to_values)
             self._relaxed_to_prim.update(other._relaxed_to_prim)
