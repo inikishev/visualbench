@@ -27,7 +27,7 @@ class MLBench(OptimizerBenchPack):
         grid: Iterable[float] = (2, 1, 0, -1, -2, -3, -4, -5),
         step: float = 1,
         num_candidates: int = 2,
-        num_binary: int = 4,
+        num_binary: int = 5,
         num_expansions: int = 12,
         rounding = 1,
         fixed_hyperparams: dict | None = None,
