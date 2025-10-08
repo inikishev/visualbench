@@ -140,7 +140,7 @@ class MLBench(OptimizerBenchPack):
         # ---------------------------- ConvNet (MNIST-1D) ---------------------------- #
         # ndim = 134,410
         bench = tasks.datasets.Mnist1d(
-            models.vision.ConvNet(40, 1, 10, act_cls=nn.ELU, dropout=0.7),
+            models.vision.ConvNet(40, 1, 10, widths=(64, 128, 256), dropout=0.7),
             batch_size=32, test_batch_size=256
         ).to(CUDA_IF_AVAILABLE)
         bench_name = "MLS - MNIST-1D BS-32 - ConvNet"

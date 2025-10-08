@@ -34,8 +34,9 @@ def test_rendering_doesnt_error():
     benchmark = vb.MoorePenrose(vb.data.SANIC96)
     opt = torch.optim.Adam(benchmark.parameters(), 1e-1)
     benchmark.run(opt, 10)
-    benchmark.render("test.mp4")
-    os.remove("test.mp4")
+    path = os.getcwd()
+    benchmark.render(os.path.join(path, "test.mp4"))
+    os.remove(os.path.join(path, "test.mp4"))
 
 
 def test_datasets_work():
