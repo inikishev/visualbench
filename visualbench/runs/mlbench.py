@@ -58,41 +58,9 @@ class MLBench(OptimizerBenchPack):
         super().__init__(**kwargs)
 
     def run(self):
-        self.run_2d()
-        self.run_visual()
         self.run_ml()
         self.run_mls()
 
-
-    def run_2d(self):
-        bench = tasks.FunctionDescent('booth')
-        self.run_bench(bench, '2D - booth', passes=200, sec=10, metrics='train loss', vid_scale=1, fps=10, binary_mul=3)
-
-        bench = tasks.FunctionDescent('rosen')
-        self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1, binary_mul=3)
-
-        bench = tasks.FunctionDescent('rosenabs')
-        self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1, binary_mul=3)
-
-        bench = tasks.FunctionDescent('mycs1')
-        self.run_bench(bench, '2D - mycs1', passes=500, sec=60, metrics='train loss', vid_scale=1, binary_mul=3)
-
-
-    def run_visual(self):
-        # basic
-        # ------------------------------ Rosenbrock-256 ------------------------------ #
-        bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - Rosenbrock 384', passes=2_000, sec=30, metrics='train loss', vid_scale=4, binary_mul=3)
-
-        # ------------------------------- neural drawer ------------------------------ #
-        bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP([2,16,16,16,16,16,16,16,3], act_cls=nn.ReLU, bn=True), expand=48).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2_000, sec=60, metrics='train loss', vid_scale=2, binary_mul=3)
-
-        # ------------------------------- Colorization ------------------------------- #
-        # ndim  = 1024
-        # 3.2s. ~ 1m. 4s.
-        bench = tasks.Colorization().to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Colorization', passes=2_000, sec=60, metrics='train loss', vid_scale=2, binary_mul=3)
 
     def run_ml(self):
         """non-stochastic ML tasks"""

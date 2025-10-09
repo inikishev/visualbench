@@ -322,7 +322,7 @@ class MBSOptimizerBenchmark(OptimizerBenchPack):
         bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1], act_cls=nn.ReLU, bn=True)).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ReLU+bn', passes=2_000, sec=90, metrics="train loss", vid_scale=2)
 
-        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1]), batch_size=16, n_samples=2048, test_split=1024).to(CUDA_IF_AVAILABLE)
+        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1]), batch_size=16, n_samples=2048, train_split=1024).to(CUDA_IF_AVAILABLE)
         bench_name= "Visual - Moons BS-16 - MLP(2-2-2-2-2-2-2-2-1)-ELU"
         self.run_bench(bench, bench_name, passes=2_000, sec=90, metrics='test loss', vid_scale=2, test_every=1)
 
