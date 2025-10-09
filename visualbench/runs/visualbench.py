@@ -85,7 +85,7 @@ class Visualbench(OptimizerBenchPack):
         bench = tasks.FunctionDescent('mycs1')
         self.run_bench(bench, '2D - mycs1', passes=500, sec=60, metrics='train loss', vid_scale=1)
 
-        bench = tasks.SimultaneousFunctionDescent('rosen').cuda()
+        bench = tasks.SimultaneousFunctionDescent('rosen').to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, '2D simultaneous - rosenbrock', passes=1000, sec=60, metrics='train loss', vid_scale=3)
 
     def run_projected(self):
@@ -171,11 +171,13 @@ class Visualbench(OptimizerBenchPack):
         self.run_bench(bench, 'Visual - LinesDrawer SSIM', passes=2000, sec=60, metrics='train loss', vid_scale=4, fps=30)
 
         # -------------------------- deformable registration ------------------------- #
-        bench = tasks.DeformableRegistration(data.FROG96, grid_size=(5,5)).cuda()
+        bench = tasks.DeformableRegistration(data.FROG96, grid_size=(5,5)).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - DeformableRegistration', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
 
     def run_linalg(self):
         # ---------------------------------- inverse --------------------------------- #
-        bench = tasks.Inverse(data.SANIC96).cuda()
+        bench = tasks.Inverse(data.SANIC96).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Linalg - Inverse', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
 
+        bench = tasks.StochasticInverse(data.SANIC96).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Linalg - StochasticInverse', passes=2_000, sec=60, metrics='train loss', vid_scale=2)

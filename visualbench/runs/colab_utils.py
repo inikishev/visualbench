@@ -29,12 +29,6 @@ def colab_pack():
 
 def kaggle_pack():
     shutil.make_archive("MLBench", 'zip', "MLBench")
-    import os
-    os.chdir(r'/kaggle/working')
-    from IPython.display import FileLink
-    FileLink("MLBench.zip")
-
-
 
 def performance_tweaks(
     cudnn_bench: bool | None,
