@@ -104,7 +104,7 @@ All of them:
 You can pass a function like `lambda x,y: x**2 + y**2`, or string name of one of pre-defined functions of which there are many, I usually use `"booth"`, `"rosen"`, and `"ill"` which is a rotated ill-conditioned quadratic.
 
 - `FunctionDescent` - to see how optimizer descends a 2D function.
-- `NeuralDescent` - optimize a model to output coordinates that minimize a 2D function. This is a great way to test how much curvature an optimizer actually uses on larger models.
+- `DecisionSpaceDescent` - optimize a model to output coordinates that minimize a 2D function. This is a great way to test how much curvature an optimizer actually uses on larger models.
 - `SimultaneousFunctionDescent` - same as FunctionDescent, except the optimizer optimizes all points at the same time.
 - `MetaLearning` - the goal is to optimize hyperparameters of an optimizer to descend a 2D function.
 

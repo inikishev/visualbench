@@ -1,23 +1,14 @@
 # pylint:disable=no-member
-"""2D function descent"""
-
-import os
 from collections.abc import Callable, Iterable, Sequence
-
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from ...benchmark import Benchmark
-from ...utils._benchmark_video import _maybe_progress, GIF_POST_PBAR_MESSAGE
-from ...utils.format import tonumpy, totensor
-from ...utils.funcplot import funcplot2d
-from ...utils.renderer import OpenCVRenderer
-from .test_functions import TEST_FUNCTIONS, TestFunction
+from .test_functions import TestFunction, TEST_FUNCTIONS
+from ...utils import totensor
 
-from .function_descent import _UnpackCall, _safe_flatten, FunctionDescent
+from .function_descent import FunctionDescent
 
-class NeuralDescent(FunctionDescent):
+class DecisionSpaceDescent(FunctionDescent):
     """Optimize a model to output coordinates that minimize a function.
 
     The model should accept no arguments, and output length-2 tensor with x and y coordinates.
@@ -40,10 +31,11 @@ class NeuralDescent(FunctionDescent):
         unpack (bool, optional): if True, function is called as ``func(*x)``, otherwise ``func(x)``. Defaults to True.
     """
     _LOGGER_XY_KEY: str = "train xy"
+    _LEARNABLE_XY = False
     def __init__(
         self,
-        model: torch.nn.Module,
         func: Callable[..., torch.Tensor] | str | TestFunction,
+        model: torch.nn.Module,
         domain: tuple[float,float,float,float] | Sequence[float] | None = None,
         minima = None,
         dtype: torch.dtype = torch.float32,
@@ -51,8 +43,28 @@ class NeuralDescent(FunctionDescent):
         unpack=True,
     ):
         super().__init__(func=func, x0=(0,0), domain=domain, minima=minima, dtype=dtype, mo_func=mo_func, unpack=unpack)
-        self.xy.requires_grad_(False)
         self.model = model
+
+    @classmethod
+    def with_x0(
+        cls,
+        func,
+        model: torch.nn.Module,
+        input: int | Sequence[int] | torch.Tensor,
+        x0: Sequence | np.ndarray | torch.Tensor | None = None,
+        domain: tuple[float,float,float,float] | Sequence[float] | None = None,
+        unpack = True,
+        noise: float = 0,
+        maxiter=1000,
+        progress:bool=True,
+    ):
+        if x0 is None:
+            if isinstance(func, str): func = TEST_FUNCTIONS[func].to(device = 'cpu', dtype = torch.float32)
+            assert isinstance(func, TestFunction)
+            x0 = func.x0()
+        from ...models.wrappers import ConstantInput
+        model = ConstantInput(model, input, x0=x0, noise=noise, maxiter=maxiter, progress=progress, seed=0)
+        return cls(model=model, func=func, domain=domain, unpack=unpack)
 
     def get_loss(self):
         xy = self.model()

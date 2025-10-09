@@ -256,7 +256,7 @@ class DatasetBenchmark(Benchmark):
             self.model.after_get_loss(self) # pyright:ignore[reportCallIssue]
 
         # decision boundary
-        if self.decision_boundary and self.training:
+        if self.decision_boundary and self.training and self._make_images:
             self.model.eval()
             with torch.inference_mode():
                 out: torch.Tensor = self.model(self.grid_points)

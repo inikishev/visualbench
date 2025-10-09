@@ -7,4 +7,5 @@ from .projected_descent import (
     Rastrigin,
     Rosenbrock,
     RotatedQuadratic,
+    Polynomial,
 )

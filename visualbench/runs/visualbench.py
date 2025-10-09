@@ -7,6 +7,7 @@ import torch
 from kornia.losses import ssim_loss
 from sklearn.datasets import make_swiss_roll
 from torch import nn
+from torch.nn import functional as F
 
 from .. import data, models, tasks
 from ..utils import CUDA_IF_AVAILABLE
@@ -61,17 +62,24 @@ class Visualbench(OptimizerBenchPack):
         super().__init__(**kwargs)
 
     def run(self):
+        torch.manual_seed(0)
         self.run_2d()
         self.run_projected()
         self.run_visual()
+        self.run_linalg()
 
 
     def run_2d(self):
+        torch.manual_seed(0)
+
         bench = tasks.FunctionDescent('booth')
         self.run_bench(bench, '2D - booth', passes=200, sec=10, metrics='train loss', vid_scale=1, fps=10)
 
         bench = tasks.FunctionDescent('booth').set_noise(10, 10)
         self.run_bench(bench, '2D - booth (noisy)', passes=1000, sec=10, metrics='train loss', vid_scale=1, fps=10)
+
+        bench = tasks.FunctionDescent('ill2')
+        self.run_bench(bench, '2D - ill2', passes=1000, sec=10, metrics='train loss', vid_scale=1)
 
         bench = tasks.FunctionDescent('rosen')
         self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1)
@@ -88,12 +96,21 @@ class Visualbench(OptimizerBenchPack):
         bench = tasks.SimultaneousFunctionDescent('rosen').to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, '2D simultaneous - rosenbrock', passes=1000, sec=60, metrics='train loss', vid_scale=3)
 
+        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2]), 512, maxiter=2000, progress=False).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'decision space descent - ill2', passes=1000, sec=60, metrics='train loss', vid_scale=3)
+
+        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2]), 512, maxiter=2000, noise=100, progress=False).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'decision space descent - ill2 (noisy)', passes=1000, sec=60, metrics='train loss', vid_scale=3)
+
     def run_projected(self):
+        torch.manual_seed(0)
+
         # ------------------------------ Rosenbrock-384 ------------------------------ #
         bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Projected - Rosenbrock 384', passes=5_000, sec=120, metrics='train loss', vid_scale=4)
 
     def run_visual(self):
+        torch.manual_seed(0)
 
         # ------------------------------- NeuralDrawer ------------------------------- #
         bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP([2,16,16,16,16,16,16,16,3], act_cls=nn.ReLU, bn=True), expand=48).to(CUDA_IF_AVAILABLE)
@@ -106,7 +123,7 @@ class Visualbench(OptimizerBenchPack):
         # ndim  = 1024
         # 3.2s. ~ 1m. 4s.
         bench = tasks.Colorization.small().to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - Colorization', passes=5_000, sec=120, metrics='train loss', vid_scale=2)
+        self.run_bench(bench, 'Visual - Colorization', passes=5_000, sec=120, metrics='train loss', vid_scale=4)
 
         # ------------------------------- Graph layout ------------------------------- #
         # ndim = 128
@@ -154,17 +171,17 @@ class Visualbench(OptimizerBenchPack):
         # 14s. ~ 4m. 40s.
         # 9+4=13 ~ 3m.
         bench = tasks.StyleTransfer(data.FROG96, data.GEOM96).to(CUDA_IF_AVAILABLE)
-        bench_name = "Visual - Style Transfer'"
+        bench_name = "Visual - Style Transfer"
         self.run_bench(bench, bench_name, passes=2_000, sec=120, metrics='train loss', binary_mul=0.4, vid_scale=2)
 
         # ----------------------------------- moons ---------------------------------- #
-        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1]),).to(CUDA_IF_AVAILABLE)
+        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1], act_cls=nn.ELU, ortho_init=True)).to(CUDA_IF_AVAILABLE)
         bench_name = 'Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ELU'
         self.run_bench(bench, bench_name, passes=2_000, sec=90, metrics="train loss", vid_scale=2)
 
-        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1]), batch_size=16, n_samples=2048, train_split=1024).to(CUDA_IF_AVAILABLE)
-        bench_name= "Visual - Moons BS-16 - MLP(2-2-2-2-2-2-2-2-1)-ELU"
-        self.run_bench(bench, bench_name, passes=4_000, sec=90, metrics='test loss', vid_scale=2, test_every=1)
+        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1], act_cls=nn.ELU, ortho_init=True), batch_size=1, n_samples=2048, train_split=1024).to(CUDA_IF_AVAILABLE)
+        bench_name= "Visual - Moons BS-1 - MLP(2-2-2-2-2-2-2-2-1)-ELU"
+        self.run_bench(bench, bench_name, passes=2_000, sec=90, metrics='test loss', vid_scale=2, test_every=10)
 
         # ------------------------------- lines drawer ------------------------------- #
         bench = tasks.LinesDrawer(data.WEEVIL96, 100, loss=_unbatched_ssim).to(CUDA_IF_AVAILABLE)
@@ -172,12 +189,23 @@ class Visualbench(OptimizerBenchPack):
 
         # -------------------------- deformable registration ------------------------- #
         bench = tasks.DeformableRegistration(data.FROG96, grid_size=(5,5)).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - DeformableRegistration', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
+        self.run_bench(bench, 'Visual - DeformableRegistration', passes=2_000, sec=60, metrics='train loss', vid_scale=4)
 
     def run_linalg(self):
+        torch.manual_seed(0)
+
         # ---------------------------------- inverse --------------------------------- #
         bench = tasks.Inverse(data.SANIC96).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Linalg - Inverse', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
+        self.run_bench(bench, 'Linalg - Inverse MSE', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
 
         bench = tasks.StochasticInverse(data.SANIC96).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Linalg - StochasticInverse', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
+        self.run_bench(bench, 'Linalg - StochasticInverse', passes=2_000, sec=60, metrics='test loss', vid_scale=2)
+
+        bench = tasks.LeastSquares(data.FROG96, data.SANIC96, ).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Linalg - LeastSquares', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
+
+        bench = tasks.StochasticMatrixRecovery(data.SANIC96).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Linalg - StochasticMatrixRecovery - MSE', passes=2_000, sec=60, metrics='test loss', vid_scale=2)
+
+        bench = tasks.StochasticMatrixRecovery(data.SANIC96, criterion=F.l1_loss).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Linalg - StochasticMatrixRecovery - L1', passes=2_000, sec=60, metrics='test loss', vid_scale=2)

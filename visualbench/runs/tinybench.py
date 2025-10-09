@@ -55,5 +55,7 @@ class MBSOptimizerBenchmark(OptimizerBenchPack):
         super().__init__(**kwargs)
 
     def run(self):
+        torch.manual_seed(0)
+
         bench = tasks.StochasticMatrixRoot(16, 10).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'StochasticMatrixRoot(16, p=10)', passes=10_000, sec=240, metrics='train loss', binary_mul=0.3, vid_scale=4)

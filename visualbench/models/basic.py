@@ -112,12 +112,15 @@ class MLP(nn.Module):
         # self.max_tiles = max_tiles
 
         if ortho_init:
+            generator=torch.Generator().manual_seed(0)
             for p in self.parameters():
                 if p.ndim >= 2:
-                    torch.nn.init.orthogonal_(p, generator=torch.Generator(p.device).manual_seed(0))
+                    torch.nn.init.orthogonal_(p, generator=generator)
 
     def forward(self, x: torch.Tensor):
-        x = x.flatten(1,-1)
+        if x.ndim > 2:
+            x = x.flatten(1,-1)
+
         for l in self.layers: x = l(x)
         return self.head(x)
 
@@ -188,7 +191,8 @@ class RecurrentMLP(nn.Module):
         self.n_passes = n_passes
 
     def forward(self, x: torch.Tensor):
-        x = x.flatten(1,-1)
+        if x.ndim > 2:
+            x = x.flatten(1,-1)
 
         x = self.in_block(x)
 

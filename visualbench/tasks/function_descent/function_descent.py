@@ -46,6 +46,7 @@ class FunctionDescent(Benchmark):
             if True, function is called as ``func(x[0], x[1])``, otherwise ``func(x)``. Defaults to True.
     """
     _LOGGER_XY_KEY: str = "params"
+    _LEARNABLE_XY: bool = True
     def __init__(
         self,
         func: Callable[..., torch.Tensor] | str | TestFunction,
@@ -78,7 +79,10 @@ class FunctionDescent(Benchmark):
         if minima is not None: self.minima = totensor(minima)
         else: self.minima = minima
 
-        self.xy = torch.nn.Parameter(x0.requires_grad_(True))
+        if self._LEARNABLE_XY:
+            self.xy = torch.nn.Parameter(x0.requires_grad_(True))
+        else:
+            self.xy = torch.nn.Buffer(x0.requires_grad_(False))
 
         if mo_func is not None:
             self.set_multiobjective_func(mo_func)

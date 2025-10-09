@@ -202,7 +202,7 @@ class ConvNet(nn.Module):
 
 
 class FastConvNet(nn.Module):
-    """134,410 params if ndim=1"""
+    """? params if ndim=1"""
     def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls: Callable = nn.ReLU, dropout=0.2):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )

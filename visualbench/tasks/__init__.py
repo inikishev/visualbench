@@ -19,7 +19,7 @@ from .function_approximator import FunctionApproximator
 from .function_descent import (
     FunctionDescent,
     MetaLearning,
-    NeuralDescent,
+    DecisionSpaceDescent,
     SimultaneousFunctionDescent,
     test_functions,
     TEST_FUNCTIONS,

@@ -58,12 +58,14 @@ class MLBench(OptimizerBenchPack):
         super().__init__(**kwargs)
 
     def run(self):
+        torch.manual_seed(0)
         self.run_ml()
         self.run_mls()
 
 
     def run_ml(self):
-        """non-stochastic ML tasks"""
+        torch.manual_seed(0)
+
         # # ------------------------------ PINN (Wave PDE) ----------------------------- #
         # # ndim = 132,611
         # # 22s. ~ 7m. 20s.
@@ -72,13 +74,14 @@ class MLBench(OptimizerBenchPack):
         # self.run_bench(bench, 'ML - Wave PDE - FLS', passes=10_000, sec=600, metrics='train loss', vid_scale=4)
 
     def run_mls(self):
-        """stochastic ML tasks"""
+        torch.manual_seed(0)
+
         # ------------------------ Online Logistic regression ------------------------ #
         # ndim = 385
         # 5s. ~ 1m. 40s.
         bench = tasks.datasets.Covertype(models.MLP([54, 7]), batch_size=1).to(CUDA_IF_AVAILABLE)
         bench_name = 'MLS - Covertype BS-1 - Online Logistic Regression'
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
+        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=50, metrics='test loss', vid_scale=None)
 
         # --------------------------- Matrix factorization --------------------------- #
         # ...
@@ -89,7 +92,7 @@ class MLBench(OptimizerBenchPack):
                 path = load_movie_lens()
         bench = tasks.MFMovieLens(path, batch_size=32, device='cuda').cuda()
         bench_name = 'MLS - MovieLens BS-32 - Matrix Factorization'
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
+        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=50, metrics='test loss', vid_scale=None)
 
         # ------------------------------- RNN (MNIST-1D) ------------------------------ #
         # ndim = 20,410
@@ -99,18 +102,7 @@ class MLBench(OptimizerBenchPack):
             batch_size=128,
         ).to(CUDA_IF_AVAILABLE)
         bench_name = 'MLS - MNIST-1D BS-128 - RNN(2x40)'
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None, binary_mul=0.5)
-
-        # ------------------------------- RNN (XOR) ------------------------------ #
-        # ndim = 20,410
-        # 11s. ~ 3m. 30s.
-        bench = tasks.datasets.XOR(
-            models.RNN(2, 1, 2, 3, rnn=torch.nn.RNN, all_layers=False),
-            batch_size=128,
-            test_batch_size=None,
-        ).to(CUDA_IF_AVAILABLE)
-        bench_name = 'MLS - XOR BS-128 - RNN(3x2)'
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
+        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=20, metrics='test loss', vid_scale=None, binary_mul=0.5)
 
         # ---------------------------- ConvNet (MNIST-1D) ---------------------------- #
         # ndim = 134,410
@@ -119,23 +111,5 @@ class MLBench(OptimizerBenchPack):
             batch_size=32, test_batch_size=256
         ).to(CUDA_IF_AVAILABLE)
         bench_name = "MLS - MNIST-1D BS-32 - ConvNet"
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics = "test loss", vid_scale=None)
+        self.run_bench(bench, bench_name, passes=20_000, sec=1000, test_every=50, metrics = "test loss", vid_scale=None)
 
-        # ----------------------- Sparse Autoencoder (MNIST-1D) ---------------------- #
-        # 8.0s ~ 2m. 30s.
-        bench = tasks.datasets.Mnist1dAutoencoding(
-            models.vision.ConvNetAutoencoder(1, 1, 1, 40, hidden=(64,96,128,256), sparse_reg=0.1),
-            batch_size=32, test_batch_size=256
-        ).to(CUDA_IF_AVAILABLE)
-        bench_name = 'MLS - MNIST-1D Sparse Autoencoder BS-32 - ConvNet'
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
-
-        # ---------------------------- ConvNet (SynthSeg) ---------------------------- #
-        # 18.8s ~ 6m. 12s.
-        # 9+3=12 ~ 3m. 44s.
-        bench = tasks.datasets.SynthSeg1d(
-            models.vision.ConvNetAutoencoder(1, 1, 5, 32, hidden=(64,96,128)),
-            num_samples=10_000, batch_size=64, test_batch_size=512, criterion=DiceFocalLoss(softmax=True)
-        ).cuda()
-        bench_name = 'MLS - SynthSeg BS-64 - ConvNet'
-        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
