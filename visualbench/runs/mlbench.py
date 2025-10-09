@@ -82,11 +82,11 @@ class MLBench(OptimizerBenchPack):
         # basic
         # ------------------------------ Rosenbrock-256 ------------------------------ #
         bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'S - Rosenbrock 384', passes=2000, sec=30, metrics='train loss', vid_scale=4, binary_mul=3)
+        self.run_bench(bench, 'S - Rosenbrock 384', passes=2_000, sec=30, metrics='train loss', vid_scale=4, binary_mul=3)
 
         # ------------------------------- neural drawer ------------------------------ #
         bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP([2,16,16,16,16,16,16,16,3], act_cls=nn.ReLU, bn=True), expand=48).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2000, sec=60, metrics='train loss', vid_scale=2, binary_mul=3)
+        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2_000, sec=60, metrics='train loss', vid_scale=2, binary_mul=3)
 
         # ------------------------------- Colorization ------------------------------- #
         # ndim  = 1024

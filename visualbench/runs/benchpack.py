@@ -128,7 +128,7 @@ class OptimizerBenchPack:
                     os.rename(f'{video_path} __TEMP__.mp4', f'{video_path}.mp4')
 
             if print_time:
-                if print_progress: print("\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t", end="\r")
+                if print_progress: print("                                                                                                  ", end="\r")
                 print(f"{task_name} took {(time.time() - start):.2f} s.")
 
         self.run_bench = run_bench
