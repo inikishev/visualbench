@@ -17,6 +17,7 @@ dependencies = [
   "torch",
   "numpy",
   "scipy",
+  "more_itertools",
   "matplotlib",
   "opencv-python",
 ]

@@ -8,6 +8,7 @@ dependencies:
   - scipy
   - opencv # different from PIP!
   - matplotlib
+  - more_itertools
 
   # - pip
   # - pip:
