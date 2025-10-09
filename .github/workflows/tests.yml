@@ -31,6 +31,7 @@ jobs:
         python -m pip install scipy
         python -m pip install opencv-python
         python -m pip install matplotlib
+        python -m pip install more_itertools
         python -m pip install git+https://github.com/inikishev/visualbench.git
     - name: Test with pytest
       run: |
