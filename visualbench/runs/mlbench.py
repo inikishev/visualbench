@@ -79,8 +79,8 @@ class MLBench(OptimizerBenchPack):
         # ------------------------ Online Logistic regression ------------------------ #
         # ndim = 385
         # 5s. ~ 1m. 40s.
-        bench = tasks.datasets.Covertype(models.MLP([54, 7]), batch_size=1).to(CUDA_IF_AVAILABLE)
-        bench_name = 'MLS - Covertype BS-1 - Online Logistic Regression'
+        bench = tasks.Collinear(models.MLP([32, 10]), batch_size=1).to(CUDA_IF_AVAILABLE)
+        bench_name = 'MLS - Ill-conditioned logistic regression BS-1'
         self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=50, metrics='test loss', vid_scale=None)
 
         # --------------------------- Matrix factorization --------------------------- #
@@ -93,6 +93,12 @@ class MLBench(OptimizerBenchPack):
         bench = tasks.MFMovieLens(path, batch_size=32, device='cuda').cuda()
         bench_name = 'MLS - MovieLens BS-32 - Matrix Factorization'
         self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=50, metrics='test loss', vid_scale=None)
+
+        # ------------------------------ MLP (Colinear) ------------------------------ #
+        model = models.MLP([32, 64, 96, 128, 256, 10])
+        bench = tasks.Collinear(model, batch_size=64, test_batch_size=4096).cuda()
+        bench_name = 'MLS - Colinear BS-64 - MLP(32-64-96-128-256-10)'
+        self.run_bench(bench, bench_name, passes=10_000, sec=600, test_every=100, metrics='test loss', vid_scale=None)
 
         # ------------------------------- RNN (MNIST-1D) ------------------------------ #
         # ndim = 20,410

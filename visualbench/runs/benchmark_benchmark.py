@@ -134,6 +134,29 @@ class MBSBenchmarkBenchmark:
 
         self.run_optimizer = run_optimizer
 
+    def quickrun(self):
+        opt = lambda p, lr: torch.optim.SGD(p, lr)
+        self.run_optimizer(opt, "SGD", tune=True, max_dim=None)
+
+        opt = lambda p, lr: torch.optim.SGD(p, lr, momentum=0.9, nesterov=True)
+        self.run_optimizer(opt, "NAG(0.95)", tune=True, max_dim=None)
+
+        opt = lambda p, lr: torch.optim.Adam(p, lr)
+        self.run_optimizer(opt, "Adam", tune=True, max_dim=None)
+
+        opt = lambda p, lr: torch.optim.Adam(p, lr, betas=(0.95, 0.95))
+        self.run_optimizer(opt, "Adam(0.95,0.95)", tune=True, max_dim=None)
+
+        opt = lambda p, lr: torch.optim.Adagrad(p, lr)
+        self.run_optimizer(opt, "Adagrad", tune=True, max_dim=None)
+
+        opt = lambda p, lr: torch.optim.RMSprop(p, lr)
+        self.run_optimizer(opt, "RMSprop", tune=True, max_dim=None)
+
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(), tz.m.LR(lr))
+        self.run_optimizer(opt, "SOAP", tune=True, max_dim=None)
+
+
     def run(self, stochastic=True, non_stochastic=True, vr=True, qn=True, newton=True, zo=True, noop=True):
         if noop: self.run_noop()
         if stochastic: self.run_stochastic()

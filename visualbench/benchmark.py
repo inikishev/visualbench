@@ -63,11 +63,11 @@ class Benchmark(torch.nn.Module, ABC):
 
         self._reference_images: dict[str, torch.Tensor] = {}
         """images to always include in visualizations"""
-        self._image_keys: python_tools.SortedSet[str] = python_tools.SortedSet()
+        self._image_keys: python_tools.SortedSet = python_tools.SortedSet()
         """keys to display as images"""
-        self._image_lowest_keys: python_tools.SortedSet[str] = python_tools.SortedSet()
+        self._image_lowest_keys: python_tools.SortedSet = python_tools.SortedSet()
         """keys to display images corresponding to lowest loss found so far"""
-        self._plot_keys: python_tools.SortedSet[str] = python_tools.SortedSet()
+        self._plot_keys: python_tools.SortedSet = python_tools.SortedSet()
         """keys to display line charts for"""
 
         self._basis: torch.Tensor | None = None

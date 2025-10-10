@@ -18,8 +18,8 @@ class CaliforniaHousing(DatasetBenchmark):
     """
     def __init__(
         self,
-        model,
-        criterion=F.mse_loss,
+        model: torch.nn.Module,
+        criterion: Callable = F.mse_loss,
         batch_size: int | None = None,
         test_batch_size: int | None = None,
         train_split=0.8,

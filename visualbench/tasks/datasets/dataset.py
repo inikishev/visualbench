@@ -5,7 +5,7 @@ import torch
 from torch import nn
 
 from ...benchmark import Benchmark
-from ...utils import CUDA_IF_AVAILABLE, totensor
+from ...utils import CUDA_IF_AVAILABLE, torch_tools, totensor
 from ...utils import normalize as _normalize
 from ...utils.light_dataloader import TensorDataLoader
 
@@ -190,6 +190,10 @@ class DatasetBenchmark(Benchmark):
 
             self.resolution = resolution
             self.boundary_act = boundary_act
+
+    def set_model(self, model: torch.nn.Module):
+        self.model = model.to(self.device)
+        self._initial_state_dict = None #torch_tools.copy_state_dict(self.state_dict(), device='cpu')
 
     def reset(self):
         super().reset()

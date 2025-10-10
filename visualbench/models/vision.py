@@ -76,11 +76,11 @@ class TinyWideConvNet(nn.Module):
     def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int,  act_cls: Callable = nn.ReLU, dropout=0.5):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
-        ndim = len(in_size)
+        self.ndim = len(in_size)
 
-        Conv = ConvNd(ndim)
-        MaxPool = MaxPoolNd(ndim)
-        Dropout = DropoutNd(ndim)
+        Conv = ConvNd(self.ndim)
+        MaxPool = MaxPoolNd(self.ndim)
+        Dropout = DropoutNd(self.ndim)
 
         self.c1 = nn.Sequential(
             Conv(in_channels, 8, kernel_size=5), # ~37
@@ -105,7 +105,8 @@ class TinyWideConvNet(nn.Module):
         if x.ndim == 2: x = x.unsqueeze(1)
         x = self.c1(x)
         x = self.c2(x)
-        x = self.c3(x).mean(-1)
+        dims = [-i for i in range(1, self.ndim+1)]
+        x = self.c3(x).mean(dims)
         return self.linear(x)
 
 
@@ -114,11 +115,11 @@ class TinyLongConvNet(nn.Module):
     def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls: Callable = nn.ReLU, dropout=0.0):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
-        ndim = len(in_size)
+        self.ndim = len(in_size)
 
-        Conv = ConvNd(ndim)
-        Dropout = DropoutNd(ndim)
-        BatchNorm = BatchNormNd(ndim)
+        Conv = ConvNd(self.ndim)
+        Dropout = DropoutNd(self.ndim)
+        BatchNorm = BatchNormNd(self.ndim)
 
         self.c1 = nn.Sequential(
             Conv(in_channels, 4, kernel_size=2, bias=False),
@@ -158,7 +159,9 @@ class TinyLongConvNet(nn.Module):
         if x.ndim == 2: x = x.unsqueeze(1)
         x = self.c1(x)
         x = self.c2(x)
-        x = self.c3(x).mean(-1)
+
+        dims = [-i for i in range(1, self.ndim+1)]
+        x = self.c3(x).mean(dims)
         return self.linear(x)
 
 
@@ -258,10 +261,10 @@ class MobileNet(nn.Module):
     def __init__(self, in_size:int | Sequence[int], in_channels:int, out_channels:int, act_cls: Callable = nn.ReLU, dropout=0.5):
         super().__init__()
         if isinstance(in_size, int): in_size = (in_size, )
-        ndim = len(in_size)
+        self.ndim = len(in_size)
 
-        Conv = ConvNd(ndim)
-        Dropout = DropoutNd(ndim)
+        Conv = ConvNd(self.ndim)
+        Dropout = DropoutNd(self.ndim)
 
         self.c1 = nn.Sequential(
             Conv(in_channels, 32, kernel_size=3, stride=2, padding=1),
@@ -297,7 +300,8 @@ class MobileNet(nn.Module):
         x = self.c1(x)
         x = self.c2(x)
         x = self.c3(x)
-        return x.mean(-1)
+        dims = [-i for i in range(1, self.ndim+1)]
+        return x.mean(dims)
 
 def convblocknd(in_channels, out_channels, kernel_size, stride, padding, act_cls, bn: bool, dropout:float|None, transpose=False, ndim:int=2):
     ConvCls = ConvTransposeNd(ndim) if transpose else ConvNd(ndim)

@@ -1,6 +1,8 @@
 from importlib.util import find_spec
 from typing import TYPE_CHECKING
 
+from .dataset import DatasetBenchmark
+from .ill import Collinear
 from .mnist1d import Mnist1d, Mnist1dAutoencoding
 from .other import WDBC
 from .seg1d import SynthSeg1d

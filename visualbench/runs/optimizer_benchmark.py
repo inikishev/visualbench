@@ -251,7 +251,7 @@ class MBSOptimizerBenchmark(OptimizerBenchPack):
         # ndim = 56,874
         # 9.4s ~ 2m. 28s.
         bench = tasks.datasets.Mnist1d(
-            models.MLP([40, 64,96,128,256, 10], act_cls=nn.ELU),
+            models.MLP([40, 64, 96, 128, 256, 10], act_cls=nn.ELU),
             batch_size=64
         ).to(CUDA_IF_AVAILABLE)
         bench_name = "MLS - MNIST-1D BS-64 - MLP(40-64-96-128-256-10)"
