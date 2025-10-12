@@ -24,6 +24,7 @@ from .function_descent import (
     test_functions,
     TEST_FUNCTIONS,
 )
+from .tammes import Tammes
 from .glimmer import Glimmer
 from .gmm import GaussianMixtureNLL
 from .graph_layout import GraphLayout

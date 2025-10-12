@@ -82,6 +82,7 @@ class OptimizerBenchPack:
             if max_dim is not None and dim > max_dim: return
 
             start = time.time()
+            test_time = 0
             clean_mem()
 
              # skip CPU because accelerator state can't change.
@@ -89,47 +90,102 @@ class OptimizerBenchPack:
                 accelerator = Accelerator()
                 bench = accelerator.prepare(bench)
 
+            # -------------------------------- logger func ------------------------------- #
             def logger_fn(value: float):
                 if dim > 100_000: clean_mem()
 
+                # set seed
                 torch.manual_seed(0)
                 np.random.seed(0)
                 random.seed(0)
 
+                # run
                 bench.reset().set_performance_mode().set_print_inverval(None)
                 opt = init_fn(opt_fn, bench, value)
                 bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
+
+                # print progress
                 if print_progress and bench.seconds_passed is not None and bench.seconds_passed > sec:
                     print(f"{sweep_name}: '{task_name}' timeout, {bench.seconds_passed} > {sec}!")
+
+                # add test time
+                if "test time" in bench.logger:
+                    nonlocal test_time
+                    test_time += bench.logger.sum("test time")
+
                 return bench.logger
 
+            # --------------------------------- single run ------------------------------- #
             if (hyperparam is None) or (not tune):
-                sweep = single_run(logger_fn, metrics=metrics, fixed_hyperparams=fixed_hyperparams, root=root, task_name=task_name, run_name=sweep_name, print_records=print_records, print_progress=print_progress, save=save, load_existing=load_existing)
+                sweep = single_run(
+                    logger_fn,
+                    metrics=metrics,
+                    fixed_hyperparams=fixed_hyperparams,
+                    root=root,
+                    task_name=task_name,
+                    run_name=sweep_name,
+                    print_records=print_records,
+                    print_progress=print_progress,
+                    save=save,
+                    load_existing=load_existing,
+                )
 
+            # -------------------------------- mbs search -------------------------------- #
             else:
-                sweep = mbs_search(logger_fn, metrics=metrics, search_hyperparam=hyperparam, fixed_hyperparams=fixed_hyperparams, log_scale=log_scale, grid=grid, step=step, num_candidates=num_candidates, num_binary=max(1, int(num_binary*binary_mul)), num_expansions=num_expansions, rounding=rounding, root=root, task_name=task_name, run_name=sweep_name, print_records=print_records, save=save, load_existing=load_existing, print_progress=print_progress)
+                sweep = mbs_search(
+                    logger_fn,
+                    metrics=metrics,
+                    search_hyperparam=hyperparam,
+                    fixed_hyperparams=fixed_hyperparams,
+                    log_scale=log_scale,
+                    grid=grid,
+                    step=step,
+                    num_candidates=num_candidates,
+                    num_binary=max(1, int(num_binary * binary_mul)),
+                    num_expansions=num_expansions,
+                    rounding=rounding,
+                    root=root,
+                    task_name=task_name,
+                    run_name=sweep_name,
+                    print_records=print_records,
+                    save=save,
+                    load_existing=load_existing,
+                    print_progress=print_progress,
+                )
 
-            # render video
+            # ------------------------------- render video ------------------------------- #
             if (render_vids) and (vid_scale is not None) and (self.summaries_root is not None):
                 assert self.summary_dir is not None
                 for metric, maximize in _target_metrics_to_dict(metrics).items():
+
+                    # check if video already exists and skip if it does
                     video_path = os.path.join(self.summary_dir, f'{task_name} - {metric}')
                     if os.path.exists(f'{video_path}.mp4'): continue
 
+                    # find hyperparameter value of the best run
                     best_run = sweep.best_runs(metric, maximize, 1)[0]
                     value = 0
                     if tune and hyperparam is not None: value = best_run.hyperparams[hyperparam]
+
+                    # run benchmark with visualization enabled
                     bench.reset().set_performance_mode(False).set_print_inverval(None)
                     opt = init_fn(opt_fn, bench, value)
                     bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes)
+
+                    # make dirs and render to __TEMP__.mp4 to avoid saving partial renders
                     if not os.path.exists(self.summaries_root): os.mkdir(self.summaries_root)
                     if not os.path.exists(self.summary_dir): os.mkdir(self.summary_dir)
                     bench.render(f'{video_path} __TEMP__', scale=vid_scale, fps=fps, progress=False)
+
+                    # after successful render renamed __TEMP__.mp4 to actual path
                     os.rename(f'{video_path} __TEMP__.mp4', f'{video_path}.mp4')
 
+            # -------------------------------- print time -------------------------------- #
             if print_time:
-                if print_progress: print("                                                                                                  ", end="\r")
-                print(f"{task_name} took {(time.time() - start):.2f} s.")
+                if print_progress: print(" " * 1000, end="\r")
+                s = f"{task_name} took {(time.time() - start):.2f} s."
+                if test_time != 0: s = f"{s}; test epochs took {float(test_time):.2f} s."
+                print(s)
 
         self.run_bench = run_bench
 

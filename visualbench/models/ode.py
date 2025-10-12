@@ -16,7 +16,7 @@ class _ODELinear(nn.Module):
 
 # test 'dopri5', 'adams'
 class NeuralODE(nn.Module):
-    def __init__(self, in_channels: int, out_channels: int, width: int, act_cls = F.softplus, layer_norm=False, T = 10., steps = 2, adjoint = False, method = 'implicit_adams'):
+    def __init__(self, in_channels: int, out_channels: int, width: int, act_cls = torch.nn.Softplus, layer_norm=False, T = 10., steps = 2, adjoint = False, method = 'implicit_adams'):
         super().__init__()
         self.in_layer = nn.Linear(in_channels, width)
         self.ode_func = _ODELinear(width, act_cls = act_cls, layer_norm=layer_norm)

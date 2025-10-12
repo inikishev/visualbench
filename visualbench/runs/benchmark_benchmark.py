@@ -153,7 +153,7 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: torch.optim.RMSprop(p, lr)
         self.run_optimizer(opt, "RMSprop", tune=True, max_dim=None)
 
-        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(), tz.m.LR(lr))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(max_dim=2048), tz.m.LR(lr))
         self.run_optimizer(opt, "SOAP", tune=True, max_dim=None)
 
 
@@ -198,7 +198,7 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: tz.Optimizer(p, tz.m.GGT(), tz.m.LR(lr))
         self.run_optimizer(opt, "GGT", tune=True, max_dim=None)
 
-        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(), tz.m.LR(lr))
+        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(max_dim=2048), tz.m.LR(lr))
         self.run_optimizer(opt, "SOAP", tune=True, max_dim=None)
 
         # PSGD Kron

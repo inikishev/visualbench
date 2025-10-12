@@ -27,6 +27,7 @@ class Logger(UserDict[str, dict[int, Any]]):
     def nanmin(self, metric): return np.nanmin(self.list(metric))
     def max(self, metric): return np.max(self.list(metric))
     def nanmax(self, metric): return np.nanmax(self.list(metric))
+    def sum(self, metric): return np.sum(self.list(metric))
 
     def interp(self, metric: str) -> np.ndarray:
         """Returns a list of values for a given key, interpolating missing steps."""

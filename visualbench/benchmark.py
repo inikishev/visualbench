@@ -520,6 +520,7 @@ class Benchmark(torch.nn.Module, ABC):
 
     def _test_epoch(self):
         assert self._dltest is not None
+        test_start = time.time()
         self.eval()
         batch_backup = self.batch
 
@@ -528,6 +529,8 @@ class Benchmark(torch.nn.Module, ABC):
             self._one_step(optimizer=None)
 
         self._last_test_time = time.time()
+        self.log("test time", self._last_test_time - test_start, plot=False)
+
         self._last_test_pass = self.num_passes
         self.batch = batch_backup
         self.train()
