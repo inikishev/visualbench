@@ -92,6 +92,7 @@ class MBS:
     def _evaluate(self, fn, x):
         """Evaluate a point, returns False if point is already in history"""
         if self.rounding is not None: x = format_number(x, self.rounding)
+
         if x in self.evaluated: return False
         self.evaluated.add(x)
 
@@ -139,7 +140,7 @@ class MBS:
             at_least_one_evaluated = False
             for x, t in candidates:
                 evaluated = self._evaluate(fn, x)
-                if not evaluated: continue
+                if evaluated is False: continue
                 at_least_one_evaluated = True
 
                 if t == 'expansion': self.num_expansions -= 1
@@ -150,10 +151,10 @@ class MBS:
                     break
 
             if terminate: break
-            if not at_least_one_evaluated:
+            if at_least_one_evaluated is False:
                 if self.rounding is None: break
                 self.rounding += 1
-                if self.rounding == 10: break
+                if self.rounding >= 10: break
 
         # return dict[float, tuple[float,...]]
         ret = {}

@@ -99,6 +99,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._last_train_loss: float | None = None
         self._last_test_loss: float | None = None
         self._last_print_time: float = 0
+        self._optimizer = None
         self.batch = None
 
         # ------------------------------ stop conditions ----------------------------- #
@@ -718,6 +719,7 @@ class Benchmark(torch.nn.Module, ABC):
         Returns:
             _type_: _description_
         """
+        self._optimizer = optimizer
         self._max_passes = max_passes; self._max_forwards = max_forwards
         self._max_steps = max_steps; self._max_epochs = max_epochs
         self._max_seconds = max_seconds; self._target_loss = target_loss
@@ -811,6 +813,7 @@ class Benchmark(torch.nn.Module, ABC):
         rounding: float = 10,
         root: str | None = None,
         print_progress: bool = False,
+        print_name: str | None = None,
 
         **run_kwargs
     ):
@@ -836,6 +839,7 @@ class Benchmark(torch.nn.Module, ABC):
             rounding=rounding,
             root=root,
             print_progress=print_progress,
+            print_name=print_name,
             load_existing=False,
         )
 

@@ -27,7 +27,7 @@ def print_task_summary(task_name:str, metric: str = "train loss", maximize=False
         print(n.ljust(100)[:100], f"{format_number(r.stats[metric][key], 5)}")
 
 
-def rename_run(old: str, new:str, root:str = "optimizers") -> None:
+def rename_run(old: str, new:str, root:str) -> None:
     renamed = False
     for task in os.listdir(root):
         task_path = os.path.join(root, task)
@@ -49,7 +49,7 @@ def rename_run(old: str, new:str, root:str = "optimizers") -> None:
         raise FileNotFoundError(f"{old} doesn't exist")
 
 
-def delete_run(name:str, root:str = "optimizers") -> None:
+def delete_run(name:str, root:str) -> None:
     deleted = False
     for task in os.listdir(root):
         task_path = os.path.join(root, task)
@@ -68,7 +68,7 @@ def delete_run(name:str, root:str = "optimizers") -> None:
     if not deleted:
         raise FileNotFoundError(f"{name} doesn't exist")
 
-def rename_task(old: str, new:str, root:str = "optimizers") -> None:
+def rename_task(old: str, new:str, root:str) -> None:
     renamed = False
     for task in os.listdir(root):
         if task == old:

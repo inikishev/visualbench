@@ -295,6 +295,8 @@ class Search:
         base_hyperparams: dict[str, Any] | None = None,
         pass_base_hyperparams: bool = False,
         load_existing: bool = True,
+
+        print_name: str | None = None,
     ):
         metrics = _target_metrics_to_dict(metrics)
         if base_hyperparams is None: base_hyperparams = {}
@@ -306,6 +308,7 @@ class Search:
         self.run_name = run_name
         self.print_progress = print_progress
         self.print_records = print_records
+        self.print_name = print_name
         self.save = save
         self.base_hyperparams = base_hyperparams
         self.pass_base_hyperparams = pass_base_hyperparams
@@ -385,7 +388,10 @@ class Search:
 
         # print
         if self.print_progress:
-            text = f'{self.run_name} - "{self.task_name}"'
+            if self.run_name is None and self.task_name is None:
+                text = f"{self.print_name}"
+            else:
+                text = f'{self.run_name} - "{self.task_name}"'
             if len(hyperparameters) > 0: text = f"{text}: {_maybe_format_number(next(iter(hyperparameters.values())))}"
             print(f"{text}                      \r", end='')
 
@@ -460,6 +466,8 @@ def mbs_search(
     print_progress: bool = False,
     save: bool = False,
     load_existing: bool = True,
+
+    print_name: str | None = None
 ):
     grid = sorted(list(grid))
     if step is None:
@@ -482,6 +490,7 @@ def mbs_search(
         save=save,
         base_hyperparams=fixed_hyperparams,
         load_existing=load_existing,
+        print_name=print_name,
     )
 
     def objective(x: float):

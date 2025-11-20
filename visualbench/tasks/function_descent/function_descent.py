@@ -230,11 +230,11 @@ class FunctionDescent(Benchmark):
             width, height = image_size
 
             denom = domain_bounds[0, 1] - domain_bounds[0, 0]
-            if abs(denom) < 1e-16: denom = 1
+            if abs(denom) < 1e-12: denom = 1
             pix[:, 0] = ((coords[:, 0] - domain_bounds[0, 0]) / denom) * (width - 1)
 
             denom = domain_bounds[1, 1] - domain_bounds[1, 0]
-            if abs(denom) < 1e-16: denom = 1
+            if abs(denom) < 1e-12: denom = 1
             pix[:, 1] = (1 - (coords[:, 1] - domain_bounds[1, 0]) / denom) * (height - 1)
             return pix
 

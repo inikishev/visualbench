@@ -40,6 +40,10 @@ REFERENCE_OPTS = (
 # region yscales
 _YSCALES: dict[str, Any] = {
     # ------------------------------------ new ----------------------------------- #
+    "MLS - Colinear BS-64 - MLP(32-64-96-128-256-10)": "log",
+    "MLS - Ill-conditioned logistic regression BS-1": "log",
+
+    # ------------------------------------ old ----------------------------------- #
     "S - Inverse-16 L1": "log",
     "S - Inverse-16 MSE": "log",
     "S - MoorePenrose-16 L1": "log",
