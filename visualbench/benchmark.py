@@ -170,7 +170,7 @@ class Benchmark(torch.nn.Module, ABC):
         if g is not None: self._grad_noise_alpha = g
         return self
 
-    def set_print_inverval(self, s: float | None = None):
+    def set_print_interval(self, s: float | None = None):
         self._print_interval_s = s
         return self
 

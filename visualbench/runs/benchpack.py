@@ -100,7 +100,7 @@ class OptimizerBenchPack:
                 random.seed(0)
 
                 # run
-                bench.reset().set_performance_mode().set_print_inverval(None)
+                bench.reset().set_performance_mode().set_print_interval(None)
                 opt = init_fn(opt_fn, bench, value)
                 bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
 
@@ -168,7 +168,7 @@ class OptimizerBenchPack:
                     if tune and hyperparam is not None: value = best_run.hyperparams[hyperparam]
 
                     # run benchmark with visualization enabled
-                    bench.reset().set_performance_mode(False).set_print_inverval(None)
+                    bench.reset().set_performance_mode(False).set_print_interval(None)
                     opt = init_fn(opt_fn, bench, value)
                     bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes)
 
