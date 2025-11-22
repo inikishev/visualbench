@@ -78,6 +78,8 @@ class Benchmark(torch.nn.Module, ABC):
         self._show_titles_on_video: bool = True
         self._w_cols = 0.65 # larger values cause more columns on video
 
+        self._forward_called = False
+
         self.reset()
 
     @torch.no_grad
@@ -394,6 +396,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         # terminate if stop condition reached
         if self.training:
+            self._forward_called = True
             msg = _benchmark_utils._should_stop(self)
             if msg is not None:
                 self._should_stop = True
@@ -490,7 +493,15 @@ class Benchmark(torch.nn.Module, ABC):
             if self._param_noise_alpha != 0: self._is_perturbed = True
             else: self._is_perturbed = False
 
+            self._forward_called = False
             optimizer.step(self.closure)
+            if not self._forward_called: # this prevents infinite stalling when bugged optimizer never calls closure
+                warnings.warn("optimizer never called closure this step")
+                msg = _benchmark_utils._should_stop(self)
+                if msg is not None:
+                    self._should_stop = True
+                    if self._use_stop_condition_exception: raise StopCondition(msg)
+
             self.num_steps += 1
             self.num_extra += self._extra_passes_per_step
             for cb in self._post_step_callbacks: cb(self)
