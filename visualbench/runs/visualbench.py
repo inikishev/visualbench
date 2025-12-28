@@ -96,11 +96,18 @@ class Visualbench(OptimizerBenchPack):
         bench = tasks.SimultaneousFunctionDescent('rosen').to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, '2D simultaneous - rosenbrock', passes=1000, sec=60, metrics='train loss', vid_scale=3)
 
-        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2])).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'decision space descent - ill2', passes=1000, sec=60, metrics='train loss', vid_scale=3)
+        bench = tasks.DecisionSpaceDescent.with_x0(
+            "rosen",
+            models.ConstantInput(models.MLP([256, 256, 256, 256, 2]), 256)
+        ).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'decision space descent - rosenbrock', passes=1000, sec=60, metrics='train loss', vid_scale=3)
 
-        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2])).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'decision space descent - ill2 (noisy)', passes=1000, sec=60, metrics='train loss', vid_scale=3)
+        bench = tasks.DecisionSpaceDescent.with_x0(
+            "rosen",
+            models.ConstantInput(models.MLP([256, 256, 256, 256, 2]), 256, noise=1),
+        ).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'decision space descent - rosenbrock (noisy)', passes=1000, sec=60, metrics='train loss', vid_scale=3)
+
 
     def run_projected(self):
         torch.manual_seed(0)

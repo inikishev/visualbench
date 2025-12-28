@@ -180,6 +180,7 @@ class RecurrentMLP(nn.Module):
             self.in_block = MLP(in_channels, act_cls=act_cls, dropout=dropout, bn=bn, ortho_init=ortho_init, cls=cls)
 
         # hidden block
+        if len(hidden_channels) == 1: hidden_channels = [hidden_channels[0], hidden_channels[0]]
         self.hidden_block = MLP(hidden_channels, act_cls=act_cls, bn=bn, dropout=dropout, ortho_init=ortho_init, cls=cls)
 
         # out-block
