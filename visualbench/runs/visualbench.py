@@ -96,10 +96,10 @@ class Visualbench(OptimizerBenchPack):
         bench = tasks.SimultaneousFunctionDescent('rosen').to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, '2D simultaneous - rosenbrock', passes=1000, sec=60, metrics='train loss', vid_scale=3)
 
-        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2]), 512, maxiter=2000, progress=False).to(CUDA_IF_AVAILABLE)
+        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2])).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'decision space descent - ill2', passes=1000, sec=60, metrics='train loss', vid_scale=3)
 
-        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2]), 512, maxiter=2000, noise=100, progress=False).to(CUDA_IF_AVAILABLE)
+        bench = tasks.DecisionSpaceDescent.with_x0("ill2", models.MLP([512, 256, 128, 64, 32, 16, 8, 4, 2])).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'decision space descent - ill2 (noisy)', passes=1000, sec=60, metrics='train loss', vid_scale=3)
 
     def run_projected(self):
