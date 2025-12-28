@@ -169,16 +169,9 @@ class Visualbench(OptimizerBenchPack):
         bench = tasks.LinesDrawer(data.WEEVIL96, 100, loss=_unbatched_ssim).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - LinesDrawer SSIM', passes=2000, sec=60, metrics='train loss', vid_scale=4, fps=30)
 
-        # -------------------------- deformable registration ------------------------- #
-        bench = tasks.DeformableRegistration(data.FROG96, grid_size=(5,5)).to(CUDA_IF_AVAILABLE)
-        self.run_bench(bench, 'Visual - DeformableRegistration', passes=2_000, sec=60, metrics='train loss', vid_scale=4)
-
         # ----------------------------------- fits ----------------------------------- #
-        bench = tasks.FitData(*tasks.FitData.DATA(c1=3,c2=4, noise=0.5), tasks.FitData.POLY(8)) # NO CUDA!
-        self.run_bench(bench, 'Visual - PolynomialFit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
-
-        bench = tasks.FitData(*tasks.FitData.DATA(c1=3,c2=4, noise=0.5), tasks.FitData.POLY(8)) # NO CUDA!
-        self.run_bench(bench, 'Visual - PolynomialFit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
+        bench = tasks.FitData(*tasks.FitData.DATA(), tasks.FitData.POLY(8)) # NO CUDA!
+        self.run_bench(bench, 'Visual - Polynomial fit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
 
     def run_linalg(self):
         torch.manual_seed(0)

@@ -307,8 +307,8 @@ class StochasticMatrixSign(Benchmark):
         self.add_reference_image('true sign', self.sign, to_uint8=True)
 
     def pre_step(self):
-        b, n, m = self.A.shape
-        self.x = self.sampler((self.batch_size, b, m, 1), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
+        b, n, _ = self.A.shape
+        self.x = self.sampler((b, n, self.batch_size), device=self.A.device, dtype=self.A.dtype, generator=self.rng.torch(self.A.device))
 
     def get_loss(self):
         A = self.A.unsqueeze(0)
@@ -318,7 +318,7 @@ class StochasticMatrixSign(Benchmark):
         Ax = algebras.matmul(A, x, self.algebra)
         Bx = algebras.matmul(B, x, self.algebra)
 
-        loss = self.criterion(Bx, Ax / torch.linalg.vector_norm(Ax).clip(min=1e-12)) # pylint:disable=not-callable
+        loss = self.criterion(Bx, Ax / torch.linalg.vector_norm(Ax, dim=1, keepdim=True).clip(min=1e-12)) # pylint:disable=not-callable
 
         with torch.no_grad():
             self.log("test loss", self.criterion(self.B, self.sign))
