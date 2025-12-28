@@ -68,7 +68,7 @@ class FunctionDescent(Benchmark):
             unpack = True
 
         x0 = totensor(x0, dtype=dtype)
-        super().__init__(log_params=True)
+        super().__init__() # log_params will be True by default. But False in neural descent for large nets.
 
         self.func: Callable[..., torch.Tensor] | TestFunction = f # type:ignore
 
