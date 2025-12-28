@@ -152,13 +152,15 @@ class SVD(Benchmark):
         return loss + penalty1 + penalty2
 
 class Eigendecomposition(Benchmark):
-    """Decompose square A into QΛQ^-1, where Q is a square matrix of eigenvectors, Λ is a diagonal matrix with eigenvalues.
+    """Decompose square A into QΛQ^-1, where Q is a square matrix of eigenvectors (optionally orthonormal),
+    Λ is a diagonal matrix with eigenvalues.
 
     This uses no complex values (but it is least squares-like).
 
     Args:
         A (Any): something to load and use as a matrix.
         criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        invert_Q: if True, computes Q^-1 as inverse, if False, computes it as Q^T.
         algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
         seed (int, optional): seed. Defaults to 0.
     """
@@ -166,14 +168,17 @@ class Eigendecomposition(Benchmark):
         self,
         A,
         criterion:Callable=torch.nn.functional.mse_loss,
+        ortho: linalg_utils.OrthoMode = 1,
+        invert_Q: bool = False,
         algebra=None,
         seed=0,
     ):
-
         super().__init__(seed=seed)
         self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.criterion = criterion
         self.algebra = algebras.get_algebra(algebra)
+        self.invert_Q = invert_Q
+        self.ortho: linalg_utils.OrthoMode = ortho
 
         *b, self.n, self.n = self.A.shape
         self.Q = torch.nn.Parameter(torch.linalg.qr(self.A)[0]) # pylint:disable=not-callable
@@ -192,100 +197,29 @@ class Eigendecomposition(Benchmark):
         Q = self.Q
         L = self.L
 
-        try:
-            Q_inv = torch.linalg.inv(Q) # pylint:disable=not-callable
-        except torch.linalg.LinAlgError:
-            Q_inv = torch.linalg.pinv(Q) # pylint:disable=not-callable
+        Q, penalty = linalg_utils.orthonormality_constraint(Q, self.ortho, self.algebra, self.criterion)
 
+        if self.invert_Q:
+            try:
+                Q_inv = torch.linalg.inv(Q) # pylint:disable=not-callable
+            except torch.linalg.LinAlgError:
+                Q_inv = torch.linalg.pinv(Q) # pylint:disable=not-callable
+        else:
+            Q_inv = Q.mH
 
         QL = algebras.mul(Q, L.unsqueeze(-2), self.algebra) # same as Q @ L.diag_embed()
         QLQi = algebras.matmul(QL, Q_inv, self.algebra)
 
-        loss = self.criterion(QLQi, self.A)
+        loss = self.criterion(QLQi, self.A) + penalty
 
         if self._make_images:
             indices = torch.argsort(L**2, descending=True)
             Q_sorted = torch.gather(Q, 2, indices.unsqueeze(1).expand(-1, self.n, -1))
-            Qi_sorted = torch.gather(Q_inv, 1, indices.unsqueeze(-1).expand(-1, -1, self.n))
 
             self.log_image("Q", Q_sorted, to_uint8=True)
-            self.log_image("Q^-1", Qi_sorted, to_uint8=True)
-            self.log_image("QLQ^-1", QLQi, to_uint8=True, show_best=True)
+            self.log_image("QΛQ^-1", QLQi, to_uint8=True, show_best=True)
 
         return loss
-
-
-class EigenWithInverse(Benchmark):
-    """Decompose square A into QΛQ^-1, where Q is a square matrix of eigenvectors, Λ is a diagonal matrix with eigenvalues.
-
-    This uses no complex values (but it is least squares-like). In this version Q inverse is optimized separately
-    with an extra term for QQ^-1 = Q^-1Q = I
-
-    Args:
-        A (Any): something to load and use as a matrix.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
-    """
-    def __init__(
-        self,
-        A,
-        criterion:Callable=torch.nn.functional.mse_loss,
-        algebra=None,
-        seed=0,
-    ):
-
-        super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
-        self.criterion = criterion
-        self.algebra = algebras.get_algebra(algebra)
-
-        *b, self.n, self.n = self.A.shape
-        self.Q = torch.nn.Parameter(torch.linalg.qr(self.A)[0]) # pylint:disable=not-callable
-        self.Q_inv = torch.nn.Parameter(self.Q.clone()) # pylint:disable=not-callable
-        self.L = torch.nn.Parameter(torch.zeros(*b, self.n))
-        self.I = torch.nn.Buffer(linalg_utils.eye_like(self.Q))
-
-        self.add_reference_image('A', self.A, to_uint8=True)
-        if algebra is None:
-            try:
-                L, Q = torch.linalg.eigh(self.A) # pylint:disable=not-callable
-                self.add_reference_image('PyTorch Q', Q, to_uint8=True)
-            except torch.linalg.LinAlgError as e:
-                warnings.warn(f'PyTorch eigh failed: {e!r}')
-
-        self.set_multiobjective_func(torch.sum)
-
-    def get_loss(self):
-        Q = self.Q
-        Q_inv = self.Q_inv
-        L = self.L
-        I = self.I
-
-        AB = algebras.matmul(Q, Q_inv, self.algebra)
-        BA = algebras.matmul(Q_inv, Q, self.algebra)
-
-        loss1 = self.criterion(AB, BA)
-        loss2 = self.criterion(AB, I)
-        loss3 = self.criterion(BA, I)
-
-        QL = algebras.mul(Q, L.unsqueeze(-2), self.algebra) # same as Q @ L.diag_embed()
-        QLQi = algebras.matmul(QL, Q_inv, self.algebra)
-
-        loss4 = self.criterion(QLQi, self.A)
-
-        if self._make_images:
-            indices = torch.argsort(L**2, descending=True)
-            Q_sorted = torch.gather(Q, 2, indices.unsqueeze(1).expand(-1, self.n, -1))
-            Qi_sorted = torch.gather(Q_inv, 1, indices.unsqueeze(-1).expand(-1, -1, self.n))
-
-            self.log_image("Q", Q_sorted, to_uint8=True)
-            self.log_image("Q^-1", Qi_sorted, to_uint8=True)
-            self.log_image("QQ^-1", AB, to_uint8=True)
-            self.log_image("Q^-1 Q", BA, to_uint8=True)
-            self.log_image("QLQ^-1", QLQi, to_uint8=True, show_best=True)
-
-        return torch.stack([loss1, loss2, loss3, loss4])
 
 
 

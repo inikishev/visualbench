@@ -78,6 +78,7 @@ def cutest_obj(x: torch.Tensor, problem: "pycutest.CUTEstProblem") -> torch.Tens
     return _CUTEstObj.apply(x, problem) # type:ignore
 
 class CUTEst(Benchmark):
+    """pycytest wrapper"""
     def __init__(self, problem: "pycutest.CUTEstProblem | str", dtype=torch.float32):
         super().__init__()
 

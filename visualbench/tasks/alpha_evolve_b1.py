@@ -198,7 +198,7 @@ class AlphaEvolveB1(Benchmark):
     """Alpha Evolve's B1 problem.
 
     The objective is to minimize maximum value of autoconvolution of a vector with positive values and of a fixed norm.
-    The lowest known value is something like 1.502.
+    The lowest known value for P=600 is something like 1.502.
 
     Renders:
         The vector at the top and the autoconvolution at the bottom.

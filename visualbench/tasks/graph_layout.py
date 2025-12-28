@@ -120,8 +120,6 @@ def _watts_strogatz_graph(n: int = 30, k: int = 4, p: float = 0.5) -> list[list[
 class GraphLayout(Benchmark):
     """Optimize graph layout by edge attraction and node repulsion.
 
-    The camera smoothly follows the nodes to keep them in view.
-
     Renders:
         current graph layout.
 

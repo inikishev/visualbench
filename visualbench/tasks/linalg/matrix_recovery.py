@@ -13,7 +13,7 @@ from . import linalg_utils
 
 class StochasticMatrixRecovery(Benchmark):
     """Optimize B to recover A given matrix-vector products Ax with a random vector.
-    The objective is `criterion(Ax, Bx)`.
+    The objective is ``criterion(Ax, Bx)``.
 
     Args:
         A (Any, optional): (m, n). Defaults to 512.

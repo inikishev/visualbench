@@ -174,7 +174,7 @@ class WavePINN(Benchmark):
 
 
     def get_loss(self):
-        # 1. PDE Loss
+        # PDE Loss
         t_pde, x_pde = self.pde_t.clone(), self.pde_x.clone()
         t_pde.requires_grad = True
         x_pde.requires_grad = True
@@ -189,7 +189,7 @@ class WavePINN(Benchmark):
         pde_residual = u_tt - self.c_squared * u_xx
         loss_pde = self.criterion(pde_residual, torch.zeros_like(pde_residual))
 
-        # 2. initial condition loss
+        # initial condition loss
         t_ic, x_ic = self.ic_t.clone(), self.ic_x.clone()
         t_ic.requires_grad = True # Required for u_t calculation
 
@@ -199,7 +199,7 @@ class WavePINN(Benchmark):
         loss_ic_u = self.criterion(u_ic_pred, self.u_ic_true)
         loss_ic_ut = self.criterion(u_t_ic_pred, self.ut_ic_true)
 
-        # 3. boundary condition loss
+        # boundary condition loss
         u_bc_pred_0 = self.net(torch.cat([self.bc_t, self.bc_x0], dim=1))
         u_bc_pred_1 = self.net(torch.cat([self.bc_t, self.bc_x1], dim=1))
         loss_bc = self.criterion(u_bc_pred_0, self.u_bc_true) + self.criterion(u_bc_pred_1, self.u_bc_true)

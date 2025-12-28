@@ -160,13 +160,13 @@ Datasets with two features (like `Moons`) support visualizing/rendering the deci
 - `OptimalControl` - optimize trajectory
 - `CUTEst` - wrapper for CUTEst (requires `pycustest`), with a custom torch.autograd.Function function that wraps CUTEst's gradients and hessian-vector products.
 
-# <h1 align='center'>Gallery</h1>
+<!-- # <h1 align='center'>Gallery</h1>
 
 I have to make this repo public to enable github pages, so those links are temorarily empty!
 
 - [More videos](wait)
 
-- [How much curvature do second order optimizers actually use?](wait)
+- [How much curvature do second order optimizers actually use?](wait) -->
 
 # <h1 align='center'>Advanced</h1>
 
@@ -365,13 +365,13 @@ class MatrixInverse(vb.Benchmark):
 
         # log individual losses
         # note that if metric name doesn't start with "train " or "test ",
-        # it be inserted in front of the name (this is by design)
+        # that will be inserted in front of the name (this is by design)
         self.log("AB BA loss", loss1)
         self.log("AB identity loss", loss2)
         self.log("BA identity loss", loss3)
 
         # log images
-        # skip (possibly expensive) visualization ocde if performance mode is enabled
+        # make sure to skip (possibly expensive) visualization ocde if performance mode is enabled
         # which sets `self._make_images=False`
         if self._make_images:
 

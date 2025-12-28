@@ -1,3 +1,4 @@
+import os
 from os import PathLike
 from typing import Literal
 
@@ -151,6 +152,10 @@ class OpenCVRenderer:
         self.release()
 
 def render_frames(file: PathLike | str, frames, fps = 60, norm: Literal['none', 'each', 'all'] = 'none', scale=1):
+    dirname = os.path.dirname(file)
+    if len(dirname) > 0 and not os.path.exists(dirname):
+        raise FileNotFoundError(f"directory `{dirname}` doesn't exist!")
+
     if norm == 'all':
         frames = [tonumpy(f).astype(np.float32) for f in frames]
         min_v = min(f.min() for f in frames)

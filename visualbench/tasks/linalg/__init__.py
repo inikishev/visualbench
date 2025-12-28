@@ -10,7 +10,6 @@ from .decompositions import (
     SVD,
     Cholesky,
     Eigendecomposition,
-    EigenWithInverse,
     KroneckerFactorization,
     Polar,
     RankFactorization,

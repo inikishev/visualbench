@@ -1,6 +1,7 @@
-import time
 import os
 import random
+import time
+from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
 from importlib.util import find_spec
 from typing import TYPE_CHECKING, Any
@@ -76,13 +77,16 @@ class OptimizerBenchPack:
         self.opt_fn = opt_fn
         self.init_fn = init_fn
 
+        self.results: defaultdict[str, dict[str, tuple[float, bool, float]]] = defaultdict(dict)
+        """keys are task name, dicts where keys are metrics, values are tuple (value, maximize, lr)"""
+
         def run_bench(bench: "Benchmark", task_name: str, passes: int, sec: float, metrics:str | Sequence[str] | dict[str, bool], vid_scale:int|None, fps=60, binary_mul: float = 1, test_every: int | None = None):
             if task_name in skip: return
             dim = sum(p.numel() for p in bench.parameters() if p.requires_grad)
             if max_dim is not None and dim > max_dim: return
 
-            start = time.time()
             test_time = 0
+            metrics = _target_metrics_to_dict(metrics)
             clean_mem()
 
              # skip CPU because accelerator state can't change.
@@ -114,6 +118,8 @@ class OptimizerBenchPack:
                     test_time += bench.logger.sum("test time")
 
                 return bench.logger
+
+            start = time.time()
 
             # --------------------------------- single run ------------------------------- #
             if (hyperparam is None) or (not tune):
@@ -153,10 +159,20 @@ class OptimizerBenchPack:
                     print_progress=print_progress,
                 )
 
+            # save results
+            for metric, maximize in metrics.items():
+                r = sweep.best_runs(metric, maximize=maximize, n=1)[0]
+                if maximize: v = r.stats[metric]["max"]
+                else: v = r.stats[metric]["min"]
+                if len(r.hyperparams) > 0:
+                    self.results[task_name][metric] = (v, maximize, next(iter(r.hyperparams.values())))
+                else:
+                    self.results[task_name][metric] = (v, maximize, 0)
+
             # ------------------------------- render video ------------------------------- #
             if (render_vids) and (vid_scale is not None) and (self.summaries_root is not None):
                 assert self.summary_dir is not None
-                for metric, maximize in _target_metrics_to_dict(metrics).items():
+                for metric, maximize in metrics.items():
 
                     # check if video already exists and skip if it does
                     video_path = os.path.join(self.summary_dir, f'{task_name} - {metric}')
@@ -189,6 +205,29 @@ class OptimizerBenchPack:
 
         self.run_bench = run_bench
 
+    def print_sweep(self):
+        for task_name, metrics in self.results.items():
+            for metric, (value, maximize, lr) in metrics.items():
+                print(f"{task_name}: {metric} = {value:.4g} at lr={lr:.4g}")
+
+    def print_summary(self):
+        assert self.root is not None
+        from .utils import print_task_summary
+        for i, (task_name, metrics) in enumerate(self.results.items()):
+            for metric, (value, maximize, lr) in metrics.items():
+                print(f"Best runs so far for {task_name}:")
+                print_task_summary(root=self.root, task_name=task_name, metric=metric, maximize=maximize)
+            if i != len(self.results) - 1: print()
+
+    def print_sweep_and_summary(self):
+        assert self.root is not None
+        from .utils import print_task_summary
+        for i, (task_name, metrics) in enumerate(self.results.items()):
+            for metric, (value, maximize, lr) in metrics.items():
+                print(f"{task_name}: {self.sweep_name} achived {metric} = {value:.4g} at lr={lr:.4g}")
+                print("Best runs so far:")
+                print_task_summary(root=self.root, task_name=task_name, metric=metric, maximize=maximize)
+            if i != len(self.results) - 1: print()
 
     def render(self, axsize=(6,3), dpi=300, extra_references: str | Sequence | None = None, n_best:int=1):
         from .plotting import REFERENCE_OPTS, render_summary

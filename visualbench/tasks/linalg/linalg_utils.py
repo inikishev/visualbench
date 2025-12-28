@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Sequence, Callable
 from typing import Literal, Any
 import warnings
 import torch
@@ -19,7 +19,7 @@ def orthonormalize_svd(M: torch.Tensor, driver=None):
     return (U @ V.mT)
 
 OrthoMode = float | Literal['svd', 'qr'] | None
-def orthonormality_constraint(M: torch.Tensor, ortho: OrthoMode, algebra, criterion) -> tuple[torch.Tensor, float | torch.Tensor]:
+def orthonormality_constraint(M: torch.Tensor, ortho: OrthoMode, algebra, criterion: Callable) -> tuple[torch.Tensor, float | torch.Tensor]:
     """either orthonormality penalty or projects onto the Stiefel manifold via svd"""
     if ortho is None: return M, 0
     if not isinstance(M, torch.Tensor): raise TypeError(M)
@@ -57,7 +57,7 @@ def sinkhorn(logits: torch.Tensor, iters: int | None=10) -> torch.Tensor:
     return torch.exp(log_alpha)
 
 
-def make_permutation(logits: torch.Tensor, iters: int | None, binary_weight: float, ortho: OrthoMode, algebra, criterion) -> tuple[torch.Tensor, float | torch.Tensor]:
+def make_permutation(logits: torch.Tensor, iters: int | None, binary_weight: float, ortho: OrthoMode, algebra, criterion: Callable) -> tuple[torch.Tensor, float | torch.Tensor]:
     """make permutation tensor and penalize
 
     Args:

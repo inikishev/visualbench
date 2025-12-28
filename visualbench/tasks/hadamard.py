@@ -9,10 +9,9 @@ from ..benchmark import Benchmark
 
 
 class Hadamard(Benchmark):
+    """
+    """
     def __init__(self, n_half: int, binarization_weight: float = 0.1):
-        """
-        inspired by
-        """
         super().__init__()
         if not isinstance(n_half, int) or n_half <= 0:
             raise ValueError("n_half must be a positive integer.")

@@ -286,7 +286,8 @@ class StochasticMatrixIdempotent(Benchmark):
 
 
 class StochasticMatrixSign(Benchmark):
-    """given square A, find B such that Bx = Ax / ||Ax||, where x is a random unit vector sampled on each step."""
+    """given square A, find B such that Bx = Ax / ||Ax||, where x is a random unit vector sampled on each step,
+    it doesn't hold that sgn(A)x = Ax / ||Ax|| but I am pretty sure matrix sign minimizes this loss"""
     def __init__(self, A, batch_size=1, criterion = F.mse_loss, algebra=None, sampler=torch.randn):
         super().__init__()
 

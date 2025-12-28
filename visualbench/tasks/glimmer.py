@@ -69,7 +69,6 @@ class Glimmer(Benchmark):
                 frame = _make_frame(self._colors, self.Y.numpy(force=True), self.resolution)
                 self.log_image('data', frame, to_uint8=False)
 
-
         return loss
 
 

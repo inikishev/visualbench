@@ -16,7 +16,7 @@ from .linalg.linalg_utils import orthogonal
 class Sphere(Benchmark):
     """Sphere benchmark (or other function depending on criterion).
 
-    Directly minimizes `criterion` between `target` and `init`.
+    Directly minimizes ``criterion`` between ``target`` and ``init``.
 
     Renders:
         if target is an image, renders the current solution and the error.

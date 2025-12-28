@@ -4,9 +4,18 @@ import numpy as np
 import torch
 
 from .test_functions import TestFunction, TEST_FUNCTIONS
-from ...utils import totensor
+from ...utils import totensor, tonumpy
 
 from .function_descent import FunctionDescent
+
+
+class _ShiftedModel(torch.nn.Module):
+    def __init__(self, model, shift):
+        super().__init__()
+        self.model = model
+        self.shift = torch.nn.Buffer(totensor(shift).to(device=next(iter(self.model.parameters())).device))
+    def forward(self):
+        return self.model() + self.shift
 
 class DecisionSpaceDescent(FunctionDescent):
     """Optimize a model to output coordinates that minimize a function.
@@ -50,24 +59,26 @@ class DecisionSpaceDescent(FunctionDescent):
         cls,
         func,
         model: torch.nn.Module,
-        input: int | Sequence[int] | torch.Tensor,
         x0: Sequence | np.ndarray | torch.Tensor | None = None,
         domain: tuple[float,float,float,float] | Sequence[float] | None = None,
-        unpack = True,
-        noise: float = 0,
-        maxiter=1000,
-        progress:bool=True,
     ):
-        if x0 is None:
-            if isinstance(func, str): func = TEST_FUNCTIONS[func].to(device = 'cpu', dtype = torch.float32)
-            assert isinstance(func, TestFunction)
+        if isinstance(func, str):
+            func = TEST_FUNCTIONS[func].to(device = 'cpu', dtype = torch.float32)
+
+        if x0 is None and isinstance(func, TestFunction):
             x0 = func.x0()
-        from ...models.wrappers import ConstantInput
-        model = ConstantInput(model, input, x0=x0, noise=noise, maxiter=maxiter, progress=progress, seed=0)
-        return cls(model=model, func=func, domain=domain, unpack=unpack)
+
+        # shift the model output so that initial point outputted by the model lands to x0
+        if x0 is not None:
+
+            x0 = tonumpy(x0)
+            model_out = tonumpy(model())
+            model = _ShiftedModel(model, shift=x0-model_out)
+
+        return cls(model=model, func=func, domain=domain)
 
     def get_loss(self):
-        xy = self.model()
+        xy = self.model().squeeze()
         if self.unpack:
             loss = self.func(xy[0], xy[1])
         else:
@@ -76,38 +87,3 @@ class DecisionSpaceDescent(FunctionDescent):
         self.log("xy", xy, plot=False)
         return loss
 
-
-#
-# booth = vb.TEST_FUNCTIONS["booth"]
-
-# class Sus(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.linear = nn.Linear(1024, 2)
-
-#         # optimize x to initial
-#         x0 = vb.totensor(booth.x0())
-#         x = torch.randn(1024, requires_grad=True)
-#         opt = tz.Optimizer([x], tz.m.LBFGS(), tz.m.Backtracking())
-#         for _ in range(100):
-#             def closure(backward=True):
-#                 loss = (self.linear(x) - x0).pow(2).mean()
-#                 if backward:
-#                     opt.zero_grad()
-#                     loss.backward()
-#                 return loss
-#             opt.step(closure)
-
-#         self.x = nn.Buffer(x.requires_grad_(False))
-
-#     def forward(self):
-#         return self.linear(self.x)
-
-# bench = vb.NeuralDescent(Sus(), 'booth').cuda()
-
-# print(f'{bench.ndim = }')
-# # opt = torch.optim.Adam(bench.parameters(), 1e-1)
-# opt = tz.Optimizer(bench, tz.m.GGT(), tz.m.LR(1e-2))
-
-# bench.run(opt, 100)
-# bench.plot()

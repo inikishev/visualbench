@@ -15,19 +15,19 @@ def _maybe_format(x):
 def _dict_to_str(d: dict):
     return ' '.join([f"{k}={_maybe_format(v)}" for k,v in d.items()])
 
-def print_task_summary(task_name:str, metric: str = "train loss", maximize=False, root: str = "optimizers",) -> None:
+def print_task_summary(root: str, task_name:str, metric: str = "train loss", maximize=False) -> None:
     task = Task.load(os.path.join(root, task_name), load_loggers=False, decoder=None)
     sweeps = task.best_sweeps(metric, maximize, n=1000)
     runs = [s.best_runs(metric, maximize, n=1)[0] for s in sweeps]
 
     for i, r in enumerate(runs):
         key = 'max' if maximize else 'min'
-        if len(r.hyperparams) == 0: n = f"{i}: {r.run_name}"
-        else: n = f"{i}: {r.run_name} ({_dict_to_str(r.hyperparams)})"
+        if len(r.hyperparams) == 0: n = f"{i+1}: {r.run_name}"
+        else: n = f"{i+1}: {r.run_name} ({_dict_to_str(r.hyperparams)})"
         print(n.ljust(100)[:100], f"{format_number(r.stats[metric][key], 5)}")
 
 
-def rename_run(old: str, new:str, root:str) -> None:
+def rename_run(root:str, old: str, new:str) -> None:
     renamed = False
     for task in os.listdir(root):
         task_path = os.path.join(root, task)
@@ -49,7 +49,7 @@ def rename_run(old: str, new:str, root:str) -> None:
         raise FileNotFoundError(f"{old} doesn't exist")
 
 
-def delete_run(name:str, root:str) -> None:
+def delete_run(root:str, name:str) -> None:
     deleted = False
     for task in os.listdir(root):
         task_path = os.path.join(root, task)
@@ -68,7 +68,7 @@ def delete_run(name:str, root:str) -> None:
     if not deleted:
         raise FileNotFoundError(f"{name} doesn't exist")
 
-def rename_task(old: str, new:str, root:str) -> None:
+def rename_task(root:str, old: str, new:str) -> None:
     renamed = False
     for task in os.listdir(root):
         if task == old:

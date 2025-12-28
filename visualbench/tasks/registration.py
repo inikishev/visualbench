@@ -67,6 +67,15 @@ def _initialize(fixed, moving, generator, mode, padding_mode):
 
 
 class AffineRegistration(Benchmark):
+    """Affine registration, the goal is to find affine transform that alligns ``moving`` to ``fixed``.
+
+    Args:
+        fixed: fixed image, the target to align moving image to. Supports 2D and 3D (volumetric) images.
+        moving: moving image, if None, uses rotated fixed image. Supports 2D and 3D (volumetric) images. Defaults to None.
+        criterion: criterion. Defaults to F.mse_loss.
+        mode: interpolation. Defaults to 'bilinear'.
+        padding_mode: padding. Defaults to 'border'.
+    """
     def __init__(self, fixed, moving=None, criterion=F.mse_loss, mode='bilinear', padding_mode='border'):
         super().__init__()
 
@@ -112,6 +121,16 @@ class AffineRegistration(Benchmark):
 
 
 class DeformableRegistration(Benchmark):
+    """Deformable registration, the goal is to find a deformation field that alligns ``moving`` to ``fixed``.
+
+    Args:
+        fixed: fixed image, the target to align moving image to. Supports 2D and 3D (volumetric) images.
+        moving: moving image, if None, uses rotated fixed image. Supports 2D and 3D (volumetric) images. Defaults to None.
+        grid_size: size of the deformation grid. Defaults to (10,10).
+        criterion: criterion. Defaults to F.mse_loss.
+        mode: interpolation. Defaults to 'bilinear'.
+        padding_mode: padding. Defaults to 'border'.
+    """
     def __init__(self, fixed, moving=None, grid_size: int | Sequence[int]=(10,10), criterion=F.mse_loss, mode='bilinear', padding_mode='border'):
         super().__init__()
         affine, fixed, moving, self.is_2d = _initialize(fixed, moving, self.rng.torch(), mode, padding_mode)
