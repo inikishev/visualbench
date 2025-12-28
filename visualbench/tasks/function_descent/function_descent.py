@@ -99,6 +99,12 @@ class FunctionDescent(Benchmark):
             return np.array(list(zip(params.min(0), params.max(0))))
         return np.array([[self._domain[0],self._domain[1]],[self._domain[2],self._domain[3]]])
 
+    def _unpacked_func(self, x, y):
+        if self.unpack:
+            return self.func(x,y)
+        else:
+            return self.func(torch.stack([x,y])) # type:ignore
+
     def get_loss(self):
         xy = self.xy
         if self.unpack:

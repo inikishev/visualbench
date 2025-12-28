@@ -109,6 +109,8 @@ def plot_summary(
             ax.set_title(k)
             ax.set_xlabel('num forward/backward passes')
             ax.set_ylabel(k)
+            if self._metric_to_log_scale.get(k, False):
+                ax.set_yscale("log")
 
     # -------------------------------- trajectory -------------------------------- #
     if 'params' in self.logger or 'projected' in self.logger:

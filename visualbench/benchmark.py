@@ -69,6 +69,8 @@ class Benchmark(torch.nn.Module, ABC):
         """keys to display images corresponding to lowest loss found so far"""
         self._plot_keys: python_tools.SortedSet = python_tools.SortedSet()
         """keys to display line charts for"""
+        self._metric_to_log_scale: dict[str, bool] = {}
+        """Whether to plot given key in log scale"""
 
         self._basis: torch.Tensor | None = None
         self._print_interval_s: float | None = 0.1
@@ -273,7 +275,7 @@ class Benchmark(torch.nn.Module, ABC):
                 raise optuna.TrialPruned()
 
     @torch.no_grad
-    def log(self, metric: str, value: Any, plot: bool = True):
+    def log(self, metric: str, value: Any, plot: bool = True, log_scale:bool=True):
         """
         Log `value` under `metric` key.
         Either "train " or "test " prefix will be added to "metric" automatically unless it is specified manually.
@@ -287,6 +289,8 @@ class Benchmark(torch.nn.Module, ABC):
             value (Any): value (anything)
             plot (DisplayType | None, optional): if enabled and if value is a scalar, plots this value on visualizations.
         """
+        self._metric_to_log_scale[metric] = log_scale
+
         if self._is_perturbed:
             plot = False
             metric = f'{metric} (perturbed)'

@@ -30,7 +30,7 @@ class TrainingVisualizer:
 
         # Draw dataset points (Blue)
         for i in range(len(px)):
-            cv2.circle(self.background, (px[i], py[i]), 2, (255, 100, 0), -1, cv2.LINE_AA)
+            cv2.circle(self.background, (px[i], py[i]), 1, (255, 100, 0), -1, cv2.LINE_AA) # pylint:disable=no-member
 
     def _to_pixels_x(self, x_vals):
         return (self.margin + (x_vals - self.x_min) * self.scale_x).astype(np.int32)
@@ -55,8 +55,8 @@ class TrainingVisualizer:
         pts = np.stack([px, py], axis=1).reshape((-1, 1, 2))
 
         # Draw the prediction line (Red)
-        cv2.polylines(frame, [pts], isClosed=False, color=(0, 0, 255),
-                      thickness=2, lineType=cv2.LINE_AA)
+        cv2.polylines(frame, [pts], isClosed=False, color=(0, 0, 255),# pylint:disable=no-member
+                      thickness=1, lineType=cv2.LINE_AA)# pylint:disable=no-member
 
         return frame
 
@@ -98,7 +98,7 @@ class SinusoidalRegression(nn.Module):
 class SegmentedRegression(nn.Module):
     def __init__(self, n_knots: int = 10):
         super().__init__()
-        self.w = nn.Parameter(torch.linspace(0, 10, n_knots))
+        self.w = nn.Parameter(torch.linspace(-5, 5, n_knots))
         self.h = nn.Parameter(torch.zeros(n_knots))
 
     def forward(self, x: torch.Tensor):
@@ -121,7 +121,7 @@ class SegmentedRegression(nn.Module):
 class StepRegression(nn.Module):
     def __init__(self, n_steps: int = 10):
         super().__init__()
-        self.thresholds = nn.Parameter(torch.linspace(0, 10, n_steps))
+        self.thresholds = nn.Parameter(torch.linspace(-5, 5, n_steps))
         self.values = nn.Parameter(torch.zeros(n_steps + 1))
 
     def forward(self, x: torch.Tensor):
@@ -143,6 +143,11 @@ class RBFRegression(nn.Module):
         rbf = torch.exp(-(diff**2) / torch.exp(self.log_widths)**2)
         return (rbf * self.weights).sum(dim=1) + self.bias
 
+def synthetic_dataset(n=128, c1=3, c2=4, noise=0.5, seed=0):
+    generator = torch.Generator().manual_seed(seed)
+    x = torch.randn(n, generator=generator)
+    y = torch.max(torch.sin(x*c1) + torch.randn(n, generator=generator) * noise, torch.cos(x*c2))
+    return x, y
 
 class FitData(Benchmark):
     """Fit a regression model to 1d data.
@@ -164,6 +169,7 @@ class FitData(Benchmark):
     SEGMENTED = SegmentedRegression
     STEP = StepRegression
     RBF = RBFRegression
+    DATA = synthetic_dataset
 
     def __init__(
         self,
@@ -173,8 +179,8 @@ class FitData(Benchmark):
         criterion=F.mse_loss,
         n_points=300,
         expand: float = 0.5,
-        width=800,
-        height=600,
+        width=500,
+        height=300,
         margin=50,
     ):
         super().__init__()

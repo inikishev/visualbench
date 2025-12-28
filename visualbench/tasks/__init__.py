@@ -7,6 +7,7 @@ from .char_rnn import CharRNN
 from .colorization import Colorization
 from .covering import RigidBoxCovering
 from .cutest import CUTEst
+from .data_fit import FitData
 from .datasets import *
 from .drawing import (
     LayerwiseNeuralDrawer,
@@ -17,14 +18,14 @@ from .drawing import (
 )
 from .function_approximator import FunctionApproximator
 from .function_descent import (
-    FunctionDescent,
-    MetaLearning,
+    TEST_FUNCTIONS,
     DecisionSpaceDescent,
+    FunctionDescent,
+    LearnAndMinimize,
+    MetaLearning,
     SimultaneousFunctionDescent,
     test_functions,
-    TEST_FUNCTIONS,
 )
-from .tammes import Tammes
 from .glimmer import Glimmer
 from .gmm import GaussianMixtureNLL
 from .graph_layout import GraphLayout
@@ -56,6 +57,7 @@ from .synthetic import (
     RotatedQuadratic,
     Sphere,
 )
+from .tammes import Tammes
 from .tsne import TSNE
 
 if TYPE_CHECKING or find_spec('gpytorch') is not None:

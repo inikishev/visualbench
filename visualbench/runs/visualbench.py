@@ -81,17 +81,14 @@ class Visualbench(OptimizerBenchPack):
         bench = tasks.FunctionDescent('ill2')
         self.run_bench(bench, '2D - ill2', passes=1000, sec=10, metrics='train loss', vid_scale=1)
 
+        bench = tasks.FunctionDescent('dipole_field')
+        self.run_bench(bench, '2D - dipole field', passes=1000, sec=60, metrics='train loss', vid_scale=1)
+
         bench = tasks.FunctionDescent('rosen')
         self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1)
 
-        bench = tasks.FunctionDescent('rosen').set_noise(0.5, 0.5)
-        self.run_bench(bench, '2D - rosenbrock (noisy)', passes=1000, sec=30, metrics='train loss', vid_scale=1)
-
         bench = tasks.FunctionDescent('rosenabs')
         self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1)
-
-        bench = tasks.FunctionDescent('mycs1')
-        self.run_bench(bench, '2D - mycs1', passes=500, sec=60, metrics='train loss', vid_scale=1)
 
         bench = tasks.SimultaneousFunctionDescent('rosen').to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, '2D simultaneous - rosenbrock', passes=1000, sec=60, metrics='train loss', vid_scale=3)
@@ -148,24 +145,11 @@ class Visualbench(OptimizerBenchPack):
         bench_name = 'Visual - Sine Approximator - Tanh 7-4'
         self.run_bench(bench, bench_name, passes=2_000, sec=120, metrics='train loss', vid_scale=1)
 
-        bench = tasks.FunctionApproximator(
-            tasks.FunctionApproximator.SINE(8), n_skip=4, depth=7, resolution=(384,768), batch_size=16,
-        ) # NO CUDA
-        bench_name = 'Visual - Sine Approximator BS-16 - Tanh 7-4'
-        self.run_bench(bench, bench_name, passes=2_000, sec=120, metrics='test loss', vid_scale=1)
-
         # ----------------------- Particle minmax ---------------------- #
         # ndim = 64
         # 2s ~ 40s
         bench = tasks.ClosestFurthestParticles(32, spread=0.75) # NO CUDA
         self.run_bench(bench, 'Visual - Particle min-max', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
-
-        # -------------------------------- Muon coeffs ------------------------------- #
-        # ndim = 15
-        # 9.1s. ~ 3m. 3s.
-        bench = tasks.MuonCoeffs(resolution=(512, 512)) # NO CUDA
-        bench_name = 'Visual - Muon coefficients'
-        self.run_bench(bench, bench_name, passes=2_000, sec=120, metrics='train loss', vid_scale=1, binary_mul=0.75)
 
         # ------------------------------ Alpha Evolve B1 ----------------------------- #
         # ndim = 600
@@ -181,15 +165,6 @@ class Visualbench(OptimizerBenchPack):
         bench_name = "Visual - Style Transfer"
         self.run_bench(bench, bench_name, passes=2_000, sec=120, metrics='train loss', binary_mul=0.4, vid_scale=2)
 
-        # ----------------------------------- moons ---------------------------------- #
-        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1], act_cls=nn.ELU, ortho_init=True)).to(CUDA_IF_AVAILABLE)
-        bench_name = 'Visual - Moons FB - MLP(2-2-2-2-2-2-2-2-1)-ELU'
-        self.run_bench(bench, bench_name, passes=2_000, sec=90, metrics="train loss", vid_scale=2)
-
-        bench = tasks.Moons(models.MLP([2,2,2,2,2,2,2,2,1], act_cls=nn.ELU, ortho_init=True), batch_size=1, n_samples=2048, train_split=1024).to(CUDA_IF_AVAILABLE)
-        bench_name= "Visual - Moons BS-1 - MLP(2-2-2-2-2-2-2-2-1)-ELU"
-        self.run_bench(bench, bench_name, passes=2_000, sec=90, metrics='test loss', vid_scale=2, test_every=10)
-
         # ------------------------------- lines drawer ------------------------------- #
         bench = tasks.LinesDrawer(data.WEEVIL96, 100, loss=_unbatched_ssim).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - LinesDrawer SSIM', passes=2000, sec=60, metrics='train loss', vid_scale=4, fps=30)
@@ -197,6 +172,13 @@ class Visualbench(OptimizerBenchPack):
         # -------------------------- deformable registration ------------------------- #
         bench = tasks.DeformableRegistration(data.FROG96, grid_size=(5,5)).to(CUDA_IF_AVAILABLE)
         self.run_bench(bench, 'Visual - DeformableRegistration', passes=2_000, sec=60, metrics='train loss', vid_scale=4)
+
+        # ----------------------------------- fits ----------------------------------- #
+        bench = tasks.FitData(*tasks.FitData.DATA(c1=3,c2=4, noise=0.5), tasks.FitData.POLY(8)) # NO CUDA!
+        self.run_bench(bench, 'Visual - PolynomialFit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FitData(*tasks.FitData.DATA(c1=3,c2=4, noise=0.5), tasks.FitData.POLY(8)) # NO CUDA!
+        self.run_bench(bench, 'Visual - PolynomialFit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
 
     def run_linalg(self):
         torch.manual_seed(0)
