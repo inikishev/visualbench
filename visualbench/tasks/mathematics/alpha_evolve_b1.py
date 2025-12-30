@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from visualbench.benchmark import Benchmark
+from ...benchmark import Benchmark
 
 
 # function taken from https://github.com/damek/alpha_evolve_problem_B1

@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from ..benchmark import Benchmark
+from ...benchmark import Benchmark
 
 
 def _get_derivative_kernels(dtype=torch.float32):

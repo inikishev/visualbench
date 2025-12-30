@@ -3,8 +3,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from ..benchmark import Benchmark
-from ..utils import to_CHW
+from ...benchmark import Benchmark
+from ...utils import to_CHW
 
 
 class Kato(Benchmark):

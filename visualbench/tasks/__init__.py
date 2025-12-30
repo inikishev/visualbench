@@ -2,7 +2,6 @@ from importlib.util import find_spec
 from typing import TYPE_CHECKING, Literal, cast
 
 from . import projected
-from .alpha_evolve_b1 import AlphaEvolveB1
 from .char_rnn import CharRNN
 from .colorization import Colorization
 from .covering import RigidBoxCovering
@@ -29,14 +28,12 @@ from .function_descent import (
 from .glimmer import Glimmer
 from .gmm import GaussianMixtureNLL
 from .graph_layout import GraphLayout
-from .hadamard import Hadamard
-from .kato import Kato
 from .lennard_jones_clusters import LennardJonesClusters
 from .linalg import *
+from .mathematics import *
 from .matrix_factorization import MFMovieLens
 from .minpack2 import HumanHeartDipole, PropaneCombustion
 from .muon_coeffs import MuonCoeffs
-from .normal_scalar_curvature import NormalScalarCurvature
 from .operations import Sorting
 from .optimal_control import OptimalControl
 from .packing import BoxPacking, RigidBoxPacking, SpherePacking
@@ -46,8 +43,6 @@ from .particles import *
 from .pde import WavePINN
 from .registration import AffineRegistration, DeformableRegistration
 from .rnn import RNNArgsort
-from .smale7 import Smale7
-from .steiner import SteinerSystem
 from .style_transfer import StyleTransfer
 from .synthetic import (
     Ackley,
@@ -57,7 +52,6 @@ from .synthetic import (
     RotatedQuadratic,
     Sphere,
 )
-from .tammes import Tammes
 from .tsne import TSNE
 
 if TYPE_CHECKING or find_spec('gpytorch') is not None:

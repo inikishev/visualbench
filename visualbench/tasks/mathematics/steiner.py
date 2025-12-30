@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from ..benchmark import Benchmark
+from ...benchmark import Benchmark
 
 
 class SteinerSystem(Benchmark):

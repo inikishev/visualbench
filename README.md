@@ -350,7 +350,7 @@ class MatrixInverse(vb.Benchmark):
         # this will be optimized to approximate inverse of the matrix
         self.inverse_hat = torch.nn.Parameter(torch.randn_like(self.matrix))
 
-        # this shows the matrix on the video
+        # this shows the input matrix when plotting and rendering animations
         self.add_reference_image(name="matrix", image=self.matrix, to_uint8=True)
 
     def get_loss(self):
@@ -371,12 +371,13 @@ class MatrixInverse(vb.Benchmark):
         self.log("BA identity loss", loss3)
 
         # log images
-        # make sure to skip (possibly expensive) visualization ocde if performance mode is enabled
+        # make sure to skip (possibly expensive) visualization code if performance mode is enabled
         # which sets `self._make_images=False`
         if self._make_images:
 
-            # to_uint8 normalizes them to and converts to uint8 data type
-            # or you can do that manually if you want but then logged images must be uin8
+            # image can be numpy array or torch tensor in (C, H, W), (H, W, C) or (H, W).
+            # to_uint8 normalizes them to (0, 255) and converts to uint8 data type
+            # or you can do that manually if you want but then logged images must be uint8
             self.log_image(name='inverse', image=self.inverse_hat, to_uint8=True)
             self.log_image(name='AB', image=AB, to_uint8=True)
             self.log_image(name='BA', image=BA, to_uint8=True)
@@ -392,7 +393,7 @@ optimizer = torch.optim.LBFGS(benchmark.parameters(), line_search_fn='strong_wol
 benchmark.run(optimizer, max_passes=1000)
 
 benchmark.plot(yscale="log") # plots everything that was logged
-benchmark.render("L-BFGS inverting a matrix.mp4", scale=4) # renders a video with images that were logged
+benchmark.render("L-BFGS inverting a matrix.mp4") # renders a video with images that were logged
 ```
 
 <https://github.com/user-attachments/assets/0c768529-2e71-4667-8908-86bbce515852>

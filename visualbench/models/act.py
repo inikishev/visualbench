@@ -1,7 +1,8 @@
-from torch.nn import functional as F
+from collections.abc import Callable
+
 import torch
 from torch import nn
-
+from torch.nn import functional as F
 
 
 class ScalarAffine(nn.Module):
@@ -25,6 +26,10 @@ class ScalarAffine(nn.Module):
 class Sine(nn.Module):
     """computes ``sine(x)``"""
     def forward(self, x: torch.Tensor): return x.sin()
+
+class SineApprox(nn.Module):
+    """computes ``sine(x)``"""
+    def forward(self, x: torch.Tensor): return -x * x.abs() + x
 
 class Abs(nn.Module):
     """computes ``abs(x)``"""
@@ -150,14 +155,24 @@ class ActNet(nn.Module):
     etc
     ```
     """
-    def __init__(self, depth:int, act_cls = nn.ELU):
+    def __init__(self, depth:int, act_cls: Callable = nn.ELU):
         super().__init__()
         self.depth = depth
         self.weights = nn.Parameter(torch.ones(depth-1, dtype=torch.float32, requires_grad=True), requires_grad=True)
+        self.biases = nn.Parameter(torch.zeros(depth-1, dtype=torch.float32, requires_grad=True), requires_grad=True)
         self.acts = nn.ModuleList(act_cls() for _ in range(depth))
 
     def forward(self, x:torch.Tensor):
         x = self.acts[0](x)
-        for w,a in zip(self.weights, self.acts[1:]):
-            x = a(w*x)
+        for w,b,a in zip(self.weights, self.biases, self.acts[1:]):
+            x = a(w*x+b)
         return x
+
+class Lambda(nn.Module):
+    """computes ``exp(-x^2)``"""
+    def __init__(self, fn: Callable[[torch.Tensor], torch.Tensor]):
+        super().__init__()
+        self.fn = fn
+
+    def forward(self, x: torch.Tensor):
+        return self.fn(x)

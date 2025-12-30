@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 from torch import nn
-from ..benchmark import Benchmark
+from ...benchmark import Benchmark
 
 class Smale7(Benchmark):
     """Smale's 7th problem - minimizes the potential energy V = sum_{i<j} -log(||x_i - x_j||^2), where x_i

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import torch
 from torch import nn
-from ..benchmark import Benchmark
+from ...benchmark import Benchmark
 
 class Tammes(Benchmark):
     """Tammes problem is to maximize minimal distance between points on a sphere
