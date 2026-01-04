@@ -99,6 +99,7 @@ class Mnist1d(DatasetBenchmark):
         batch_size: int | None = None,
         test_batch_size: int | None = None,
         train_split: float = 0.8,
+        data_device: torch.types.Device = CUDA_IF_AVAILABLE,
     ):
         (x,y), (x_test, y_test) = get_mnist1d(num_samples=num_samples, train_split=train_split)
         super().__init__(
@@ -108,7 +109,8 @@ class Mnist1d(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size =test_batch_size,
-            dtypes = (torch.float32, torch.int64)
+            dtypes = (torch.float32, torch.int64),
+            data_device=data_device,
         )
 
 class Mnist1dAutoencoding(DatasetBenchmark):

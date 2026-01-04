@@ -345,7 +345,7 @@ class MatrixInverse(vb.Benchmark):
 
         # store matrix and eye as buffers, that way benchmark.cuda() will move them to cuda
         self.matrix = torch.nn.Buffer(matrix.float().cpu())
-        self.eye = torch.nn.Buffer(torch.eye(matrix.size(0), dtype=torch.float32))
+        self.eye = torch.nn.Buffer(torch.eye(matrix.size(-1), dtype=torch.float32))
 
         # this will be optimized to approximate inverse of the matrix
         self.inverse_hat = torch.nn.Parameter(torch.randn_like(self.matrix))

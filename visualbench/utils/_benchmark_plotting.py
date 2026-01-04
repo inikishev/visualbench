@@ -24,6 +24,7 @@ def plot_trajectory(self: "Benchmark", cmap = 'coolwarm', loss_scale:Any = 'syml
     if 'params' in self.logger: trajectory = self.logger.numpy('params') # n_points, n_dims
     elif 'projected' in self.logger: trajectory = self.logger.numpy('projected')
     else: raise RuntimeError("Either params or projections must be logged to plot trajectory")
+    if np.iscomplex(trajectory).any(): trajectory = np.concatenate([trajectory.real, trajectory.imag],-1) # pyright:ignore[reportAttributeAccessIssue]
     assert trajectory.ndim == 2
     ndim = trajectory.shape[1]
 

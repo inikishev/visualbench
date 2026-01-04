@@ -9,7 +9,8 @@ from ...utils import to_CHW, to_square
 
 
 class HodgeConjecture(Benchmark):
-    """
+    """Basically looks kinda cool
+
     Numerical optimization inspired by the Hodge Conjecture on a Complex Torus.
 
     Goal:

@@ -53,8 +53,8 @@ def plot_loss(losses: dict[str, dict[int,float] | None], ylim: Literal['auto'] |
         ax.plot(steps, loss, label=label, **args)
 
     ax.set_title("loss")
-    ax.set_xlabel('loss')
-    ax.set_ylabel('num forward/backward passes')
+    ax.set_xlabel('num forward/backward passes')
+    ax.set_ylabel('loss')
     return ax
 
 

@@ -160,7 +160,7 @@ def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: in
         if key in self._image_lowest_keys:
             lowest_images[key] = logger_images[key][0]
 
-
+    # validate reference images
     for key, value in self._reference_images.items():
         _check_image(value, f'reference_images[{key}]')
 
@@ -196,6 +196,10 @@ def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: in
             # add best images
             for key, image in lowest_images.items():
                 images[f"{key} - best"] = image
+
+            # remove blacklisted keys
+            for key in self._blacklisted_keys:
+                images.pop(key, None)
 
             # make a collage
             collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()}, titles=self._show_titles_on_video, w_cols=w_cols)

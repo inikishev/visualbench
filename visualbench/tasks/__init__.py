@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Literal, cast
 from . import projected
 from .char_rnn import CharRNN
 from .colorization import Colorization
-from .covering import RigidBoxCovering
 from .cutest import CUTEst
 from .data_fit import FitData
 from .datasets import *
@@ -20,7 +19,6 @@ from .function_descent import (
     TEST_FUNCTIONS,
     DecisionSpaceDescent,
     FunctionDescent,
-    LearnAndMinimize,
     MetaLearning,
     SimultaneousFunctionDescent,
     test_functions,

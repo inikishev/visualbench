@@ -71,6 +71,8 @@ class Benchmark(torch.nn.Module, ABC):
         """keys to display line charts for"""
         self._metric_to_log_scale: dict[str, bool] = {}
         """Whether to plot given key in log scale"""
+        self._blacklisted_keys: set[str] = set()
+        """Keys that won't be plotted/rendered."""
 
         self._basis: torch.Tensor | None = None
         self._print_interval_s: float | None = 0.1
@@ -229,6 +231,10 @@ class Benchmark(torch.nn.Module, ABC):
     def set_seed(self, seed: int | RNG | None):
         self._seed = seed
         self.rng = RNG(self._seed)
+        return self
+
+    def set_blacklisted_keys(self, *keys):
+        self._blacklisted_keys = set(keys)
         return self
 
     def best_params(self, metric:str = "train loss", maximize:bool=False):
@@ -734,6 +740,7 @@ class Benchmark(torch.nn.Module, ABC):
         Returns:
             _type_: _description_
         """
+        self._should_stop = False
         self._optimizer = optimizer
         self._max_passes = max_passes; self._max_forwards = max_forwards
         self._max_steps = max_steps; self._max_epochs = max_epochs

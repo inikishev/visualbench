@@ -96,7 +96,10 @@ class DatasetBenchmark(Benchmark):
         def _norm(x: torch.Tensor, normalize):
             if not normalize: return x, None, None
             x = x.float()
-            mean = x.mean(0, keepdim=True); std = x.std(0, keepdim=True).clip(min=1e-10)
+            dims = list(range(x.ndim))
+            del dims[1]
+            mean = x.mean(dims, keepdim=True); std = x.std(dims, keepdim=True).clip(min=1e-10)
+            assert len([d for d in mean.shape if d > 1]) <= 1, mean.shape
             x = (x - mean) / std
             return x, mean, std
 
@@ -111,7 +114,7 @@ class DatasetBenchmark(Benchmark):
 
         data_train = normalized
         if data_test is not None:
-            data_test = [(i-mean)/std if mean is not None and std is not None else i for i,mean,std in zip(data_test,means,stds)]
+            data_test = [(i-mean)/std if ((mean is not None) and (std is not None)) else i for i,mean,std in zip(data_test,means,stds)]
 
         if not isinstance(dtypes, Sequence): dtypes = [dtypes] * len(data_train)
 
@@ -163,9 +166,13 @@ class DatasetBenchmark(Benchmark):
             if y.ndim == 1: y = y.unsqueeze(1)
             if len(y[0]) == 2: y = y.argmax(1)
 
+            x0min, x0max = x[:,0].min().item(), x[:,0].max().item()
+            x1min, x1max = x[:,1].min().item(), x[:,1].max().item()
+            x0range, x1range = x0max-x0min, x1max-x1min
+
             domain = totensor([
-                [x[:, 0].min().detach().cpu().item() - 1, x[:, 1].min().detach().cpu().item() - 1],
-                [x[:, 0].max().detach().cpu().item() + 1, x[:, 1].max().detach().cpu().item() + 1]], device=data_device,dtype=x_dtype)
+                [x[:, 0].min().item() - x0range/4, x[:, 1].min().item() - x1range/4],
+                [x[:, 0].max().item() + x0range/4, x[:, 1].max().item() + x1range/4]], device=data_device,dtype=x_dtype)
 
             # grid of all possible samples
             x_lin = torch.linspace(domain[0][0], domain[1][0], resolution, device=data_device)

@@ -105,7 +105,7 @@ def _features_to_grid(features:torch.Tensor, bw_shape):
     return make_grid(stacked, nrow=math.ceil(math.sqrt(stacked.size(0))), padding=1, normalize=True, scale_each=True, pad_value=features.mean().item())
 
 class LayerwiseNeuralDrawer(Benchmark):
-    """inputs - 2, output - n_channels"""
+    """run it"""
     def __init__(self, image, layers=(12,12,12,12,12,12,12), act_cls = nn.LeakyReLU, bn:bool=True, batch_size: int | None = None, criterion = F.mse_loss, expand: int = 0):
         super().__init__()
         self.image = nn.Buffer(to_CHW(image))
