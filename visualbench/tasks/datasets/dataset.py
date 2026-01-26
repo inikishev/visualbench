@@ -219,6 +219,9 @@ class DatasetBenchmark(Benchmark):
     def penalty(self, preds):
         return 0
 
+    def after_get_loss(self, x: torch.Tensor, y: torch.Tensor, y_hat: torch.Tensor):
+        pass
+
     def get_loss(self):
         device = self.device
         self.model.train()
@@ -262,6 +265,9 @@ class DatasetBenchmark(Benchmark):
                 train_loss = train_loss + penalty / train_loss.numel()
             else:
                 train_loss = self.criterion(y_hat, y) + penalty
+
+        # after_get_loss on self and model
+        self.after_get_loss(x=x, y=y, y_hat=y_hat)
 
         if self.training and self._make_images and hasattr(self.model, "after_get_loss"):
             self.model.after_get_loss(self) # pyright:ignore[reportCallIssue]

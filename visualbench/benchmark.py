@@ -540,6 +540,7 @@ class Benchmark(torch.nn.Module, ABC):
             if (self._test_every_epochs is not None) and (self.num_steps % self._test_every_epochs == 0):
                 self._maybe_test_epoch()
 
+    @torch.inference_mode()
     def _test_epoch(self):
         assert self._dltest is not None
         test_start = time.time()
