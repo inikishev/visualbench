@@ -181,6 +181,10 @@ class MLBench(OptimizerBenchPack):
         bench = tasks.ClosestFurthestParticles(32, spread=0.75) # NO CUDA
         self.run_bench(bench, 'Visual - Particle min-max', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
 
+        # ---------------------------------- RACING ---------------------------------- #
+        bench = tasks.RacingTrack() # NO CUDA!
+        self.run_bench(bench, 'Visual - Racing', passes=1_000, sec=60, metrics='train loss', vid_scale=1)
+
         # ----------------------------------- fits ----------------------------------- #
         bench = tasks.FitData(*tasks.FitData.DATA(), tasks.FitData.POLY(8)) # NO CUDA!
         self.run_bench(bench, 'Visual - Polynomial fit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
