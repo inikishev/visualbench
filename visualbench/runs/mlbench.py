@@ -58,8 +58,9 @@ class MLBench(OptimizerBenchPack):
         del kwargs["self"], kwargs["__class__"]
         super().__init__(**kwargs)
 
-    def run(self):
+    def run(self, visual=False):
         torch.manual_seed(0)
+        if visual: self.run_visual()
         self.run_ml()
         self.run_mls()
 
@@ -133,4 +134,64 @@ class MLBench(OptimizerBenchPack):
         ).to(CUDA_IF_AVAILABLE)
         bench_name = "MLS - Mnist1d-5_000 BS-32 - ConvNet"
         self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=50, metrics = "test loss", vid_scale=None)
+
+    def run_visual(self):
+        torch.manual_seed(0)
+
+        # ------------------------------------ 2d ------------------------------------ #
+        bench = tasks.FunctionDescent('booth')
+        self.run_bench(bench, '2D - booth', passes=200, sec=10, metrics='train loss', vid_scale=1, fps=10)
+
+        bench = tasks.FunctionDescent('ill2')
+        self.run_bench(bench, '2D - ill2', passes=1000, sec=10, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('dipole_field')
+        self.run_bench(bench, '2D - dipole field', passes=1000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('rosen')
+        self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('rosenabs')
+        self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1)
+
+        # ------------------------------ Rosenbrock-384 ------------------------------ #
+        bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Projected - Rosenbrock 384', passes=5_000, sec=120, metrics='train loss', vid_scale=4)
+
+        # ------------------------------- NeuralDrawer ------------------------------- #
+        bench = tasks.NeuralDrawer(data.WEEVIL96, models.MLP([2,16,16,16,16,16,16,16,3], act_cls=nn.ReLU, bn=True), expand=48).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Visual - NeuralDrawer - ReLU+bn', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
+
+        # ------------------------------- Colorization ------------------------------- #
+        # ndim  = 1024
+        # 3.2s. ~ 1m. 4s.
+        bench = tasks.Colorization.small().to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Visual - Colorization', passes=5_000, sec=120, metrics='train loss', vid_scale=4)
+
+        # ------------------------------- Graph layout ------------------------------- #
+        # ndim = 128
+        # 3.8s. ~ 1m. 16s.
+        bench = tasks.GraphLayout(tasks.GraphLayout.GRID()).to(CUDA_IF_AVAILABLE)
+        bench_name = 'Visual - Graph layout optimization'
+        self.run_bench(bench, bench_name, passes=2_000, sec=60, metrics='train loss', vid_scale=1) # 4.4s. ~ 1m. 30s.
+
+        # ----------------------- Particle minmax ---------------------- #
+        # ndim = 64
+        # 2s ~ 40s
+        bench = tasks.ClosestFurthestParticles(32, spread=0.75) # NO CUDA
+        self.run_bench(bench, 'Visual - Particle min-max', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
+
+        # ----------------------------------- fits ----------------------------------- #
+        bench = tasks.FitData(*tasks.FitData.DATA(), tasks.FitData.POLY(8)) # NO CUDA!
+        self.run_bench(bench, 'Visual - Polynomial fit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FitData(*tasks.FitData.DATA(), tasks.FitData.SINE(8), expand=1) # NO CUDA!
+        self.run_bench(bench, 'Visual - Sine fit', passes=2_000, sec=60, metrics='train loss', vid_scale=1)
+
+        # ---------------------------------- inverse --------------------------------- #
+        bench = tasks.Inverse(data.SANIC96).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Linalg - Inverse MSE', passes=2_000, sec=60, metrics='train loss', vid_scale=2)
+
+        bench = tasks.StochasticInverse(data.SANIC96).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Linalg - StochasticInverse', passes=2_000, sec=60, metrics='test loss', vid_scale=2)
 

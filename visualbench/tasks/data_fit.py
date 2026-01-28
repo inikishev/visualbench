@@ -2,18 +2,19 @@ from torch import nn
 import torch.nn.functional as F
 import torch
 import cv2
+from typing import Literal
 import numpy as np
 from ..benchmark import Benchmark
 from ..utils import totensor
 
 class TrainingVisualizer:
-    def __init__(self, x, y, width=800, height=600, margin=50):
+    def __init__(self, x, y, x_vis, width=800, height=600, margin=50):
         self.width = width
         self.height = height
         self.margin = margin
 
         # Determine data boundaries for scaling
-        self.x_min, self.x_max = x.min(), x.max()
+        self.x_min, self.x_max = x_vis.min(), x_vis.max()
         self.y_min, self.y_max = y.min(), y.max()
 
         # Pre-compute scaling factors
@@ -60,6 +61,13 @@ class TrainingVisualizer:
 
         return frame
 
+def _init(shape, init:Literal['zeros','ones','randn','jitter']):
+    if init == 'zeros': return torch.zeros(shape, dtype=torch.float32)
+    if init == 'ones': return torch.ones(shape, dtype=torch.float32)
+    generator = torch.Generator().manual_seed(0)
+    z = torch.randn(shape, dtype=torch.float32, generator=generator)
+    if init == 'randn': return z
+    return z * torch.finfo(z.dtype).eps
 
 class LinearRegression(nn.Module):
     def __init__(self):
@@ -71,9 +79,9 @@ class LinearRegression(nn.Module):
         return self.w*x + self.b
 
 class PolynomialRegression(nn.Module):
-    def __init__(self, order: int = 3, reduce_fn=torch.mean):
+    def __init__(self, order: int = 3, reduce_fn=torch.mean, init: Literal['zeros','ones','randn','jitter']='zeros'):
         super().__init__()
-        self.w = nn.Parameter(torch.zeros(order+1))
+        self.w = nn.Parameter(_init(order+1, init))
         self.powers = nn.Buffer(torch.arange(order+1))
         self.reduce_fn = reduce_fn
 
@@ -165,7 +173,7 @@ class FitData(Benchmark):
     """
     LINEAR = LinearRegression
     POLY = PolynomialRegression
-    SIN = SinusoidalRegression
+    SINE = SinusoidalRegression
     SEGMENTED = SegmentedRegression
     STEP = StepRegression
     RBF = RBFRegression
@@ -195,13 +203,15 @@ class FitData(Benchmark):
         self.model = model
         self.criterion = criterion
 
-        self.vis = TrainingVisualizer(x=x.numpy(force=True), y=y.numpy(force=True), width=width, height=height, margin=margin)
 
         xmin = self.x.amin()
         xmax = self.x.amax()
         range_ = xmax - xmin
         self.x_vis = nn.Buffer(torch.linspace(xmin-range_*expand, xmax+range_*expand, n_points))
         self.x_vis_np = self.x_vis.numpy(force=True)
+
+        self.vis = TrainingVisualizer(x=x.numpy(force=True), y=y.numpy(force=True),
+                                      x_vis=self.x_vis_np, width=width, height=height, margin=margin)
 
     def get_loss(self):
         y_hat = self.model(self.x)

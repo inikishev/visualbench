@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Racing Track Designer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #1a1a1a; color: #e0e0e0; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        #toolbar { background: #2d2d2d; padding: 15px; display: flex; gap: 15px; align-items: center; border-bottom: 1px solid #444; flex-wrap: wrap; }
+        .controls { display: flex; align-items: center; gap: 8px; }
+        #main { flex: 1; display: flex; overflow: hidden; }
+        #canvas-container { flex: 1; display: flex; justify-content: center; align-items: center; background: #111; overflow: auto; padding: 20px; }
+        canvas { background: #000; cursor: crosshair; box-shadow: 0 0 20px rgba(0,0,0,0.5); border: 1px solid #444; }
+        #code-panel { width: 350px; background: #252525; border-left: 1px solid #444; display: flex; flex-direction: column; }
+        textarea { flex: 1; background: #111; color: #00ff00; border: none; padding: 15px; font-family: 'Courier New', monospace; font-size: 12px; resize: none; outline: none; }
+        button { background: #444; color: white; border: none; padding: 8 -apple-system, 12px; border-radius: 4px; cursor: pointer; font-size: 13px; height: 32px; }
+        button:hover { background: #555; }
+        button.active { background: #007bff; }
+        button.primary { background: #00875a; }
+        button.primary:hover { background: #00a36c; }
+        label { font-size: 13px; color: #aaa; }
+        input[type="number"] { background: #333; color: white; border: 1px solid #555; padding: 4px; width: 50px; border-radius: 4px; }
+        .header { padding: 10px 15px; font-weight: bold; background: #333; display: flex; justify-content: space-between; align-items: center; }
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <div class="controls">
+        <label>Size:</label>
+        <input type="number" id="cols" value="20" min="5" max="100"> x
+        <input type="number" id="rows" value="15" min="5" max="100">
+        <button onclick="resizeGrid()">Apply</button>
+    </div>
+    <div style="width: 1px; height: 24px; background: #555;"></div>
+    <div class="controls">
+        <button id="tool-wall" class="active" onclick="setTool('wall')">Wall (W)</button>
+        <button id="tool-arrow" onclick="setTool('arrow')">Arrow (A)</button>
+        <button id="tool-start" onclick="setTool('start')">Start (S)</button>
+        <button id="tool-erase" onclick="setTool('erase')">Erase (E)</button>
+    </div>
+    <div style="width: 1px; height: 24px; background: #555;"></div>
+    <button class="primary" onclick="autoFillArrows()">Auto-Fill Arrows</button>
+    <button onclick="clearGrid()" style="background: #622;">Clear All</button>
+</div>
+
+<div id="main">
+    <div id="canvas-container">
+        <canvas id="trackCanvas"></canvas>
+    </div>
+    <div id="code-panel">
+        <div class="header">
+            Python Output
+            <button onclick="copyCode()">Copy</button>
+        </div>
+        <textarea id="output" readonly></textarea>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('trackCanvas');
+    const ctx = canvas.getContext('2d');
+    const output = document.getElementById('output');
+
+    let ROWS = 15;
+    let COLS = 20;
+    const CELL = 30;
+
+    let grid = [];
+    let startPos = { y: 2, x: 2 };
+    let currentTool = 'wall';
+    let isDrawing = false;
+    let lastCell = null;
+
+    window.initGrid = function() {
+        grid = [];
+        for (let y = 0; y < ROWS; y++) {
+            let row = [];
+            for (let x = 0; x < COLS; x++) {
+                row.push({ wall: 0, dy: 0, dx: 0 });
+            }
+            grid.push(row);
+        }
+        canvas.width = COLS * CELL;
+        canvas.height = ROWS * CELL;
+        render();
+        updateCode();
+    };
+
+    window.resizeGrid = function() {
+        COLS = parseInt(document.getElementById('cols').value);
+        ROWS = parseInt(document.getElementById('rows').value);
+        initGrid();
+    };
+
+    window.setTool = function(tool) {
+        currentTool = tool;
+        document.querySelectorAll('#toolbar button').forEach(btn => btn.classList.remove('active'));
+        const activeBtn = document.getElementById('tool-' + tool);
+        if (activeBtn) activeBtn.classList.add('active');
+    };
+
+    window.clearGrid = function() {
+        if(confirm("Clear everything?")) initGrid();
+    };
+
+    // --- AUTO FILL LOGIC ---
+    window.autoFillArrows = function() {
+        const start = grid[startPos.y][startPos.x];
+
+        if (start.dx === 0 && start.dy === 0) {
+            alert("Please place an Arrow (A) on the Start position (red dot) to set the initial direction.");
+            return;
+        }
+
+        // Prepare: Clear all arrows except the start arrow
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                if (y === startPos.y && x === startPos.x) continue;
+                grid[y][x].dx = 0;
+                grid[y][x].dy = 0;
+            }
+        }
+
+        let cy = startPos.y;
+        let cx = startPos.x;
+        let py = -1; // Previous Y
+        let px = -1; // Previous X
+
+        let visited = new Set();
+        const maxSteps = ROWS * COLS; // Safety break
+
+        for (let step = 0; step < maxSteps; step++) {
+            let key = `${cy},${cx}`;
+            if (visited.has(key)) break;
+            visited.add(key);
+
+            // Current direction vector
+            let currDx = grid[cy][cx].dx;
+            let currDy = grid[cy][cx].dy;
+
+            // Where we would land if we keep going straight
+            let nextY = cy + currDy;
+            let nextX = cx + currDx;
+
+            // Find potential next neighbors (Up, Down, Left, Right)
+            const neighbors = [
+                {y: cy - 1, x: cx}, {y: cy + 1, x: cx},
+                {y: cy, x: cx - 1}, {y: cy, x: cx + 1}
+            ];
+
+            let bestNext = null;
+
+            // 1. Check if the "straight ahead" cell is valid
+            if (nextY >= 0 && nextY < ROWS && nextX >= 0 && nextX < COLS &&
+                grid[nextY][nextX].wall === 0 &&
+                !(nextY === py && nextX === px)) {
+                bestNext = {y: nextY, x: nextX};
+            }
+
+            // 2. If straight is blocked/wall, look for any other available floor tile
+            if (!bestNext) {
+                for (let n of neighbors) {
+                    if (n.y < 0 || n.y >= ROWS || n.x < 0 || n.x >= COLS) continue;
+                    if (grid[n.y][n.x].wall === 1) continue;
+                    if (n.y === py && n.x === px) continue; // Don't go backwards
+
+                    bestNext = n;
+                    break;
+                }
+            }
+
+            if (!bestNext) break; // Dead end
+
+            // Set direction of current cell to point to the bestNext
+            grid[cy][cx].dy = bestNext.y - cy;
+            grid[cy][cx].dx = bestNext.x - cx;
+
+            // Move forward
+            py = cy;
+            px = cx;
+            cy = bestNext.y;
+            cx = bestNext.x;
+
+            // If we've circled back to start, we are done
+            if (cy === startPos.y && cx === startPos.x) {
+                break;
+            }
+
+            // Apply the same direction to the new cell as a default for the next iteration
+            grid[cy][cx].dy = py - cy; // Temporary placeholder logic
+            grid[cy][cx].dx = px - cx; // This will be corrected in the next loop iteration
+            // Actually, let's just carry over the momentum:
+            grid[cy][cx].dy = py !== -1 ? (cy - py) : 0;
+            grid[cy][cx].dx = px !== -1 ? (cx - px) : 0;
+        }
+
+        render();
+        updateCode();
+    };
+    window.copyCode = function() {
+        output.select();
+        document.execCommand('copy');
+    };
+
+    function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: (evt.clientX - rect.left) * (canvas.width / rect.width),
+            y: (evt.clientY - rect.top) * (canvas.height / rect.height)
+        };
+    }
+
+    function handleInput(e) {
+        const pos = getMousePos(e);
+        const gx = Math.floor(pos.x / CELL);
+        const gy = Math.floor(pos.y / CELL);
+
+        if (gx < 0 || gx >= COLS || gy < 0 || gy >= ROWS) return;
+
+        if (currentTool === 'wall') {
+            grid[gy][gx].wall = 1;
+            grid[gy][gx].dx = 0; grid[gy][gx].dy = 0; // Walls can't have arrows
+        } else if (currentTool === 'erase') {
+            grid[gy][gx].wall = 0;
+            grid[gy][gx].dy = 0;
+            grid[gy][gx].dx = 0;
+        } else if (currentTool === 'start') {
+            startPos = { y: gy, x: gx };
+        } else if (currentTool === 'arrow') {
+            if (isDrawing && lastCell) {
+                const dy = gy - lastCell.y;
+                const dx = gx - lastCell.x;
+                if (dy !== 0 || dx !== 0) {
+                    // Snap to grid directions for auto-fill compatibility
+                    const mag = Math.sqrt(dx*dx + dy*dy);
+                    grid[lastCell.y][lastCell.x].dy = Math.round(dy / mag);
+                    grid[lastCell.y][lastCell.x].dx = Math.round(dx / mag);
+                }
+            }
+        }
+
+        render();
+        updateCode();
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        isDrawing = true;
+        const pos = getMousePos(e);
+        lastCell = { y: Math.floor(pos.y / CELL), x: Math.floor(pos.x / CELL) };
+        handleInput(e);
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDrawing) handleInput(e);
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDrawing = false;
+    });
+
+    window.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        if (key === 'w') setTool('wall');
+        if (key === 'a') setTool('arrow');
+        if (key === 's') setTool('start');
+        if (key === 'e') setTool('erase');
+    });
+
+    function render() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        for (let y = 0; y < ROWS; y++) {
+            for (let x = 0; x < COLS; x++) {
+                const cell = grid[y][x];
+                const px = x * CELL;
+                const py = y * CELL;
+
+                if (cell.wall) {
+                    ctx.fillStyle = '#444';
+                    ctx.fillRect(px, py, CELL, CELL);
+                } else {
+                    ctx.fillStyle = '#222';
+                    ctx.fillRect(px + 1, py + 1, CELL - 2, CELL - 2);
+                }
+
+                ctx.strokeStyle = '#333';
+                ctx.strokeRect(px, py, CELL, CELL);
+
+                if (cell.dx !== 0 || cell.dy !== 0) {
+                    const cx = px + CELL / 2;
+                    const cy = py + CELL / 2;
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(cx + cell.dx * CELL * 0.4, cy + cell.dy * CELL * 0.4);
+                    ctx.strokeStyle = '#00ffcc';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#00ffcc';
+                    ctx.beginPath();
+                    ctx.arc(cx + cell.dx * CELL * 0.4, cy + cell.dy * CELL * 0.4, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        const spx = startPos.x * CELL + CELL / 2;
+        const spy = startPos.y * CELL + CELL / 2;
+        ctx.fillStyle = '#ff4444';
+        ctx.beginPath();
+        ctx.arc(spx, spy, CELL/4, 0, Math.PI*2);
+        ctx.fill();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    function updateCode() {
+        const wallsArr = grid.map(row => row.map(c => c.wall));
+        const gridArr = grid.map(row => row.map(c => [parseFloat(c.dy.toFixed(1)), parseFloat(c.dx.toFixed(1))]));
+
+        let code = "# Track Configuration\n";
+        code += "grid = " + JSON.stringify(gridArr) + "\n\n";
+        code += "walls = " + JSON.stringify(wallsArr) + "\n\n";
+        code += "init = [" + startPos.y + ".0, " + startPos.x + ".0]\n\n";
+        code += "track = RacingTrack(grid, walls, init)";
+
+        output.value = code;
+    }
+
+    initGrid();
+</script>
+</body>
+</html>

@@ -1,22 +1,48 @@
+# pylint:disable=no-member
 import torch
 from torch import nn
 from torch.nn import functional as F
 import numpy as np
 import cv2
-import visualbench as vb
+from ..benchmark import Benchmark
+from ..utils import totensor
 
-class RacingTrack(vb.Benchmark):
-    def __init__(self, grid, walls, init, cell_size=16):
+DEFAULT_GRID = ([[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]],[[0,0],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[0,1],[1,0],[0,0]],[[0,0],[-1,0],[0,1],[0,1],[0,1],[-1,0],[0,0],[0,1],[0,1],[0,1],[0,1],[0,1],[-1,0],[0,0],[0,0],[0,0],[0,0],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[1,0],[0,-1],[0,-1],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,0],[1,0],[0,0],[-1,0],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,-1],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[-1,0],[-1,0],[0,0],[1,0],[0,0],[-1,0],[0,-1],[0,-1],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,0],[0,0],[0,1],[1,0],[0,0],[0,0],[0,0],[0,0],[-1,0],[0,0],[0,1],[1,0],[0,0],[0,0],[0,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,0],[0,1],[0,1],[0,1],[1,0],[0,0],[0,0],[0,0],[-1,0],[0,0],[0,0],[0,1],[0,1],[0,1],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,0],[-1,0],[-1,0],[0,0],[0,1],[1,0],[0,0],[0,0],[-1,0],[0,-1],[0,0],[0,0],[0,0],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,0],[-1,0],[-1,0],[0,0],[0,0],[0,1],[1,0],[0,0],[0,0],[-1,0],[0,-1],[0,-1],[0,-1],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,0],[-1,0],[-1,0],[0,0],[0,0],[0,0],[0,1],[1,0],[0,0],[0,0],[0,0],[0,0],[-1,0],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,0],[-1,0],[0,-1],[0,-1],[0,0],[0,0],[0,0],[0,1],[0,1],[0,1],[0,1],[0,1],[-1,0],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,0],[1,0],[0,0],[0,0],[-1,0],[-1,0],[0,-1],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[1,0],[0,0]],[[0,0],[-1,0],[0,-1],[0,-1],[0,0],[0,0],[0,0],[-1,0],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,-1],[0,0]],[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]])
+
+DEFAULT_WALLS = (
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 1],
+    [1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 1],
+    [1, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0, 1],
+    [1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1],
+    [1, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 1],
+    [1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1],
+    [1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+    [1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+    [1, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+)
+
+DEFAULT_INIT = (1.0, 6.0)
+
+
+class RacingTrack(Benchmark):
+    def __init__(self, grid=DEFAULT_GRID, walls=DEFAULT_WALLS, init=DEFAULT_INIT, cell_size=16):
         super().__init__()
-        self.grid = nn.Buffer(vb.totensor(grid).float())
-        self.walls = nn.Buffer(vb.totensor(walls).bool().float())
-        self.h, self.w, _ = self.grid.shape
+        self.grid = nn.Buffer(totensor(grid).float())
+        self.walls = nn.Buffer(totensor(walls).bool().float())
+        self.h, self.w, force_dim = self.grid.shape
+        assert force_dim == 2
         self.cell_size = cell_size
 
         # 3. Initialization
         # Start the "car" on the left side of the track
         self.position = nn.Parameter(torch.tensor(init).float())
-        self.value = nn.Parameter(torch.tensor(0.0), requires_grad=False)
+        self.integral_loss = nn.Parameter(torch.tensor(0.0), requires_grad=False)
         self.history = []
 
         # Pre-render environment
@@ -40,34 +66,28 @@ class RacingTrack(vb.Benchmark):
         g = self._sample(self.grid, self.position)
         w = self._sample(self.walls, self.position)
 
-        # 1. Flow Loss: Move in direction of g
-        # This creates a "target" slightly ahead in the current
         with torch.no_grad():
             target = (self.position + g).detach()
+
         move_loss = F.mse_loss(self.position, target)
 
-        # 2. Path Integral: To keep it looping, we reduce the "score"
-        # as we move along the vector field.
         if len(self.history) > 0:
-            prev_pos = torch.tensor(self.history[-1]).to(self.position.device)
-            delta = self.position - prev_pos
-            # Moving along g reduces the global value
-            self.value.data -= torch.dot(delta, g)
+            with torch.no_grad():
+                prev_pos = torch.tensor(self.history[-1]).to(self.position.device)
+                delta = self.position - prev_pos
+                self.integral_loss -= torch.dot(delta, g)
 
-        # 3. Barrier Function: Exponential penalty for walls
-        # Using a smooth barrier helps L-BFGS/Adam steer away before hitting
         barrier_loss = 2.0 * torch.exp(5.0 * (w - 0.5)) if w > 0.1 else 0.0
 
-        # 4. Out of bounds safety
-        oob = (F.relu(-self.position[0]) + F.relu(self.position[0] - (self.h-1)) +
-               F.relu(-self.position[1]) + F.relu(self.position[1] - (self.w-1)))
+        oob = (F.relu(self.position[0].neg()) + F.relu(self.position[0] - (self.h-1)) +
+               F.relu(self.position[1].neg()) + F.relu(self.position[1] - (self.w-1)))
 
-        total_loss = move_loss + self.value + barrier_loss + oob*10
+        total_loss = move_loss + self.integral_loss + barrier_loss + oob*10
 
         # Log metrics
-        self.log("path_value", self.value)
+        self.log("path_value", self.integral_loss)
         self.log("wall_penalty", barrier_loss)
-        self.history.append(self.position.detach().cpu().numpy().copy())
+        self.history.append(self.position.detach().cpu().numpy().copy()) # pylint:disable=not-callable
 
         if self._make_images:
             self.log_image(name='race', image=self._render_frame(), to_uint8=False)
@@ -111,32 +131,10 @@ class RacingTrack(vb.Benchmark):
         cv2.polylines(img, [pts.reshape((-1, 1, 2))], False, (0, 255, 255), 2, cv2.LINE_AA)
 
         # Draw Car
-        pos = self.position.detach().cpu().numpy()
+        pos = self.position.detach().cpu().numpy() # pylint:disable=not-callable
         # Add 0.5 to align with the center of the grid cells
         center = (int((pos[1] + 0.5) * self.cell_size), int((pos[0] + 0.5) * self.cell_size))
         cv2.circle(img, center, self.cell_size//4, (0, 0, 255), -1) # Car
         cv2.circle(img, center, self.cell_size//4, (255, 255, 255), 1)
         return img
 
-
-# track = torch.zeros(5, 5, 2)
-# track[1, 1:4] = torch.tensor([0., 1.])
-# track[3, 1:4] = torch.tensor([0., -1.])
-# track[1:4, 1] = torch.tensor([-1., 0.])
-# track[1:4, 3] = torch.tensor([1., 0.])
-
-# track[1, 1] = torch.tensor([-1., 1.])
-# track[1, 3] = torch.tensor([1., 1.])
-# track[3, 1] = torch.tensor([-1., -1.])
-# track[3, 3] = torch.tensor([1., -1.])
-
-# walls = torch.zeros(5,5).bool()
-# walls[0]=True
-# walls[-1]=True
-# walls[:,0]=True
-# walls[:,-1]=True
-# walls[2,2]=True
-
-# bench = RacingTrack(-track, walls, (1,1))
-# opt = torch.optim.SGD(bench.parameters(), 1e-1)
-# bench.run(opt,1000).plot()
