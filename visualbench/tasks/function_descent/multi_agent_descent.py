@@ -43,8 +43,6 @@ class MultiAgentDescent(Benchmark):
             strength of repulsion between agents. 0 means no repulsion.
             Higher values encourage agents to spread out and find different minima.
             Defaults to 0.0.
-        repulsion_radius (float):
-            radius within which agents repel each other. Defaults to 1.0.
         unpack (bool):
             if True, function is called as ``func(x, y)``, otherwise ``func(x)``. Defaults to True.
     """
@@ -59,8 +57,7 @@ class MultiAgentDescent(Benchmark):
         domain: tuple[float, float, float, float] | Sequence[float] | None = None,
         minima=None,
         dtype: torch.dtype = torch.float32,
-        repulsion_strength: float = 1.0,
-        repulsion_radius: float = 1.0,
+        repulsion_strength: float = 1,
         unpack: bool = True,
     ):
         if isinstance(func, str):
@@ -91,7 +88,6 @@ class MultiAgentDescent(Benchmark):
         self.func: Callable[..., torch.Tensor] | TestFunction = f  # type:ignore
         self.n_agents = n_agents
         self.repulsion_strength = repulsion_strength
-        self.repulsion_radius = repulsion_radius
 
         if domain is not None:
             self._domain = tonumpy(_safe_flatten(domain))
@@ -121,7 +117,7 @@ class MultiAgentDescent(Benchmark):
     def list_funcs():
         print(sorted(list(TEST_FUNCTIONS.keys())))
 
-    def _get_domain(self):
+    def _get_domain(self) -> np.ndarray:
         if self._domain is None:
             params = self.logger.to_numpy(self._LOGGER_XY_KEY)
             if len(params) == 0:
@@ -134,20 +130,22 @@ class MultiAgentDescent(Benchmark):
         if self.repulsion_strength == 0:
             return torch.tensor(0.0, device=self.xy.device, dtype=self.xy.dtype)
 
-        # Compute pairwise distances
-        diff = self.xy.unsqueeze(0) - self.xy.unsqueeze(1)  # (n, n, 2)
-        distances = torch.norm(diff, dim=-1)  # (n, n)
+        # Compute xy normalized by domain size
+        domain = self._get_domain()
+        xrange, yrange = np.abs(domain[:, 0] - domain[:, 1])
+        if xrange == 0 or yrange == 0: # can happen when domain is not specified and there is 1 point
+            return torch.tensor(0.0, device=self.xy.device, dtype=self.xy.dtype)
 
-        # Repulsion: Gaussian-like repulsion within radius
-        mask = distances < self.repulsion_radius
-        repulsion = torch.exp(-distances**2 / (2 * self.repulsion_radius**2))
-        repulsion = repulsion * mask.float()
+        xy = torch.stack([self.xy[:, 0] / xrange, self.xy[:, 1] / yrange], 1)
+
+        diff = xy.unsqueeze(0) - xy.unsqueeze(1)  # (n, n, 2)
+        penalty = diff.abs().add(torch.finfo(diff.dtype).eps).reciprocal()
 
         # Exclude self-interactions
-        repulsion = repulsion * (1 - torch.eye(self.n_agents, device=self.xy.device))
+        penalty = penalty * (1 - torch.eye(self.n_agents, device=self.xy.device).unsqueeze(-1))
 
         # Sum over all pairs and scale
-        return self.repulsion_strength * repulsion.sum()
+        return self.repulsion_strength * penalty.mean()
 
     def get_loss(self):
         if self.unpack:
