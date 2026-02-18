@@ -8,14 +8,7 @@ from .constrained import PressureVesselDesign, SpringDesign, WeldedBeamDesign
 from .cutest import CUTEst
 from .data_fit import FitData
 from .datasets import *
-from .drawing import (
-    CirclesDrawer,
-    LayerwiseNeuralDrawer,
-    LinesDrawer,
-    NeuralDrawer,
-    PartitionDrawer,
-    RectanglesDrawer,
-)
+from .drawing import *
 from .function_approximator import FunctionApproximator
 from .function_descent import (
     TEST_FUNCTIONS,
