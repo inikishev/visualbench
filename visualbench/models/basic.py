@@ -73,14 +73,13 @@ class MLP(nn.Module):
     ```
 
     Args:
-        channels (int | Iterable[int] | None):
+        channels:
             list of widths of linear layers. First value is number of input channels and last is number of output channels.
-        act_cls (Callable | None, optional): activation function class. Defaults to nn.ReLU.
-        bn (bool, optional): if True enables batch norm. Defaults to False.
-        dropout (float, optional): dropout probability. Defaults to 0.
-        ortho_init (bool, optional): if true ises orthgonal init. defaults to False.
-        cls (Callable, optional):
-            you can change it from using nn.Linear to some other class with same API. Defaults to nn.Linear.
+        act_cls: activation function class. Defaults to nn.ReLU.
+        bn: if True enables batch norm. Defaults to False.
+        dropout: dropout probability. Defaults to 0.
+        ortho_init: if true ises orthgonal init. defaults to False.
+        cls: you can change it from using nn.Linear to some other class with same API. Defaults to nn.Linear.
     """
     def __init__(
         self,
