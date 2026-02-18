@@ -1,3 +1,7 @@
+"""Library of test functions.
+
+Note: Functions with minima at (0,0) are shifted by default to prevent zero bias advantage.
+"""
 import copy
 import math
 from abc import ABC, abstractmethod
@@ -10,7 +14,7 @@ import torch
 from ...utils import totensor
 from ...utils.relaxed_multikey_dict import RelaxedMultikeyDict
 
-TEST_FUNCTIONS:"RelaxedMultikeyDict[TestFunction]" = RelaxedMultikeyDict()
+TEST_FUNCTIONS:"RelaxedMultikeyDict[TestFunction]" = RelaxedMultikeyDict() # type:ignore
 
 def _to(self: "FunctionTransform | TestFunction", device=None, dtype=None):
     c = copy.copy(self)
@@ -676,5 +680,36 @@ class Mycs2(TestFunction):
     def minima(self): return None
 
 mycs2 = Mycs2().shifted(1, -2).register('mycs2')
+
+
+class MieleCantrell(TestFunction):
+    """Miele-Cantrell function: highly nonlinear."""
+    def objective(self, x, y):
+        term1 = torch.exp(-x)
+        term2 = (x - y)**2
+        term3 = torch.sin(y)**4
+        term4 = torch.cos(y)**4
+        return (1 + term1 + term2)**2 * (1 + term3 + term4)
+
+    def x0(self): return (0.25, 2)
+    def domain(self): return (0, 3.5, 0, 4)
+    def minima(self): return (0, 0)
+
+miele_cantrell = MieleCantrell().shifted(1,-2).register('miele_cantrell', 'miele')
+
+
+class Whitley(TestFunction):
+    """Whitley function (De Jong F10). A hard rosenbrock-like function"""
+    def objective(self, x, y):
+        # Standard Whitley/De Jong F10 formula
+        term1 = 0.0001 * (torch.abs(x**2 * y**2 - x**2 - y**2 + 1))**0.1
+        term2 = torch.abs(100 * (x**2 - y)**2 + (1 - x)**2)**0.1
+        return term1 + term2
+
+    def x0(self): return (-2, 2)
+    def domain(self): return (-10, 10, -2.5, 12.5)
+    def minima(self): return (1, 1)
+
+whitley = Whitley().register('whitley')
 
 

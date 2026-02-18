@@ -82,6 +82,7 @@ def funcplot2d(
 
     contour_norm = None
     if log_contour:
+        Z = Z - Z.min()
         Z_min = np.percentile(Z[Z>0], 1).clip(min=1e-2)
         log_levels = np.logspace(np.log10(Z_min), np.log10(Z.max()), levels)
         levels = log_levels

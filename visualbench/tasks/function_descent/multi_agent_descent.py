@@ -44,7 +44,7 @@ class MultiAgentDescent(Benchmark):
             Higher values encourage agents to spread out and find different minima.
             Defaults to 0.0.
         unpack (bool):
-            if True, function is called as ``func(x, y)``, otherwise ``func(x)``. Defaults to True.
+            if True, function is called as ``func(x, y)``, otherwise ``func(xy)``. Defaults to True.
     """
 
     _LOGGER_XY_KEY: str = "params"
