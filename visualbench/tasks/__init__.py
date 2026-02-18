@@ -9,6 +9,7 @@ from .cutest import CUTEst
 from .data_fit import FitData
 from .datasets import *
 from .drawing import (
+    CirclesDrawer,
     LayerwiseNeuralDrawer,
     LinesDrawer,
     NeuralDrawer,
