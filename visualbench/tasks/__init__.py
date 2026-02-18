@@ -31,7 +31,7 @@ from .minpack2 import HumanHeartDipole, PropaneCombustion
 from .muon_coeffs import MuonCoeffs
 from .operations import Sorting
 from .optimal_control import OptimalControl
-from .packing import BoxPacking, RigidBoxPacking, SpherePacking
+from .packing import RigidBoxPacking, SpherePacking
 
 # # from .gnn import GraphNN
 from .particles import *
