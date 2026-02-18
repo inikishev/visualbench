@@ -312,7 +312,9 @@ bench.plot()
 
 ### Logger
 
-Benchmark has a logger object where all the metrics reside. For example you can get a dictionary which maps step to train loss like this: `train_loss = bench.logger["train loss"]`. Logger is a dictionary of dictionaries, but it also has some helpful methods. You can get all values for a metric as a numpy array by using `logger.to_numpy(metric)`. First value or last value can be accessed via `logger.first(metric)` and `logger.last(metric)`.
+Benchmark has a logger object where all the metrics reside. For example you can get a dictionary which maps step to train loss like this: `train_loss = bench.logger["train loss"]`.
+
+Logger is a dictionary of dictionaries, but it also has some helpful methods. You can get all values for a metric as a numpy array by using `logger.to_numpy(metric)`. First value or last value can be accessed via `logger.first(metric)` and `logger.last(metric)`. Likewise, you can access minimum or maximum via `logger.min(metric)` and `logger.max(metric)`.
 
 ### More tips
 

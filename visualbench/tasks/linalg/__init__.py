@@ -13,6 +13,7 @@ from .decompositions import (
     KroneckerFactorization,
     Polar,
     RankFactorization,
+    Schur,
 )
 from .inverses import Drazin, Inverse, MoorePenrose, StochasticInverse
 from .least_squares import LeastSquares

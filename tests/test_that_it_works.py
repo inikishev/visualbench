@@ -49,3 +49,10 @@ def test_datasets_work():
     )
     opt = torch.optim.Adam(benchmark.parameters(), 1e-1)
     benchmark.run(opt, 10)
+
+def test_schur_decomposition():
+    A = torch.randn(16, 16)
+    benchmark = vb.Schur(A)
+    opt = torch.optim.LBFGS(benchmark.parameters(), line_search_fn='strong_wolfe')
+    benchmark.run(opt, max_passes=100)
+    assert benchmark.lowest_loss < 0.1

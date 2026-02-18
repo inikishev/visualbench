@@ -2,6 +2,7 @@ import warnings
 from collections.abc import Callable
 from typing import Literal
 
+import numpy as np
 import torch
 
 from ...benchmark import Benchmark
@@ -688,5 +689,71 @@ class KroneckerFactorization(Benchmark):
             self.log_image("B⊗C", rec, to_uint8=True, show_best=True)
 
         return loss
+
+
+class Schur(Benchmark):
+    """Decompose square A into QTQ*, where Q is unitary and T is upper triangular (Schur form).
+
+    Args:
+        A (Any): something to load and use as a matrix.
+        ortho (linalg_utils.OrthoMode, optional): how to enforce unitarity of Q (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
+        seed (int, optional): seed. Defaults to 0.
+    """
+    def __init__(
+        self,
+        A,
+        ortho: linalg_utils.OrthoMode = 1,
+        criterion:Callable=torch.nn.functional.mse_loss,
+        algebra=None,
+        seed=0,
+    ):
+        super().__init__(seed=seed)
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
+        self.criterion = criterion
+        self.ortho: linalg_utils.OrthoMode = ortho
+        self.algebra = algebras.get_algebra(algebra)
+
+        *b, n, _ = self.A.shape
+        self.Q = torch.nn.Parameter(linalg_utils.orthogonal((*b, n, n), generator=self.rng.torch()))
+        self.T = torch.nn.Parameter(torch.triu(torch.randn_like(self.A)))
+
+        self.add_reference_image('A', self.A, to_uint8=True)
+        if algebra is None:
+            try:
+                import scipy.linalg
+                T_ref = []
+                Q_ref = []
+                for A_ch in self.A.unbind(0):
+                    A_np = A_ch.numpy(force=True)
+                    T_ch, Q_ch = scipy.linalg.schur(A_np) # type:ignore
+                    T_ref.append(T_ch.real) # type:ignore
+                    Q_ref.append(Q_ch.real) # type:ignore
+                self.add_reference_image('SciPy T', np.stack([T_ref]), to_uint8=True)
+                self.add_reference_image('SciPy Q', np.stack([Q_ref]), to_uint8=True)
+            except ImportError:
+                warnings.warn('scipy.linalg not available, skipping reference decomposition')
+            except Exception as e:
+                warnings.warn(f'Schur decomposition failed: {e!r}')
+
+    def get_loss(self):
+        Q = self.Q
+        T = torch.triu(self.T)
+
+        Q, penalty = linalg_utils.orthonormality_constraint(Q, ortho=self.ortho, algebra=self.algebra, criterion=self.criterion)
+
+        QT = algebras.matmul(Q, T, self.algebra)
+        QTQh = algebras.matmul(QT, Q.mH, self.algebra)
+
+        loss = self.criterion(QTQh, self.A)
+
+        if self._make_images:
+            self.log_image("Q", Q, to_uint8=True, log_difference=True)
+            self.log_image("T", T, to_uint8=True, log_difference=True)
+            self.log_image("QTQ*", QTQh, to_uint8=True, show_best=True)
+            self.log_image("residual", (QTQh - self.A).abs_(), to_uint8=True)
+
+        return loss + penalty
 
 
