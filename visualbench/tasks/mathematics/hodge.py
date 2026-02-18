@@ -9,9 +9,7 @@ from ...utils import to_CHW, to_square
 
 
 class HodgeConjecture(Benchmark):
-    """Basically looks kinda cool
-
-    Numerical optimization inspired by the Hodge Conjecture on a Complex Torus.
+    """Numerical optimization inspired by the Hodge Conjecture on a Complex Torus.
 
     Goal:
     Find an algebraic cycle (the zero set of a complex function f) whose

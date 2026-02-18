@@ -22,7 +22,20 @@ else:
     make_grid = _raise_torchvision
 
 class NeuralDrawer(Benchmark):
-    """inputs - 2, output - n_channels"""
+    """Uses a neural network (or any other model) to predict color of a pixel from its coordinates.
+
+    Args:
+        image (Any):
+            target image, either path to image, numpy array or torch tensor.
+            Can be channel first or channel last or 2D.
+        model: A model which should accept input of shape ``(batch_size, 2)``, and output ``(batch_size, n_channels)``
+            where ``n_channels`` is 1 for grayscale and 3 for RGB images.
+        batch_size: number of pixels to train on each step. If None, uses all pixels. Defaults to None.
+        criterion: loss function. Defaults to F.mse_loss.
+        expand: expands the visualization of model predictions by this many pixels on all 4 sides,
+            to see what it predicts outside of the target image. Defaults to 0.
+
+    """
     def __init__(self, image, model, batch_size: int | None = None, criterion = F.mse_loss, expand: int = 0):
         super().__init__()
         self.image = nn.Buffer(to_CHW(image))
@@ -105,8 +118,22 @@ def _features_to_grid(features:torch.Tensor, bw_shape):
     return make_grid(stacked, nrow=math.ceil(math.sqrt(stacked.size(0))), padding=1, normalize=True, scale_each=True, pad_value=features.mean().item())
 
 class LayerwiseNeuralDrawer(Benchmark):
-    """run it"""
-    def __init__(self, image, layers=(12,12,12,12,12,12,12), act_cls = nn.LeakyReLU, bn:bool=True, batch_size: int | None = None, criterion = F.mse_loss, expand: int = 0):
+    """Uses a multilayer perceptron to predict color of a pixel from its coordinates.
+    This version also visualizes all intermediate activations.
+
+    Args:
+        target_image (Any):
+            target image, either path to image, numpy array or torch tensor.
+            Can be channel first or channel last or 2D.
+        hidden_sizes: sizes of hidden layers. Defaults to (12,12,12,12,12,12,12).
+        act_cls: activation function constructor. Defaults to nn.LeakyReLU.
+        bn: whether to use batch normalization. Defaults to True.
+        batch_size: number of pixels to train on each step. If None, uses all pixels. Defaults to None.
+        criterion: loss function. Defaults to F.mse_loss.
+        expand: expands the visualization of model predictions by this many pixels on all 4 sides,
+            to see what it predicts outside of the target image. Defaults to 0.
+    """
+    def __init__(self, image, hidden_sizes=(12,12,12,12,12,12,12), act_cls = nn.LeakyReLU, bn:bool=True, batch_size: int | None = None, criterion = F.mse_loss, expand: int = 0):
         super().__init__()
         self.image = nn.Buffer(to_CHW(image))
         self.targets = nn.Buffer(self.image.flatten(1, -1).T) # (pixels, channels)
@@ -120,13 +147,13 @@ class LayerwiseNeuralDrawer(Benchmark):
         self.min = self.image.min()
         self.max = self.image.max()
 
-        layers = [2] + list(layers)
+        hidden_sizes = [2] + list(hidden_sizes)
 
         BatchNorm = nn.BatchNorm1d if bn else nn.Identity
         modules: list[nn.Module] = [
-            nn.Sequential(nn.Linear(i,o), act_cls(), BatchNorm(o)) for i,o in zip(layers[:-1], layers[1:])
+            nn.Sequential(nn.Linear(i,o), act_cls(), BatchNorm(o)) for i,o in zip(hidden_sizes[:-1], hidden_sizes[1:])
         ]
-        modules.append(nn.Sequential(nn.Linear(layers[-1], self.image.size(0))))
+        modules.append(nn.Sequential(nn.Linear(hidden_sizes[-1], self.image.size(0))))
         self.model = nn.ModuleList(modules)
 
         self.criterion = criterion

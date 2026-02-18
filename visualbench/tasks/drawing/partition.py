@@ -8,9 +8,19 @@ from ...utils import to_HW3
 
 
 class PartitionDrawer(Benchmark):
-    """
-    """
+    """Reconstructs an image using partitions.
 
+    Args:
+        image (Any):
+            target image, either path to image, numpy array or torch tensor.
+            Can be channel first or channel last or 2D.
+        num_points: Number of points for partitioning. Defaults to 100.
+        points_init: can be "random" for random init, or "uniform_grid" to initialize on a grid. Defaults to "random".
+        colors_init: can be "random" for random colors, or "target_sample" to initialize from image colors.
+            Defaults to "random".
+        min_softmax_beta: minimal softness of the partitions. Defaults to 1000.0.
+        loss: criterion. Defaults to F.mse_loss.
+    """
     def __init__(
         self,
         image,
@@ -19,8 +29,8 @@ class PartitionDrawer(Benchmark):
         colors_init="random",
         min_softmax_beta=1000.0,
         loss=F.mse_loss,
-        make_images=True,
     ):
+
         super().__init__()
 
         self.num_points = num_points
@@ -34,7 +44,6 @@ class PartitionDrawer(Benchmark):
         self.height, self.width, _ = self.target.shape
 
         self.loss = loss
-        self._make_images = make_images
 
         # init points
         if points_init == 'random':

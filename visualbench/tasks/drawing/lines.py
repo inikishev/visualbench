@@ -21,7 +21,21 @@ def _point_segment_distance_sq(p, a, b, epsilon=1e-6):
 
 class LinesDrawer(Benchmark):
     """
-    sus
+    Reconstructs the passed colored image with soft lines.
+
+
+    Args:
+        target_image (Any):
+            target image, either path to image, numpy array or torch tensor.
+            Can be channel first or channel last or 2D.
+        num_lines: number of lines to use.
+        loss: loss function. Defaults to F.mse_loss.
+        per_line_thickness: If True, thinkness is per-line, otherwise it is global. True is harder to optimize.
+            Defaults to False.
+        initial_line_thickness: Initial value for line thickness. Defaults to 1.5.
+        thinkness_penalty_weight: Weight of the penalty for small and large thickness. Defaults to 0.01.
+        min_log_sigma: penalizes sigmas below this value. Defaults to 0.
+        init_range: Initial range of the endpoints. Defaults to 2.
     """
     def __init__(
         self,

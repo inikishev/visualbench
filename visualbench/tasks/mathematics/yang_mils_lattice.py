@@ -5,7 +5,7 @@ from ...benchmark import Benchmark
 from ...utils import to_HW, to_square
 
 class YangMillsLattice(Benchmark):
-    """looks cool ish"""
+    """looks cool"""
     def __init__(self, source_mask=None):
         super().__init__()
 
