@@ -15,6 +15,7 @@ from .function_descent import (
     DecisionSpaceDescent,
     FunctionDescent,
     MetaLearning,
+    MultiAgentDescent,
     SimultaneousFunctionDescent,
     test_functions,
 )
