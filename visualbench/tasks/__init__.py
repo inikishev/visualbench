@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Literal, cast
 from . import projected
 from .char_rnn import CharRNN
 from .colorization import Colorization
+from .constrained import PressureVesselDesign, SpringDesign, WeldedBeamDesign
 from .cutest import CUTEst
 from .data_fit import FitData
 from .datasets import *

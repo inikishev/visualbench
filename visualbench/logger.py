@@ -18,16 +18,16 @@ class Logger(UserDict[str, dict[int, Any]]):
     def last(self, metric):
         return list(self[metric].values())[-1]
 
-    def list(self, metric): return list(self[metric].values())
-    def numpy(self, metric): return np.asarray(self.list(metric))
-    def tensor(self, metric): return torch.from_numpy(self.numpy(metric).copy())
+    def to_list(self, metric): return list(self[metric].values())
+    def to_numpy(self, metric): return np.asarray(self.to_list(metric))
+    def to_tensor(self, metric): return torch.from_numpy(self.to_numpy(metric).copy())
     def steps(self, metric): return list(self[metric].keys())
 
-    def min(self, metric): return np.min(self.list(metric))
-    def nanmin(self, metric): return np.nanmin(self.list(metric))
-    def max(self, metric): return np.max(self.list(metric))
-    def nanmax(self, metric): return np.nanmax(self.list(metric))
-    def sum(self, metric): return np.sum(self.list(metric))
+    def min(self, metric): return np.min(self.to_list(metric))
+    def nanmin(self, metric): return np.nanmin(self.to_list(metric))
+    def max(self, metric): return np.max(self.to_list(metric))
+    def nanmax(self, metric): return np.nanmax(self.to_list(metric))
+    def sum(self, metric): return np.sum(self.to_list(metric))
 
     def interp(self, metric: str) -> np.ndarray:
         """Returns a list of values for a given key, interpolating missing steps."""
@@ -36,11 +36,11 @@ class Logger(UserDict[str, dict[int, Any]]):
         return np.interp(steps, list(existing.keys()), list(existing.values()))
 
     def stepmin(self, metric:str) -> int:
-        idx = np.nanargmin(self.list(metric)).item()
+        idx = np.nanargmin(self.to_list(metric)).item()
         return list(self[metric].keys())[idx]
 
     def stepmax(self, metric:str) -> int:
-        idx = np.nanargmax(self.list(metric)).item()
+        idx = np.nanargmax(self.to_list(metric)).item()
         return list(self[metric].keys())[idx]
 
     def closest(self, metric: str, step: int):
@@ -57,7 +57,7 @@ class Logger(UserDict[str, dict[int, Any]]):
         for k in self.keys():
             try:
                 arrays[f"__STEPS__.{k}"] = np.asarray(self.steps(k))
-                arrays[f"__VALUES__.{k}"] = self.numpy(k)
+                arrays[f"__VALUES__.{k}"] = self.to_numpy(k)
 
             except Exception as e:
                 warnings.warn(f"Failed to save `{k}`: {e}")

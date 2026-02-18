@@ -95,7 +95,7 @@ class FunctionDescent(Benchmark):
 
     def _get_domain(self):
         if self._domain is None:
-            params = self.logger.numpy(self._LOGGER_XY_KEY)
+            params = self.logger.to_numpy(self._LOGGER_XY_KEY)
             return np.array(list(zip(params.min(0), params.max(0))))
         return np.array([[self._domain[0],self._domain[1]],[self._domain[2],self._domain[3]]])
 
@@ -149,9 +149,9 @@ class FunctionDescent(Benchmark):
         funcplot2d(f_proc, *bounds, cmap = cmap, levels = contour_levels, contour_cmap = contour_cmap, contour_lw=contour_lw, contour_alpha=contour_alpha, norm=norm, log_contour=log_contour, lib=torch, ax=ax) # type:ignore
 
         if self._LOGGER_XY_KEY in self.logger:
-            params = self.logger.numpy(self._LOGGER_XY_KEY)
+            params = self.logger.to_numpy(self._LOGGER_XY_KEY)
             # params = np.clip(params, *bounds.T) # type:ignore
-            losses = self.logger.numpy('train loss')
+            losses = self.logger.to_numpy('train loss')
 
             if len(params) > 0:
                 ax.scatter(*params.T, c=losses[:len(params)], cmap=marker_cmap, s=marker_size, alpha=marker_alpha)
@@ -164,7 +164,7 @@ class FunctionDescent(Benchmark):
 
     def _make_colors(self, s='rgb'):
         # make nice colors from losses
-        loss_history = self.logger.numpy('train loss').copy()
+        loss_history = self.logger.to_numpy('train loss').copy()
         colors = np.array(loss_history, copy=True)
         colors = np.nan_to_num(loss_history, nan = np.nanmax(loss_history), posinf = np.nanmax(loss_history), neginf = np.nanmin(loss_history))
         if colors.min() < 0: colors -= colors.min()
@@ -228,7 +228,7 @@ class FunctionDescent(Benchmark):
         plt.close(fig)
 
         # coords to pixel indexes
-        coord_history = self.logger.numpy(self._LOGGER_XY_KEY)
+        coord_history = self.logger.to_numpy(self._LOGGER_XY_KEY)
         def _world_to_pixel(coords, domain_bounds, image_size):
             """Maps world coordinates to pixel coordinates."""
             coords = np.nan_to_num(coords, nan=0, posinf=1e10, neginf=-1e10)

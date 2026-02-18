@@ -174,9 +174,9 @@ def _make_label(run: "Run", best_value: float, hyperparams: str | Sequence[str] 
     return f"{name}: {format_number(best_value, 5)}"
 
 def _load_steps_values(logger: "Logger", metric):
-    values = logger.numpy(metric)
+    values = logger.to_numpy(metric)
     step_idxs = np.array(logger.steps(metric))
-    num_passes = logger.numpy('num passes').astype(np.uint64)
+    num_passes = logger.to_numpy('num passes').astype(np.uint64)
     steps = num_passes[step_idxs.clip(max=len(num_passes)-1)]
     return steps, values
 
@@ -363,7 +363,7 @@ def plot_values(
     # determine y-limit based on first value
     if not maximize:
         all_runs = main_runs + reference_runs + best_runs
-        all_values = [r.load_logger().numpy(metric) for r in all_runs]
+        all_values = [r.load_logger().to_numpy(metric) for r in all_runs]
         ylim = _auto_loss_yrange(*all_values, yscale=yscale)
         if ylim is not None: ax.set_ylim(*ylim)
 
@@ -469,7 +469,7 @@ def plot_sweeps(
     # ------------------ determine y-limit based on first value ------------------ #
     if not maximize:
         best_run = task.best_sweep_runs(metric, maximize, 1)[0]
-        values = best_run.load_logger().numpy(metric)
+        values = best_run.load_logger().to_numpy(metric)
         ylim = _auto_loss_yrange(values, yscale=yscale)
         if ylim is not None: ax.set_ylim(*ylim)
 
@@ -522,7 +522,7 @@ def plot_train_test_sweep(
     # ---------------------------- determine y limits ---------------------------- #
     best_run = sweep.best_runs('test loss', False, 1)[0]
     best_run.load_logger()
-    ylim = _auto_loss_yrange(best_run.logger.numpy('train loss'), best_run.logger.numpy('test loss'), yscale=yscale)
+    ylim = _auto_loss_yrange(best_run.logger.to_numpy('train loss'), best_run.logger.to_numpy('test loss'), yscale=yscale)
     if ylim is not None: ax.set_ylim(*ylim)
 
     if xscale is not None: ax.set_xscale(xscale)
@@ -652,7 +652,7 @@ def summary_df(root:str = "optimizers", include_partial:bool=True):
                     else:
                         sgd_logger = task['GD'][0].load_logger()
                         cur_logger = best_run.load_logger()
-                        if sgd_logger.list('num passes')[-1] * 0.9 > cur_logger.list('num passes')[-1]: continue
+                        if sgd_logger.to_list('num passes')[-1] * 0.9 > cur_logger.to_list('num passes')[-1]: continue
 
                 task_dict[_wrap(sweep.run_name, 50)] = value
 

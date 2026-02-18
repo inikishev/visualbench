@@ -21,8 +21,8 @@ def _key_exists(logger, k:str, plot_perturbed: bool):
 
 
 def plot_trajectory(self: "Benchmark", cmap = 'coolwarm', loss_scale:Any = 'symlog', projector: Literal['pca'] | Any = 'pca', use_diff: bool = False, ax=None):
-    if 'params' in self.logger: trajectory = self.logger.numpy('params') # n_points, n_dims
-    elif 'projected' in self.logger: trajectory = self.logger.numpy('projected')
+    if 'params' in self.logger: trajectory = self.logger.to_numpy('params') # n_points, n_dims
+    elif 'projected' in self.logger: trajectory = self.logger.to_numpy('projected')
     else: raise RuntimeError("Either params or projections must be logged to plot trajectory")
     if np.iscomplex(trajectory).any(): trajectory = np.concatenate([trajectory.real, trajectory.imag],-1) # pyright:ignore[reportAttributeAccessIssue]
     assert trajectory.ndim == 2

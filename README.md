@@ -312,7 +312,7 @@ bench.plot()
 
 ### Logger
 
-Benchmark has a logger object where all the metrics reside. For example you can get a dictionary which maps step to train loss like this: `train_loss = bench.logger["train loss"]`.
+Benchmark has a logger object where all the metrics reside. For example you can get a dictionary which maps step to train loss like this: `train_loss = bench.logger["train loss"]`. 
 
 ### More tips
 
