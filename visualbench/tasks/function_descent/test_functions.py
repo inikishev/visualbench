@@ -828,6 +828,7 @@ l2reg2d = LinearRegression2D(criterion=losses.norm_loss).register("l2reg2d")
 mapereg2d = LinearRegression2D(criterion=losses.mape_loss).register("mapereg2d")
 
 linfreg2d = LinearRegression2D(criterion=losses.linf_loss, x0=(-15, 10), domain=(-20,20,-20,20)).register("linfreg2d")
+linfreg2d_lasso = LinearRegression2D(criterion=losses.linf_loss, x0=(-15, 10), domain=(-20,20,-20,20), l1_reg=0.001).register("linfreg2d_lasso")
 
 
 ridge2d = LinearRegression2D(l2_reg=1, x0=(2.5, 7.5), domain=(-15, 5, -10, 10)).register("ridge2d")
@@ -839,9 +840,13 @@ class LogisticRegression1D(TestFunction):
     """Logistic Regression on a single feature plus intercept.
 
     Args:
-        n_samples: Number of synthetic data points
-        noise: Label noise level (0 to 0.5)
-        regularization: L2 regularization strength
+        n_samples: number of samples. Defaults to 100.
+        noise: label noise. Defaults to 0.1.
+        l1_reg: L1 regularization. Defaults to 0.0.
+        l2_reg: L2 regularization. Defaults to 0.0.
+        W_true: True weight. Defaults to 1.
+        b_true: True bias. Defaults to 0.5.
+        seed: random seed. Defaults to 0.
     """
     def __init__(self, n_samples: int = 100, noise: float = 0.1, l1_reg: float = 0.0, l2_reg: float = 0.0, W_true=1, b_true=0.5, seed=0):
         super().__init__()
@@ -889,9 +894,12 @@ class LogisticRegression2D(TestFunction):
     """Logistic Regression on two features without intercept.
 
     Args:
-        n_samples: Number of synthetic data points
-        noise: Label noise level (0 to 0.5)
-        regularization: L2 regularization strength
+        n_samples: number of samples. Defaults to 100.
+        noise: label noise. Defaults to 0.1.
+        l1_reg: L1 regularization. Defaults to 0.0.
+        l2_reg: L2 regularization. Defaults to 0.0.
+        W_true: True weight. Defaults to (-0.5, 1).
+        seed: random seed. Defaults to 0.
     """
     def __init__(self, n_samples: int = 100, noise: float = 0.1, l1_reg: float = 0.0, l2_reg: float = 0.0, W_true=(-0.5, 1), seed=0):
         super().__init__()
@@ -921,7 +929,7 @@ class LogisticRegression2D(TestFunction):
         y = self.y.expand_as(logits)
 
         ce = F.binary_cross_entropy_with_logits(logits, y, reduction='none').mean(0)
-        reg = reg = self.l1_reg * W.abs().sum(0) + self.l2_reg * W.square().sum(0)
+        reg = self.l1_reg * W.abs().sum(0) + self.l2_reg * W.square().sum(0)
 
         return (ce + reg).reshape(shape)
 
@@ -931,3 +939,4 @@ class LogisticRegression2D(TestFunction):
     def minima(self): return
 
 logreg2d = LogisticRegression2D().register('logreg2d')
+

@@ -14,13 +14,13 @@ class QR(Benchmark):
     """Decompose rectangular A into QR, where Q is orthonormal and R is upper triangular, optionally with positive diagonal to make factorization unique.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        ortho (linalg_utils.OrthoMode, optional): how to enforce orthogonality of Q (float penalty or "qr" or "svd"). Defaults to 1.
-        exp_diag (bool, optional): if True, applies exp to R diagonal to make it positive. Defaults to False.
-        mode (Literal[str]], optional): "full" or "reduced". Defaults to "reduced".
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        ortho: how to enforce orthogonality of Q (float penalty or "qr" or "svd"). Defaults to 1.
+        exp_diag: if True, applies exp to R diagonal to make it positive. Defaults to False.
+        mode: "full" or "reduced". Defaults to "reduced".
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -87,11 +87,11 @@ class SVD(Benchmark):
     """Decompose rectangular A into USV*, where U and V are orthonormal unitary, S is diagonal.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        ortho (linalg_utils.OrthoMode, optional): how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        ortho: how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -149,6 +149,7 @@ class SVD(Benchmark):
             self.log_image("U", U_sorted, to_uint8=True)
             self.log_image("V", Vh_sorted, to_uint8=True)
             self.log_image("USV*", USV, to_uint8=True, show_best=True)
+            self.log_image("residual", (USV - self.A).abs(), to_uint8=True)
 
         return loss + penalty1 + penalty2
 
@@ -159,11 +160,11 @@ class Eigendecomposition(Benchmark):
     This uses no complex values (but it is least squares-like).
 
     Args:
-        A (Any): something to load and use as a matrix.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
+        A: something to load and use as a matrix.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
         invert_Q: if True, computes Q^-1 as inverse, if False, computes it as Q^T.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -219,9 +220,9 @@ class Eigendecomposition(Benchmark):
 
             self.log_image("Q", Q_sorted, to_uint8=True)
             self.log_image("QΛQ^-1", QLQi, to_uint8=True, show_best=True)
+            self.log_image("residual", (QLQi - self.A).abs(), to_uint8=True)
 
         return loss
-
 
 
 
@@ -229,11 +230,11 @@ class Cholesky(Benchmark):
     """Decompose square A in LL*, where L is a lower triangular matrix with real and positive diagonal entries.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        ortho (linalg_utils.OrthoMode, optional): how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        ortho: how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -268,6 +269,7 @@ class Cholesky(Benchmark):
         if self._make_images:
             self.log_image("L", L, to_uint8=True)
             self.log_image("LL*", LLh, to_uint8=True, show_best=True)
+            self.log_image("residual", (LLh - self.A).abs(), to_uint8=True)
 
         return loss
 
@@ -277,11 +279,11 @@ class LDL(Benchmark):
     """Decompose square A into LDL*, where L is a lower unit triangular matrix and D is a diagonal matrix.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        ortho (linalg_utils.OrthoMode, optional): how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        ortho: how to enforce unitarity of S and D (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -323,6 +325,7 @@ class LDL(Benchmark):
             self.log_image("L", L, to_uint8=True)
             self.log_image("LD", LD, to_uint8=True)
             self.log_image("LDL*", LDLh, to_uint8=True, show_best=True)
+            self.log_image("residual", (LDLh - self.A).abs(), to_uint8=True)
 
         return loss
 
@@ -332,10 +335,10 @@ class LU(Benchmark):
     """Decompose rectangular A into LU, where L is a lower triangular matrix and U is an upper triangular matrix. This one has no pivoting.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -378,6 +381,7 @@ class LU(Benchmark):
             self.log_image("L", L, to_uint8=True, log_difference=True)
             self.log_image("U", U, to_uint8=True, log_difference=True)
             self.log_image("LU", LU_, to_uint8=True, show_best=True)
+            self.log_image("residual", (LU_ - self.A).abs(), to_uint8=True)
 
         return loss
 
@@ -388,10 +392,10 @@ class LUP(Benchmark):
 
 
     Args:
-        A (Any): something to load and use as a matrix.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -448,6 +452,7 @@ class LUP(Benchmark):
             self.log_image("U", U, to_uint8=True, log_difference=True)
             self.log_image("LU", LU_, to_uint8=True)
             self.log_image("PLU", PLU, to_uint8=True, show_best=True)
+            self.log_image("residual", (PLU - self.A).abs(), to_uint8=True)
 
         return loss + penalty
 
@@ -459,11 +464,11 @@ class Polar(Benchmark):
     In this benchmark P is stored as LL*, where L is a lower triagular matrix with positive diagonal.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        ortho (linalg_utils.OrthoMode, optional): how to enforce orthogonality of Q (float penalty or "qr" or "svd"). Defaults to 1.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        ortho: how to enforce orthogonality of Q (float penalty or "qr" or "svd"). Defaults to 1.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -506,6 +511,7 @@ class Polar(Benchmark):
             self.log_image("L", L, to_uint8=True)
             self.log_image("P", P, to_uint8=True)
             self.log_image("UP", UP, to_uint8=True, show_best=True)
+            self.log_image("residual", (UP - self.A).abs(), to_uint8=True)
 
         return loss + penalty
 
@@ -523,11 +529,11 @@ class RankFactorization(Benchmark):
     """Decompose rectangular A into CF, where C is (m, rank) and F is (rank, n).
 
     Args:
-        A (Any): something to load and use as a matrix.
-        rank (int): rank.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        rank: rank.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -564,6 +570,7 @@ class RankFactorization(Benchmark):
             self.log_image("C", C, to_uint8=True)
             self.log_image("F", F, to_uint8=True)
             self.log_image("CF", CF, to_uint8=True, show_best=True)
+            self.log_image("residual", (CF - self.A).abs(), to_uint8=True)
 
         return loss
 
@@ -573,11 +580,11 @@ class NNMF(Benchmark):
     """Decompose nonnegtive rectangular V into product of two smaller nonnegative matrices WH.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        rank (int): rank.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        rank: rank.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -622,6 +629,7 @@ class NNMF(Benchmark):
             self.log_image("W", W, to_uint8=True,)
             self.log_image("H", H, to_uint8=True,)
             self.log_image("WH", WH, to_uint8=True, show_best=True)
+            self.log_image("residual", (WH - self.A).abs(), to_uint8=True)
 
         return loss
 
@@ -648,10 +656,10 @@ class KroneckerFactorization(Benchmark):
     """Decompose rectangular A into B⊗C, B is m×n, C is p×q and A is pm×qn.
 
     Args:
-        A (Any): something to load and use as a matrix.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        criterion: loss function. Defaults to torch.nn.functional.mse_loss.
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
@@ -687,6 +695,7 @@ class KroneckerFactorization(Benchmark):
             self.log_image("B", B, to_uint8=True, log_difference=True)
             self.log_image("C", C, to_uint8=True, log_difference=True)
             self.log_image("B⊗C", rec, to_uint8=True, show_best=True)
+            self.log_image("residual", (rec - self.A).abs(), to_uint8=True)
 
         return loss
 
@@ -694,24 +703,30 @@ class KroneckerFactorization(Benchmark):
 class Schur(Benchmark):
     """Decompose square A into QTQ*, where Q is unitary and T is upper triangular (Schur form).
 
+    Also implements Hessenberg decomposotion, where T is Hessenberg matrix (upper triangular plus one row below main diagonal)
+
     Args:
-        A (Any): something to load and use as a matrix.
-        ortho (linalg_utils.OrthoMode, optional): how to enforce unitarity of Q (float penalty or "qr" or "svd"). Defaults to 1.
-        criterion (Callable, optional): loss function. Defaults to torch.nn.functional.mse_loss.
-        algebra (Any, optional): use custom algebra for matrix multiplications. Defaults to None.
-        seed (int, optional): seed. Defaults to 0.
+        A: something to load and use as a matrix.
+        ortho: how to enforce unitarity of Q (float penalty or "qr" or "svd"). Defaults to 1.
+        critrion: loss function. Defaults to torch.nn.functional.mse_loss.
+        hessenberg: whether to use Hessenberg decomposotion (easier than Schur).
+        algebra: use custom algebra for matrix multiplications. Defaults to None.
+        seed: seed. Defaults to 0.
     """
     def __init__(
         self,
         A,
         ortho: linalg_utils.OrthoMode = 1,
         criterion:Callable=torch.nn.functional.mse_loss,
+        hessenberg: bool = False,
         algebra=None,
         seed=0,
     ):
         super().__init__(seed=seed)
-        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.criterion = criterion
+        self.hessenberg = hessenberg
+
+        self.A = torch.nn.Buffer(format.to_square(format.to_CHW(A, generator=self.rng.torch())).float())
         self.ortho: linalg_utils.OrthoMode = ortho
         self.algebra = algebras.get_algebra(algebra)
 
@@ -739,7 +754,7 @@ class Schur(Benchmark):
 
     def get_loss(self):
         Q = self.Q
-        T = torch.triu(self.T)
+        T = torch.triu(self.T, diagonal=-1 if self.hessenberg else 0)
 
         Q, penalty = linalg_utils.orthonormality_constraint(Q, ortho=self.ortho, algebra=self.algebra, criterion=self.criterion)
 

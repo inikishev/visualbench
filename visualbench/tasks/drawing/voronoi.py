@@ -45,7 +45,7 @@ class VoronoiDrawer(Benchmark):
         self,
         target_image: Any,
         num_cells: int = 100,
-        edge_thickness: float = 0.02,
+        edge_thickness: float = 0.002,
         edge_sharpness: float = 100.0,
         edge_color: tuple = (0, 0, 0),
         edge_alpha: float = 0.5,
@@ -60,7 +60,7 @@ class VoronoiDrawer(Benchmark):
         self.num_cells = num_cells
         self.edge_thickness = edge_thickness
         self.edge_sharpness = edge_sharpness
-        self.edge_color = torch.tensor(edge_color, dtype=torch.float32) / 255.0
+        self.edge_color = nn.Parameter(torch.tensor(edge_color, dtype=torch.float32) / 255.0)
         self.edge_alpha = edge_alpha
         self.loss_fn = loss_fn
 

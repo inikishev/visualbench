@@ -60,4 +60,3 @@ class SumOfKrons(Benchmark):
                 self.log_image(f"B_{i} ⊗ C_{i}", krons[i], to_uint8=True)
             self.log_image("recreated", rec, to_uint8=True, show_best=True)
         return loss
-
