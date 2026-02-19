@@ -7,7 +7,7 @@ def _reduce(loss: torch.Tensor, reduction):
     raise ValueError(reduction)
 
 def linf_loss(x: torch.Tensor, y: torch.Tensor, reduction='mean'):
-    loss = torch.linalg.vector_norm(x-y, ord=float('inf'), dim=list(range(1, x.ndim))) # pylint:disable=not-callable
+    loss = torch.maximum(x.abs(), y.abs())
     return _reduce(loss, reduction)
 
 def median_loss(x: torch.Tensor, y: torch.Tensor, reduction='mean'):

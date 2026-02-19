@@ -1,4 +1,4 @@
-"""Library of test functions.
+"""Library of test functions with batched evaluation support.
 
 Note: Functions with minima at (0,0) are shifted by default to prevent zero bias advantage.
 """
@@ -10,8 +10,11 @@ from typing import Any, Literal
 
 import numpy as np
 import torch
+from torch import nn
+import torch.nn.functional as F
 
 from ...utils import totensor
+from ... import losses
 from ...utils.relaxed_multikey_dict import RelaxedMultikeyDict
 
 TEST_FUNCTIONS:"RelaxedMultikeyDict[TestFunction]" = RelaxedMultikeyDict() # type:ignore
@@ -89,7 +92,7 @@ class Lambda(FunctionTransform):
     def transform_domain(self, xmin, xmax, ymin, ymax):
         return xmin, xmax, ymin, ymax
 
-class TestFunction(ABC):
+class TestFunction(torch.nn.Module, ABC):
 
     @abstractmethod
     def objective(self, x:torch.Tensor, y:torch.Tensor) -> torch.Tensor:
@@ -112,9 +115,6 @@ class TestFunction(ABC):
 
     def __call__(self, x:torch.Tensor, y:torch.Tensor):
         return self.objective(x, y)
-
-    def to(self, device=None, dtype=None) -> "TestFunction":
-        return _to(self, device=device, dtype=dtype) # pyright:ignore[reportReturnType]
 
     def transformed(self, transforms: FunctionTransform | Sequence[FunctionTransform]):
         return TransformedFunction(self, transforms=transforms)
@@ -165,6 +165,7 @@ class TestFunction(ABC):
 
 class TransformedFunction(TestFunction):
     def __init__(self, function: TestFunction, transforms: FunctionTransform | Sequence[FunctionTransform]):
+        super().__init__()
         self.function = function
         if isinstance(transforms, FunctionTransform): transforms = [transforms]
         self.transforms = transforms
@@ -211,6 +212,7 @@ class TransformedFunction(TestFunction):
 
 class PowSum(TestFunction):
     def __init__(self, xpow, ypow, cross_add=1.0, cross_mul=0.0, abs:bool = True, post_pow = 1.0, x0=(-9,-7)):
+        super().__init__()
         self.xpow, self.ypow = xpow, ypow
         self.cross_add, self.cross_mul = cross_add, cross_mul
         self.abs = abs
@@ -254,6 +256,7 @@ stretched_sphere = PowSum(2, 2, x0=(-9, -70)).scaled(1, 10).shifted(1, -2).regis
 
 class Rosenbrock(TestFunction):
     def __init__(self, a = 1., b = 100, pd_fn=torch.square, pd_fn2 = None, mo:bool=False):
+        super().__init__()
         self.a = a
         self.b = b
         self.pd_fn = pd_fn
@@ -288,6 +291,7 @@ rosenbrock_mo = Rosenbrock(pd_fn=torch.abs, pd_fn2=torch.square, mo=True).regist
 
 class ChebushevRosenbrock(TestFunction):
     def __init__(self, p=1., a = 1/4, pd_fn=torch.square, pd_fn2 = None):
+        super().__init__()
         self.a = a
         self.p = p
         self.pd_fn = pd_fn
@@ -316,6 +320,7 @@ crosenabs3 = ChebushevRosenbrock(pd_fn=torch.square, pd_fn2=torch.abs).register(
 
 class Rastrigin(TestFunction):
     def __init__(self, A=10):
+        super().__init__()
         self.A = A
 
 
@@ -330,6 +335,7 @@ rastrigin = Rastrigin().shifted(0.5, -1.33).register('rastrigin')
 
 class Ackley(TestFunction):
     def __init__(self, a=20., b=0.2, c=2 * torch.pi, domain=6):
+        super().__init__()
         self.a = a
         self.b = b
         self.c = c
@@ -348,6 +354,7 @@ ackley = Ackley().shifted(0.5, -1.33).register('ackley')
 
 class Beale(TestFunction):
     def __init__(self, a=1.5, b=2.25, c=2.625):
+        super().__init__()
         self.a = a
         self.b = b
         self.c = c
@@ -386,6 +393,7 @@ golstein_price = GoldsteinPrice().register('goldstein_price')
 
 class Norm(TestFunction):
     def __init__(self, ord:int|float=2):
+        super().__init__()
         self.ord = ord
 
     def objective(self, x, y):
@@ -402,26 +410,11 @@ l3 = Norm(3).shifted(1,-2).register('l3')
 linf = Norm(float('inf')).shifted(1,-2).register('linf')
 l0 = Norm(0).shifted(1,-2).register('l0')
 
-class DotProduct(TestFunction):
-    def __init__(self, target = (1., -2.)):
-        self.target:torch.Tensor = totensor(target)
-
-    def objective(self, x, y):
-        preds = torch.stack([x, y])
-        target = self.target
-        while target.ndim < preds.ndim: target = target.unsqueeze(-1)
-        return (preds * target.expand_as(preds)).abs().sum(0)
-
-    def x0(self): return (-9, 7)
-    def domain(self): return (-10, 10, -10, 10)
-    def minima(self): return self.target
-
-dot = DotProduct().register('dot')
-
 
 class Exp(TestFunction):
-    def __init__(self, base: float = torch.e): # pylint:disable=redefined-outer-name
-        self.base = totensor(base)
+    def __init__(self, base: float = torch.e):
+        super().__init__()
+        self.base = torch.nn.Buffer(torch.tensor(base, dtype=torch.float32))
 
     def objective(self, x, y):
         X = torch.stack([x, y])
@@ -435,10 +428,6 @@ exp = Exp().shifted(1,-2).register('exp')
 
 
 class Eggholder(TestFunction):
-    def __init__(self):
-        super().__init__()
-
-
     def objective(self, x, y):
         return (-(y + 47) * torch.sin((y + x/2 + 47).abs().sqrt()) - x * torch.sin((x - (y + 47)).abs().sqrt())) + 959.6407
     def x0(self): return (0, 0)
@@ -555,6 +544,7 @@ around = Around().value_tfm(lambda x: x+1.6).register('around')
 
 class IllConditioned(TestFunction):
     def __init__(self, b = 1e-4):
+        super().__init__()
         self.b = b
 
     def objective(self,x,y):
@@ -574,6 +564,7 @@ ill_pseudoconvex = IllConditioned().divadd(0.1).shifted(-1, 2).register('ill_pse
 
 class IllPiecewise(TestFunction):
     def __init__(self, b = 1e-4):
+        super().__init__()
         self.b = b
 
     def objective(self, x, y):
@@ -586,14 +577,15 @@ class IllPiecewise(TestFunction):
 ill_piecewise = IllPiecewise().shifted(-1, 2).register('ill_piecewise', 'piecewise', 'illp')
 ill_piecewise_pseudoconvex = IllPiecewise().shifted(-1, 2).register('illppc')
 
-class LeastSquares(TestFunction):
+class Quadratic(TestFunction):
+    """Another quadratic. Good for testing CG"""
     def objective(self, x, y):
         return (2*x + 3*y - 5)**2 + (5*x - 2*y - 3)**2
 
     def x0(self): return (-0.9, 0)
     def domain(self): return (-1,3,-1,3)
     def minima(self): return (1, 1)
-least_squares = LeastSquares().register('least_squares', 'lstsq')
+quad = Quadratic().register('quad')
 
 
 
@@ -701,7 +693,6 @@ miele_cantrell = MieleCantrell().shifted(1,-2).register('miele_cantrell', 'miele
 class Whitley(TestFunction):
     """Whitley function (De Jong F10). A hard rosenbrock-like function"""
     def objective(self, x, y):
-        # Standard Whitley/De Jong F10 formula
         term1 = 0.0001 * (torch.abs(x**2 * y**2 - x**2 - y**2 + 1))**0.1
         term2 = torch.abs(100 * (x**2 - y)**2 + (1 - x)**2)**0.1
         return term1 + term2
@@ -713,3 +704,230 @@ class Whitley(TestFunction):
 whitley = Whitley().register('whitley')
 
 
+class LinearRegression1D(TestFunction):
+    def __init__(
+        self,
+        n_samples: int = 100,
+        noise: float = 0.1,
+        l1_reg: float = 0.0,
+        l2_reg: float = 0.0,
+        W_true=2,
+        b_true=0.5,
+        seed=0,
+        criterion=F.mse_loss,
+    ):
+        super().__init__()
+        self.l1_reg = l1_reg
+        self.l2_reg = l2_reg
+        self.criterion = criterion
+
+        generator = torch.Generator().manual_seed(seed)
+        self.X = nn.Buffer(torch.randn((n_samples, 1), generator=generator))
+        W_true = totensor(W_true, dtype=torch.float32).unsqueeze(-1)
+        b_true = totensor(b_true, dtype=torch.float32)
+
+        targets = (self.X @ W_true) + b_true
+        targets = targets + torch.randn_like(targets) * noise
+        self.y = nn.Buffer(targets)
+
+    def objective(self, x, y):
+        shape = x.shape
+
+        # rename x, y to avoid confusion between y coordinate and labels
+        w = x.reshape(1, -1)
+        b = y.ravel()
+        del x, y
+
+        y_hat = (self.X @ w) + b
+        y = self.y.unsqueeze(-1).expand_as(y_hat)
+
+        loss = self.criterion(y_hat.mT, y.mT, reduction='none')
+        if loss.ndim == 2: loss = loss.mean(-1)
+
+        reg = self.l1_reg * w.abs().sum(-1) + self.l2_reg * w.square().sum(-1)
+        return (loss + reg).reshape(shape)
+
+    # x0 and domain are based on dataset generated from default seed and parameters
+    def x0(self): return (-4, 8)
+    def domain(self): return (-10, 10, -10, 10)
+    def minima(self): return None
+
+linreg1d = LinearRegression1D().register('linreg1d')
+l1reg1d = LinearRegression1D(criterion=F.l1_loss).register("l1reg1d")
+linfreg1d = LinearRegression1D(criterion=losses.linf_loss).register("linfreg1d")
+medianreg1d = LinearRegression1D(criterion=losses.median_loss).register("medianreg1d")
+quarticreg1d = LinearRegression1D(criterion=losses.quartic_loss).register("quarticreg1d")
+rmsereg1d = LinearRegression1D(criterion=losses.rmse_loss).register("rmsereg1d")
+qrmsereg1d = LinearRegression1D(criterion=losses.qrmse_loss).register("qrmsereg1d")
+l2reg1d = LinearRegression1D(criterion=losses.norm_loss).register("l2reg1d")
+mapereg1d = LinearRegression1D(criterion=losses.mape_loss).register("mapereg1d")
+
+ridge1d = LinearRegression1D(l2_reg=1).register("ridge1d")
+lasso1d = LinearRegression1D(l1_reg=1).register("lasso1d")
+elasticnet1d = LinearRegression1D(l1_reg=1, l2_reg=1).register("elasticnet1d")
+
+class LinearRegression2D(TestFunction):
+    def __init__(
+        self,
+        n_samples: int = 100,
+        noise: float = 0.1,
+        l1_reg: float = 0.0,
+        l2_reg: float = 0.0,
+        W_true=(-16, 0.5),
+        seed=0,
+        criterion=F.mse_loss,
+
+        # x0 and domain are based on dataset generated from default seed and parameters
+        x0 = (-4, 8),
+        domain = (-30, 0, -15, 15)
+    ):
+        super().__init__()
+        self.l1_reg = l1_reg
+        self.l2_reg = l2_reg
+        self.criterion = criterion
+        self._x0 = x0
+        self._domain = domain
+
+        generator = torch.Generator().manual_seed(seed)
+        self.X = nn.Buffer(torch.randn((n_samples, 2), generator=generator))
+        W_true = totensor(W_true, dtype=torch.float32).unsqueeze(-1)
+
+        targets = self.X @ W_true # (n_samples, 2)
+        targets = targets + torch.randn_like(targets) * noise
+        self.y = nn.Buffer(targets)
+
+    def objective(self, x, y):
+        shape = x.shape
+
+        # rename x, y to avoid confusion between y coordinate and labels
+        W = torch.stack([x.ravel(), y.ravel()])
+        del x, y
+
+        y_hat = self.X @ W
+        y = self.y.expand_as(y_hat)
+
+        loss = self.criterion(y_hat.mT, y.mT, reduction='none')
+        if loss.ndim == 2: loss = loss.mean(-1)
+
+        reg = self.l1_reg * W.abs().sum(0) + self.l2_reg * W.square().sum(0)
+        return (loss + reg).reshape(shape)
+
+
+    def x0(self): return self._x0
+    def domain(self): return self._domain
+    def minima(self): return None
+
+
+linreg2d = LinearRegression2D().register('linreg2d')
+l1reg2d = LinearRegression2D(criterion=F.l1_loss).register("l1reg2d")
+medianreg2d = LinearRegression2D(criterion=losses.median_loss).register("medianreg2d")
+quarticreg2d = LinearRegression2D(criterion=losses.quartic_loss).register("quarticreg2d")
+rmsereg2d = LinearRegression2D(criterion=losses.rmse_loss).register("rmsereg2d")
+qrmsereg2d = LinearRegression2D(criterion=losses.qrmse_loss).register("qrmsereg2d")
+l2reg2d = LinearRegression2D(criterion=losses.norm_loss).register("l2reg2d")
+mapereg2d = LinearRegression2D(criterion=losses.mape_loss).register("mapereg2d")
+
+linfreg2d = LinearRegression2D(criterion=losses.linf_loss, x0=(-15, 10), domain=(-20,20,-20,20)).register("linfreg2d")
+
+
+ridge2d = LinearRegression2D(l2_reg=1, x0=(2.5, 7.5), domain=(-15, 5, -10, 10)).register("ridge2d")
+lasso2d = LinearRegression2D(l1_reg=10, x0=(2.5, 7.5), domain=(-15, 5, -10, 10)).register("lasso2d")
+elasticnet2d = LinearRegression2D(l1_reg=10, x0=(2.5, 7.5), l2_reg=1, domain=(-15, 5, -10, 10)).register("elasticnet2d")
+
+
+class LogisticRegression1D(TestFunction):
+    """Logistic Regression on a single feature plus intercept.
+
+    Args:
+        n_samples: Number of synthetic data points
+        noise: Label noise level (0 to 0.5)
+        regularization: L2 regularization strength
+    """
+    def __init__(self, n_samples: int = 100, noise: float = 0.1, l1_reg: float = 0.0, l2_reg: float = 0.0, W_true=1, b_true=0.5, seed=0):
+        super().__init__()
+        self.l1_reg = l1_reg
+        self.l2_reg = l2_reg
+
+        generator = torch.Generator().manual_seed(seed)
+        self.X = nn.Buffer(torch.randn((n_samples, 1), generator=generator))
+        W_true = totensor(W_true, dtype=torch.float32).unsqueeze(-1)
+        b_true = totensor(b_true, dtype=torch.float32)
+
+        logits = (self.X @ W_true) + b_true # (n_samples, 1)
+        probs = 1 / (1 + torch.exp(-logits)) # (n_samples, 1)
+        labels = (probs > 0.5).float() # (n_samples, 1)
+
+        flip_mask = torch.rand(n_samples, generator=generator) < noise
+        labels[flip_mask] = 1 - labels[flip_mask]
+        self.y = nn.Buffer(labels)
+
+    def objective(self, x, y):
+        shape = x.shape
+
+        # rename x, y to avoid confusion between y coordinate and labels
+        w = x.reshape(1, -1)
+        b = y.ravel()
+        del x, y
+
+        logits = (self.X @ w) + b
+        y = self.y.unsqueeze(-1).expand_as(logits)
+
+        ce = F.binary_cross_entropy_with_logits(logits, y, reduction='none').mean(0)
+
+        reg = self.l1_reg * w.abs().sum(-1) + self.l2_reg * w.square().sum(-1)
+        return (ce + reg).reshape(shape)
+
+    # x0 and domain are based on dataset generated from default seed and parameters
+    def x0(self): return (2.5, 12.5)
+    def domain(self): return (-5, 15, -5, 15)
+    def minima(self): return None
+
+logreg1d = LogisticRegression1D().register('logreg1d')
+
+
+class LogisticRegression2D(TestFunction):
+    """Logistic Regression on two features without intercept.
+
+    Args:
+        n_samples: Number of synthetic data points
+        noise: Label noise level (0 to 0.5)
+        regularization: L2 regularization strength
+    """
+    def __init__(self, n_samples: int = 100, noise: float = 0.1, l1_reg: float = 0.0, l2_reg: float = 0.0, W_true=(-0.5, 1), seed=0):
+        super().__init__()
+        self.l1_reg = l1_reg
+        self.l2_reg = l2_reg
+
+        generator = torch.Generator().manual_seed(seed)
+        self.X = nn.Buffer(torch.randn((n_samples, 2), generator=generator))
+        W_true = totensor(W_true, dtype=torch.float32).unsqueeze(-1)
+
+        logits = self.X @ W_true # (n_samples, 2)
+        probs = 1 / (1 + torch.exp(-logits)) # (n_samples, 12)
+        labels = (probs > 0.5).float() # (n_samples, 1)
+
+        flip_mask = torch.rand(n_samples, generator=generator) < noise
+        labels[flip_mask] = 1 - labels[flip_mask]
+        self.y = nn.Buffer(labels)
+
+    def objective(self, x, y):
+        shape = x.shape
+
+        # rename x, y to avoid confusion between y coordinate and labels
+        W = torch.stack([x.ravel(), y.ravel()])
+        del x, y
+
+        logits = self.X @ W
+        y = self.y.expand_as(logits)
+
+        ce = F.binary_cross_entropy_with_logits(logits, y, reduction='none').mean(0)
+        reg = reg = self.l1_reg * W.abs().sum(0) + self.l2_reg * W.square().sum(0)
+
+        return (ce + reg).reshape(shape)
+
+    # x0 and domain are based on dataset generated from default seed and parameters
+    def x0(self): return (2.5, 13)
+    def domain(self): return (-15, 5, -5, 15)
+    def minima(self): return
+
+logreg2d = LogisticRegression2D().register('logreg2d')

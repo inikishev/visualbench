@@ -45,8 +45,11 @@ class FunctionDescent(Benchmark):
         unpack (bool, optional):
             if True, function is called as ``func(x[0], x[1])``, otherwise ``func(x)``. Defaults to True.
     """
+
+    # those two attributes are overridden in DecisionSpaceDescent to reuse all other logic from this
     _LOGGER_XY_KEY: str = "params"
     _LEARNABLE_XY: bool = True
+
     def __init__(
         self,
         func: Callable[..., torch.Tensor] | str | TestFunction,
@@ -86,7 +89,6 @@ class FunctionDescent(Benchmark):
 
         if mo_func is not None:
             self.set_multiobjective_func(mo_func)
-
 
 
     @staticmethod

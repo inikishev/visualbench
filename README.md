@@ -110,7 +110,7 @@ You can pass a function like `lambda x,y: x**2 + y**2`, or string name of one of
 
 #### Packing / Covering
 
-`BoxPacking`, `RigidBoxPacking`, `SpherePacking`, `RigidBoxCovering`
+`RigidBoxPacking`, `SpherePacking`
 
 #### Projected objectives
 
