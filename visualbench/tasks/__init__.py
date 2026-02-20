@@ -18,7 +18,7 @@ from .function_descent import (
     SimultaneousFunctionDescent,
     test_functions,
 )
-from .racing import RacingTrack
+from .games import *
 from .glimmer import Glimmer
 from .gmm import GaussianMixtureNLL
 from .graph_layout import GraphLayout
