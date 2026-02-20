@@ -11,13 +11,10 @@ from ...benchmark import Benchmark
 from ...utils import to_HW3, normalize
 
 
-class StipplingDrawer(Benchmark):
-    """Reconstructs the passed colored image using stippling (dots with varying density).
+class CirclesDrawer(Benchmark):
+    """Reconstructs the passed colored image using circles.
 
-    Stippling is an artistic technique where patterns of small dots are used to create
-    images, with density and color of dots determining the perceived tone and color.
-
-    Each stipple (dot) has parameters:
+    Each circle has parameters:
         - position (x, y): center of the dot
         - radius: size of the dot
         - color (RGB): color of the dot

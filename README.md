@@ -87,15 +87,16 @@ So for example SVD decomposes A into USV*, where U and V are orthonormal unitary
 
 Stochastic versions usually work by using matrix-vector products with random vectors. For example in `StochasticMatrixRecovery` we optimize B to recover A by using loss = mse(Av, Bv) where v is a vector sampled randomly on each step. It also computes test loss as mse(A, B). Those are very fast to evaluate and might be good proxies for real stochastic ML tasks.
 
-All of them:
+All of them (may be slightly outdated):
 
-`LDL, LU, LUP, NNMF, QR, SVD, Cholesky, Eigendecomposition, EigenWithInverse, KroneckerFactorization, Polar, RankFactorization, Drazin, Inverse, MoorePenrose, StochasticInverse, StochasticRLstsq, Preconditioner, StochasticPreconditioner, LeastSquares, MatrixIdempotent, MatrixLogarithm, MatrixRoot, StochasticMatrixIdempotent, StochasticMatrixRoot, StochasticMatrixSign, StochasticMatrixRecovery, BilinearLeastSquares, TensorRankDecomposition, TensorSpectralNorm`
+`LDL, LU, LUP, NNMF, QR, SVD, Cholesky, Eigendecomposition, KroneckerFactorization, Polar, RankFactorization, Drazin, Inverse, MoorePenrose, StochasticInverse, StochasticRLstsq, Preconditioner, StochasticPreconditioner, LeastSquares, MatrixIdempotent, MatrixLogarithm, MatrixRoot, StochasticMatrixIdempotent, StochasticMatrixRoot, StochasticMatrixSign, StochasticMatrixRecovery, BilinearLeastSquares, TensorRankDecomposition, TensorSpectralNorm`
 
 #### Drawing
 
-- `LinesDrawer` - optimize lines to reconstruct an image
-- `PartitionDrawer` - optimize partitions to reconstruct an image
-- `RectanglesDrawer` - optimize rectangles to reconstruct an image
+- `LinesDrawer`, `CurvesDrawer` - optimize lines to draw an image.
+- `PartitionDrawer`, `VoronoiDrawer` - optimize partitions draw an image.
+- `GaborDrawer` - Optimize Gabor filters (sinusoidal gratings) to draw an image.
+- `RectanglesDrawer`, `TrianglesDrawer`, `RectanglesDrawer` - optimize shapes to draw an image
 - `NeuralDrawer` - neural net predicts pixel color based on its two coordinates
 - `LayerwiseNeuralDrawer` - same as `NeuralDrawer` but it also visualizes all intermediate layers
 
@@ -106,6 +107,7 @@ You can pass a function like `lambda x,y: x**2 + y**2`, or string name of one of
 - `FunctionDescent` - to see how optimizer descends a 2D function.
 - `DecisionSpaceDescent` - optimize a model to output coordinates that minimize a 2D function. This is a great way to test how much curvature an optimizer actually uses on larger models.
 - `SimultaneousFunctionDescent` - same as FunctionDescent, except the optimizer optimizes all points at the same time.
+- `MultiAgentDescent` - multiple points descend a 2D image with optional repulsion.
 - `MetaLearning` - the goal is to optimize hyperparameters of an optimizer to descend a 2D function.
 
 #### Packing / Covering

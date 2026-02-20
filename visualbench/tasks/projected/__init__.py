@@ -8,4 +8,5 @@ from .projected_descent import (
     Rosenbrock,
     RotatedQuadratic,
     Polynomial,
+    ClosestFurthestParticles,
 )

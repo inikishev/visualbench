@@ -100,3 +100,4 @@ class BilinearLeastSquares(Benchmark):
         yAx = algebras.matmul(yA, self.x, algebra=self.algebra)
         loss = self.criterion(yAx, self.g)
         return loss
+

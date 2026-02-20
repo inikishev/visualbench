@@ -97,9 +97,9 @@ def _draw_trajectory(Z:torch.Tensor, history_proj: torch.Tensor, xmin, xmax, ymi
 
     return image
 
-_PointType = int | float | Literal["best"]
+_PointType = int | float | Literal["best", "pca1", "pca2", "pca3"]
 class ProjectedFunctionDescent(Benchmark):
-    """_summary_
+    """Base class for projected functions. Subclasses must implement a batched ``evaluate`` method.
 
     Args:
         x0 (Any): initial point
@@ -117,6 +117,11 @@ class ProjectedFunctionDescent(Benchmark):
 
         points (tuple, optional):
             tuple of three things that determine what points are used as the basis. Defaults to ('best', 0.9, 0.95).
+            Available point types:
+            - int: specific iteration index (negative indices supported)
+            - float (0-1): percentile of trajectory (0=start, 1=end)
+            - 'best': point with lowest loss
+            - 'pca1', 'pca2', 'pca3': point along 1st, 2nd or 3rd principal component of trajectory
         log_scale (bool, optional):
             whether to visualize on log scale
     """
@@ -133,7 +138,7 @@ class ProjectedFunctionDescent(Benchmark):
         n_visible:int | None = 200,
         expand: float = 1,
 
-        points: tuple[_PointType,_PointType,_PointType] = ('best', 0.9, 0.95),
+        points: tuple[_PointType,_PointType,_PointType] = ('best', "pca1", 0.95),
         log_scale:bool = False,
     ):
         super().__init__(bounds=bounds, make_images=make_images, seed=seed, log_params=False)
@@ -160,7 +165,40 @@ class ProjectedFunctionDescent(Benchmark):
 
     @abstractmethod
     def evaluate(self, x: torch.Tensor) -> torch.Tensor:
-        """x is a vector, it can have leading batch dimensions, then loss should have them too"""
+        """``x`` has shape ``(*B, ndim)``, where ``*B`` is 0 or more batch dimension.
+
+        This method should output the loss of shape ``(*B, )``."""
+
+    @torch.no_grad
+    def _compute_pca(self, n_components: int = 3) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute PCA on the trajectory history.
+
+        Returns:
+            tuple of (mean, components) where:
+                - mean: centroid of the trajectory (ndim,)
+                - components: principal axes (ndim, n_components)
+        """
+        if len(self._param_history) < 2:
+            # Not enough points for PCA, return random orthogonal directions
+            mean = self._x.detach().clone() # pylint:disable=not-callable
+            random_basis = torch.randn_like(self._x).unsqueeze(-1).repeat(1, n_components)
+            Q, _ = torch.linalg.qr(random_basis) # pylint:disable=not-callable
+            return mean, Q
+
+        history = torch.stack(self._param_history) # (n_steps, ndim)
+
+        # compute covariance
+        mean = history.mean(dim=0)
+        X = history - mean  # (n_steps, ndim)
+        cov = X.T @ X / (len(history) - 1) # (ndim, ndim)
+
+        # compute principal components
+        _, Q = torch.linalg.eigh(cov) # pylint:disable=not-callable
+
+        # eigenvalues are returned in ascending order, take n last components
+        components = Q[:, -n_components:]  # (ndim, n_components)
+
+        return mean, components
 
     @torch.no_grad
     def _get_point(self, point_type):
@@ -183,6 +221,14 @@ class ProjectedFunctionDescent(Benchmark):
         if point_type == 'best':
             if self._best_params is None: return torch.randn_like(self._x)
             return self._best_params
+
+        if point_type in ('pca1', 'pca2', 'pca3'):
+            mean, components = self._compute_pca(3)
+            scale = torch.linalg.vector_norm(mean - self._x.detach()) + 1e-6 # pylint:disable=not-callable
+
+            if point_type == 'pca1': return mean + components[:, 0] * scale
+            elif point_type == "pca2": return mean + components[:, 1] * scale
+            else: return mean + components[:, 2] * scale
 
         raise ValueError(point_type)
 
@@ -398,6 +444,7 @@ class NeuralNet(ProjectedFunctionDescent):
         act: Callable = F.relu,
         algebra: Any = None,
         log_scale: bool = True,
+        criterion=F.mse_loss,
         **kwargs
     ):
         widths = list(widths)
@@ -408,6 +455,7 @@ class NeuralNet(ProjectedFunctionDescent):
         self.n_layers = len(widths) - 1
         self.input_dim = widths[0]
         self.act = act
+        self.criterion = criterion
 
         # Calculate shapes and parameter counts for each layer
         self.layer_shapes = []
@@ -475,7 +523,7 @@ class NeuralNet(ProjectedFunctionDescent):
 
         y_pred = h
         y_true = self.y.expand_as(y_pred)
-        return F.mse_loss(y_pred, y_true, reduction='none').mean(dim=(-2, -1))
+        return self.criterion(y_pred, y_true, reduction='none').mean(dim=(-2, -1))
 
 def _symmetrize_tensor(T: torch.Tensor) -> torch.Tensor:
     if T.ndim == 1: return T
@@ -534,3 +582,46 @@ class Polynomial(ProjectedFunctionDescent):
         coeffs = [getattr(self, f"coeff_{i}") for i in range(self.ord)]
 
         return _poly_eval(x, coeffs, penalty=self.penalty)
+
+
+class ClosestFurthestParticles(ProjectedFunctionDescent):
+    """Objective is to maximize distance between 2 closest points and minimize distance between 2 furthest points. This is a min-max problem and has a weird landscape."""
+    def __init__(
+        self,
+        n: int = 20,
+        w_pull: float = 1,
+        w_push: float = 1.5,
+        spread: float = 0.5,
+        **kwargs
+    ):
+        if n < 2:
+            raise ValueError("n_points must be at least 2.")
+
+        self.n = n
+        self.w_pull = w_pull
+        self.w_push = w_push
+
+        start = 0.5 - spread / 2.0
+        initial_points = torch.rand(n * 2, generator=torch.Generator().manual_seed(kwargs.get('seed', 0))) * spread + start
+        super().__init__(initial_points, log_scale=False, **kwargs)
+
+    def evaluate(self, x: torch.Tensor) -> torch.Tensor:
+        batch_shape = x.shape[:-1]
+        points = x.view(*batch_shape, self.n, 2)
+
+        pdist05 = torch.cdist(points, points, p=0.5)  # L0.5 norm
+        pdist2 = torch.cdist(points, points, p=2)  # L2 norm
+
+        # mask diagonal (self-distances) with large value
+        mask = torch.eye(self.n, device=points.device).bool()
+        if batch_shape:
+            mask = mask.unsqueeze(0).expand(*batch_shape, -1, -1)
+        pdist05 = pdist05.masked_fill(mask, pdist05.detach().amax() + 1)
+
+        min_dist, min_idx = torch.min(pdist05.flatten(-2), dim=-1)
+        max_dist, max_idx = torch.max(pdist2.flatten(-2), dim=-1)
+
+        penalty = points.clip(max=0).pow(2).sum(dim=(-1, -2)) + (points - 1).clip(min=0).pow(2).sum(dim=(-1, -2))
+        loss = penalty + max_dist * self.w_pull - min_dist * self.w_push
+
+        return loss

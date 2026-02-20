@@ -103,7 +103,7 @@ class VoronoiDrawer(Benchmark):
 
         # Hard Voronoi assignment: each pixel belongs to the nearest cell
         # cell_assignment: (H, W) with values in [0, num_cells)
-        min_distances, cell_assignment = torch.min(distances, dim=0)  # (H, W), (H, W)
+        _, cell_assignment = torch.min(distances, dim=0)  # (H, W), (H, W)
 
         # Create the cell color image by indexing into colors
         # colors: (N, 3), cell_assignment: (H, W)

@@ -5,5 +5,5 @@ from .triangles import TrianglesDrawer
 from .curves import CurvesDrawer
 from .neural import NeuralDrawer, LayerwiseNeuralDrawer
 from .gabor import GaborFiltersDrawer
-from .stippling import StipplingDrawer
+from .circles import CirclesDrawer
 from .voronoi import VoronoiDrawer
