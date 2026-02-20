@@ -204,10 +204,10 @@ def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: in
             # make a collage
             collage, ncols = _make_collage({k: _rescale(make_hw3(tonumpy(v)), scale) for k,v in images.items()}, titles=self._show_titles_on_video, w_cols=w_cols)
 
-            title = f"train loss: {str(format_number(loss,  5)).ljust(7, '0')[:7]}"
+            title = f"train loss: {loss:.5g}"
             if "test loss" in self.logger:
                 test_loss = self.logger.closest("test loss", step)
-                title = f"{title}; test loss: {str(format_number(test_loss, 5)).ljust(7, '0')[:7]}"
+                title = f"{title}; test loss: {test_loss:.5g}"
 
             renderer.write(_add_title(collage, title, size_per_px=0.04/ncols, wrap=False))
 
