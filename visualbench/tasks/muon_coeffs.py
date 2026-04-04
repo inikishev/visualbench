@@ -264,7 +264,7 @@ class MuonCoeffs(Benchmark):
 
             self.log('steepness', steepness)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 intermediate_ys_list: list[torch.Tensor] = [self.x]
                 y = self.x

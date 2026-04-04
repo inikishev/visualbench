@@ -76,7 +76,7 @@ class NeuralDrawer(Benchmark):
         with torch.no_grad():
             mask = None
             idxs = None
-            if self._make_images:
+            if self.make_images:
                 if self.expand != 0:
                     inputs = self.expanded_coords
                     targets = self.targets
@@ -105,7 +105,7 @@ class NeuralDrawer(Benchmark):
         loss = maybe_per_sample_loss(self.criterion, (preds, targets), per_sample=self._multiobjective)
 
         with torch.no_grad():
-            if self._make_images:
+            if self.make_images:
                 if self.expand != 0: full_preds = full_preds.view(self.expanded_shape)
                 else: full_preds = full_preds.view(self.shape)
                 self.log_image('prediction', full_preds, to_uint8=True, min=self.min, max=self.max, show_best=True)
@@ -179,7 +179,7 @@ class LayerwiseNeuralDrawer(Benchmark):
         with torch.no_grad():
             mask = None
             idxs = None
-            if self._make_images:
+            if self.make_images:
                 if self.expand != 0:
                     inputs = self.expanded_coords
                     targets = self.targets
@@ -208,13 +208,13 @@ class LayerwiseNeuralDrawer(Benchmark):
 
             # pass through linear
             inputs: torch.Tensor = layer[0](inputs)
-            if self._make_images:
+            if self.make_images:
                 images.append(_features_to_grid(inputs, bw_shape))
 
             if len(layer) > 1:
                 # pass through activation and batchnorm
                 inputs: torch.Tensor = layer[2](layer[1](inputs))
-                if self._make_images:
+                if self.make_images:
                     images.append(_features_to_grid(inputs, bw_shape))
 
         full_preds: torch.Tensor = inputs # (n_pixels, n_channels)
@@ -225,7 +225,7 @@ class LayerwiseNeuralDrawer(Benchmark):
         loss = self.criterion(preds, targets)
 
         with torch.no_grad():
-            if self._make_images:
+            if self.make_images:
                 cur_layer = 1
                 is_act = False
                 for grid in images:

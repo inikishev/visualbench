@@ -241,7 +241,7 @@ class RigidBoxPacking(Benchmark):
         #             if self.square: overlap = overlap ** 2
         #             loss = loss + overlap / self.size
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("boxes", self._make_frame(), to_uint8=False, show_best=True)
 
         return penalized_loss.ravel()

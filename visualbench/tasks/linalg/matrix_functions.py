@@ -35,11 +35,11 @@ class MatrixRoot(Benchmark):
             B_p = B
             for _ in range(1, self.p):
                 B_p = self.algebra.matmul(B, B_p)
-                if self._make_images: powers.append(B_p)
+                if self.make_images: powers.append(B_p)
 
         loss = self.criterion(B_p, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)
 
             if len(powers) > 1:
@@ -89,7 +89,7 @@ class StochasticMatrixRoot(Benchmark):
             B_p = B
             for _ in range(1, self.p):
                 B_p = self.algebra.matmul(B, B_p)
-                if self._make_images: powers.append(B_p)
+                if self.make_images: powers.append(B_p)
 
         XA = algebras.matmul(X, self.A, self.algebra)
         XB_p = algebras.matmul(X, B_p, self.algebra)
@@ -99,7 +99,7 @@ class StochasticMatrixRoot(Benchmark):
             test_loss = self.criterion(B_p, self.A)
             self.log('test loss', test_loss)
 
-            if self._make_images:
+            if self.make_images:
                 self.log_image('B', self.B, to_uint8=True, log_difference=True)
 
                 if len(powers) > 1:
@@ -125,7 +125,7 @@ class MatrixLogarithm(Benchmark):
         A_hat = torch.linalg.matrix_exp(self.B) # pylint:disable=not-callable
         loss = self.criterion(A_hat, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)
             self.log_image('exp(B)', A_hat, to_uint8=True, show_best=True)
 
@@ -179,11 +179,11 @@ class MatrixIdempotent(Benchmark):
             if self.chain: losses.append(self.criterion(B_p, B_prev))
             else: losses.append(self.criterion(B_p, A))
 
-            if self._make_images: powers.append(B_p)
+            if self.make_images: powers.append(B_p)
 
         if self.chain == 'last': losses.append(self.criterion(B_p, A))
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)
 
             if len(powers) > 1:
@@ -265,7 +265,7 @@ class StochasticMatrixIdempotent(Benchmark):
                 losses.append(self.criterion(XB, XA))
                 with torch.no_grad(): test_losses.append(self.criterion(B_p, A))
 
-            if self._make_images: powers.append(B_p)
+            if self.make_images: powers.append(B_p)
 
         if self.chain == 'last':
             losses.append(self.criterion(XB, XA))
@@ -273,7 +273,7 @@ class StochasticMatrixIdempotent(Benchmark):
 
         self.log('test loss', torch.stack(test_losses).sum())
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)
 
             if len(powers) > 1:
@@ -322,7 +322,7 @@ class StochasticMatrixSign(Benchmark):
 
         with torch.no_grad():
             self.log("test loss", self.criterion(self.B, self.sign))
-            if self._make_images:
+            if self.make_images:
                 self.log_image("B", self.B, to_uint8=True, show_best=True, log_difference=True)
 
         return loss

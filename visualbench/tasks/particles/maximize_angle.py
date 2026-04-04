@@ -79,7 +79,7 @@ class MaximizeSmallestAngle(Benchmark):
         loss = loss + self.penalty * penalty
 
         # 6. Generate image
-        if self._make_images:
+        if self.make_images:
             frame = self._generate_frame(min_angle.item(), (idx % 3).item(), indices_combiner[critical_triangle_idx].tolist())
             self.log_image('points', frame, to_uint8=False, show_best=True)
 

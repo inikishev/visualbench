@@ -105,7 +105,7 @@ class NormalScalarCurvature(Benchmark):
         loss = torch.mean((torch.relu(self.target_curvature - K))**2)
 
         # Frame
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 K_detached = K.detach().squeeze().cpu().numpy()
 

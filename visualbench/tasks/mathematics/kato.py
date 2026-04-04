@@ -33,7 +33,7 @@ class Kato(Benchmark):
         u_laplacian = F.conv2d(self.u, self.kernel, groups=self.u.size(1), padding='same')# pylint:disable=not-callable
         loss = F.mse_loss(u_laplacian, self.target)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 self.log_image("laplacian u", self.u, to_uint8=True, log_difference=True)
                 self.log_image('image ∇²u', u_laplacian, to_uint8=True)

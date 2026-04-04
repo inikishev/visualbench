@@ -49,7 +49,7 @@ class LeastSquares(Benchmark):
 
         self.algebra = algebras.get_algebra(algebra)
 
-        if self._make_images:
+        if self.make_images:
             self.add_reference_image('A', A, to_uint8=True)
             self.add_reference_image('B', B, to_uint8=True)
 
@@ -64,7 +64,7 @@ class LeastSquares(Benchmark):
         if self.l2 != 0: penalty = penalty + torch.linalg.vector_norm(self.X, ord=2) # pylint:disable=not-callable
         if self.linf != 0: penalty = penalty + torch.linalg.vector_norm(self.X, ord=float('inf')) # pylint:disable=not-callable
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 self.log_image("X", self.X, to_uint8=True, log_difference=True)
                 if self.k is not None:

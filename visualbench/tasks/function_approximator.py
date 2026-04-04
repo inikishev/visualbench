@@ -117,7 +117,7 @@ class FunctionApproximator(Benchmark):
             with torch.no_grad():
                 self.log('test loss', self.criterion(x, self.target))
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 xs.append(self.target)
                 frame = _plot_vecs(xs, self.min, self.max, self.resolution[1], self.resolution[0])

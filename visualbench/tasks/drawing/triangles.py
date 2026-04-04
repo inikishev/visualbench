@@ -178,7 +178,7 @@ class TrianglesDrawer(Benchmark):
         reconstructed = bg_contrib + total_triangle_contrib
         loss = self.loss_fn(reconstructed, self.target_image)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 img = reconstructed.detach().clamp(0, 1).permute(1, 2, 0) * 255
                 self.log_image('reconstructed', img.cpu().numpy().astype(np.uint8), to_uint8=False, show_best=True)

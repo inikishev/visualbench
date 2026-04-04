@@ -145,7 +145,7 @@ class ParticleDistanceRatio(Benchmark):
         loss = max_dist / (min_dist + self.eps)
         loss = loss + self._oob_penalty()
 
-        if self._make_images:
+        if self.make_images:
             frame = self._make_frame(self.points.detach().cpu().numpy(), min_indices, max_indices) # pylint:disable=not-callable
             self.log_image('points', frame, to_uint8=False, show_best=True)
 

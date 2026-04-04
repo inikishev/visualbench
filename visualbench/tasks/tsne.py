@@ -189,7 +189,7 @@ class TSNE(Benchmark):
 
         loss = P_eff * torch.log(P_eff / Q)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 frame = _make_frame(self._colors, self.Y.numpy(force=True), self.resolution)
                 self.log_image('data', frame, to_uint8=False)

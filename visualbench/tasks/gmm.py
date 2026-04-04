@@ -192,7 +192,7 @@ class GaussianMixtureNLL(Benchmark):
         weighted_log_probs = log_probs + log_pis
         log_likelihood_per_sample = torch.logsumexp(weighted_log_probs, dim=1)
 
-        if self._make_images:
+        if self.make_images:
             frame = self._generate_frame()
             self.log_image('frame', frame, to_uint8=False)
 

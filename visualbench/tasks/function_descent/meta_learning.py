@@ -295,7 +295,7 @@ class MetaLearning(Benchmark):
     def get_loss(self):
         x_list, f_list = self._get_x_f()
 
-        if self._make_images:
+        if self.make_images:
             frame = self.background.copy()
             draw = ImageDraw.Draw(frame)
 

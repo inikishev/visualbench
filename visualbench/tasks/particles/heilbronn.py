@@ -88,7 +88,7 @@ class HeilbronnTrianglesProblem(Benchmark):
 
         loss = -min_area + self._boundary_penalty()
 
-        if self._make_images:
+        if self.make_images:
             frame = self._make_frame(points.detach().cpu().numpy(), smallest_triangle_indices, min_area.item()) # pylint:disable=not-callable
             self.log_image("solution", frame, to_uint8=False, show_best=True)
 

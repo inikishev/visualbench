@@ -285,7 +285,7 @@ class ProjectedFunctionDescent(Benchmark):
     def get_loss(self):
         loss = self.evaluate(self._x)
 
-        if self._make_images:
+        if self.make_images:
             x_clone = self._x.detach().clone() # pylint:disable=not-callable
             self._param_history.append(x_clone)
 

@@ -100,7 +100,7 @@ class AffineRegistration(Benchmark):
 
         loss = self.criterion(moved, self.fixed)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 if self.is_2d:
                     self.log_image("moving", moved, to_uint8=True)
@@ -186,7 +186,7 @@ class DeformableRegistration(Benchmark):
         moved = F.grid_sample(moving, grid.moveaxis(0,-1), mode=self.mode, padding_mode=self.padding_mode, align_corners=True)[0]
         loss = self.criterion(moved, self.fixed)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 if self.is_2d:
                     self.log_image("moving", moved, to_uint8=True)

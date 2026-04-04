@@ -81,6 +81,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._performance_mode: bool = False
         self._show_titles_on_video: bool = True
         self._w_cols = 0.65 # larger values cause more columns on video
+        self._render_every: int = 1
 
         self._forward_called = False
 
@@ -169,6 +170,10 @@ class Benchmark(torch.nn.Module, ABC):
     def lowest_loss(self):
         return float(self.logger.nanmin("train loss"))
 
+    @property
+    def make_images(self):
+        return self._make_images and (self.num_forwards % self._render_every) == 0
+
     def set_noise(self, p: float | None = None, g: float | None = None):
         if p is not None: self._param_noise_alpha = p
         if g is not None: self._grad_noise_alpha = g
@@ -250,6 +255,10 @@ class Benchmark(torch.nn.Module, ABC):
         best = self.best_params(metric, maximize)
         for p, b in zip(self.parameters(), best):
             p.copy_(b)
+        return self
+
+    def set_render_every(self, steps: int):
+        self._render_every = steps
         return self
 
     @torch.no_grad
@@ -349,7 +358,7 @@ class Benchmark(torch.nn.Module, ABC):
             show_best (DisplayType | None, optional):
                 if enabled, will add a display of the image corresponding to the best loss so far.
         """
-        if not self._make_images: warnings.warn(f'logging image {name} with make_images=False')
+        if not self.make_images: warnings.warn(f'logging image {name} with make_images=False')
         if self._performance_mode: warnings.warn(f'logging image {name} in performance_mode')
         if self._is_perturbed:
             name = f'{name} (perturbed)'

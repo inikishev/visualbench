@@ -99,7 +99,7 @@ class Smale7(Benchmark):
         log_potential = -torch.log(pdists_sq + self.eps)
         loss = torch.triu(log_potential, diagonal=1).sum()
 
-        if self._make_images:
+        if self.make_images:
             frame = self._make_frame(cartesian, img_size=self.resolution, draw_lines=self.draw_lines)
             self.log_image('solution', frame, to_uint8=False, show_best=True)
 

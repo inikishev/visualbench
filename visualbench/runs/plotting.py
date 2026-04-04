@@ -31,9 +31,7 @@ REFERENCE_OPTS = (
     "torch.Adam",
     "torch.AdamW",
     "torch.LBFGS(strong_wolfe)",
-    # "tz.BFGS-Backtracking",
-    # "tz.Newton",
-    "tz.SOAP",
+    "ta.SOAP",
 )
 # endregion
 

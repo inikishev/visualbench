@@ -143,7 +143,7 @@ class LinesDrawer(Benchmark):
 
         loss = reconstruction_loss + sigma_penalty
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 img = rendered_image.detach() * 255
                 self.log_image('reconstructed', img.cpu().to(torch.uint8), to_uint8=False, show_best=True)

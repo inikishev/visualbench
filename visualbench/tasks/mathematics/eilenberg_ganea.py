@@ -49,7 +49,7 @@ class EilenbergGanea(Benchmark):
         self.log("R_identity_error", err1 + err2)
         self.log("Generator_Distance", dist_x + dist_y)
 
-        if self._make_images:
+        if self.make_images:
             # VISUALIZATION IMPROVEMENT:
             # We visualize (X - I) and (Y - I).
             # This reveals the "braid" structure hidden inside the matrix.
@@ -109,7 +109,7 @@ class GroupRepresentation(Benchmark):
         self.log("Relation_Error", rel_loss)
         self.log("Gen_Dist", dist_x + dist_y)
 
-        if self._make_images:
+        if self.make_images:
             def norm_img(M):
                 diff = torch.abs(M - self.eye)
                 return (diff / (diff.max() + 1e-8)).detach().cpu().numpy()

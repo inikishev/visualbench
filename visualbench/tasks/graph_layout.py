@@ -169,7 +169,7 @@ class GraphLayout(Benchmark):
         self.k_attraction = k_attraction
         self.k_repulsion = k_repulsion
         self.epsilon = epsilon
-        self._make_images = make_images
+        self.make_images = make_images
         self.camera_smoothing_factor = camera_smoothing_factor
 
         self.node_radius = node_radius
@@ -243,7 +243,7 @@ class GraphLayout(Benchmark):
             repulsion = self.k_repulsion * torch.mean(inv_dist_sq) / 2.0
 
         # visualize
-        if self._make_images:
+        if self.make_images:
             # update camera state smoothly before rendering
             self._update_camera()
             frame = self._make_frame(self.node_positions.detach().cpu().numpy()) # pylint:disable=not-callable

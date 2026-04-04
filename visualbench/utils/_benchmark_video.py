@@ -1,6 +1,6 @@
 import os
 import textwrap
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from importlib.util import find_spec
 import matplotlib.pyplot as plt
 import numpy as np
@@ -141,24 +141,24 @@ def _rescale(x, scale):
 def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: int | float = 1, progress=True, w_cols=0.65):
     """renders a video of how current and best solution evolves on each step, if applicable to this benchmark."""
 
-    logger_images = {}
-    lowest_images = {}
+    logger_images: dict[str, dict[int, Any]] = {}
+    lowest_images: dict[str, Any] = {}
+    last_images: dict[str, Any] = {}
     length = max(len(v) for v in self.logger.values())
 
     # initialize all keys
-    for key, value in self.logger.items():
+    for key, values_dict in self.logger.items():
         if key in self._image_keys:
             if (not self._plot_perturbed) and key.endswith(' (perturbed)'): continue
-            images_list = logger_images[key] = list(value.values())
-            if len(images_list) != 0: _check_image(images_list[0])
-            assert _isclose(len(logger_images[key]), length), f'images must be logged on all steps, "{key}" was logged {len(logger_images[key])} times, expected {length} times'
-            while len(logger_images[key]) < length:
-                logger_images[key].append(logger_images[key][-1])
-            while len(logger_images[key]) > length:
-                logger_images[key] = logger_images[key][:-1]
+
+            if len(values_dict) != 0:
+                first_image = next(iter(values_dict.values()))
+                _check_image(first_image)
+                logger_images[key] = values_dict
+                last_images[key] = first_image
 
         if key in self._image_lowest_keys:
-            lowest_images[key] = logger_images[key][0]
+            lowest_images[key] = next(iter(logger_images[key].values()))
 
     # validate reference images
     for key, value in self._reference_images.items():
@@ -166,7 +166,7 @@ def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: in
 
     if len(logger_images) + len(lowest_images) == 0:
         if self._performance_mode:
-            raise RuntimeError(f'Images were not created for {self.__class__.__name__} because benchmark mode is enabled')
+            raise RuntimeError(f'Images were not created for {self.__class__.__name__} because performance mode is enabled')
         raise NotImplementedError(f'Solution plotting is not implemented for {self.__class__.__name__}')
 
     with OpenCVRenderer(file, fps = fps, scale=1) as renderer:
@@ -180,18 +180,21 @@ def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: in
             for k, image in self._reference_images.items():
                 images[k] = image
 
+            # update and add last recorded logger images
+            for key, values_dict in logger_images.items():
+                if step in values_dict:
+                    last_images[key] = values_dict[step]
+
+                images[key] = last_images[key]
+
             # check if new params are better
             if loss <= lowest_loss:
                 lowest_loss = loss
 
                 # set to new best images
                 for key in lowest_images:
-                    if key in logger_images:
-                        lowest_images[key] = logger_images[key][step]
-
-            # add logger images
-            for key, value in logger_images.items():
-                images[key] = value[step]
+                    if key in last_images:
+                        lowest_images[key] = last_images[key]
 
             # add best images
             for key, image in lowest_images.items():

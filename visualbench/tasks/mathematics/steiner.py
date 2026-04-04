@@ -64,7 +64,7 @@ class SteinerSystem(Benchmark):
         loss2 = torch.sum(r_abc * (1 - r_abc))
         total_loss = loss1 + self.lambda_ * loss2
 
-        if self._make_images:
+        if self.make_images:
             frame = self._make_frame(L_Sx.detach(), r_abc.detach())
             self.log_image('image', frame, to_uint8=False)
 

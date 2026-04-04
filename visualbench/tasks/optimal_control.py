@@ -151,7 +151,7 @@ class OptimalControl(Benchmark):
 
         loss = target_loss + control_loss + collision_loss
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 if not hasattr(self, 'background'):
                     self._create_background()

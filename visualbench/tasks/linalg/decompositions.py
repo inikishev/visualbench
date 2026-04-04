@@ -72,7 +72,7 @@ class QR(Benchmark):
         QR_ = algebras.matmul(Q, R, self.algebra)
         loss = self.criterion(QR_, A)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 self.log_image("Q", Q, to_uint8=True, log_difference=True)
                 self.log_image("R", R, to_uint8=True, log_difference=True)
@@ -141,7 +141,7 @@ class SVD(Benchmark):
 
         loss = self.criterion(USV, self.A)
 
-        if self._make_images:
+        if self.make_images:
             indices = torch.argsort(S**2, descending=True)
             U_sorted = torch.gather(U, 2, indices.unsqueeze(1).expand(-1, self.m, -1))
             Vh_sorted = torch.gather(V_star, 1, indices.unsqueeze(-1).expand(-1, -1, self.n))
@@ -214,7 +214,7 @@ class Eigendecomposition(Benchmark):
 
         loss = self.criterion(QLQi, self.A) + penalty
 
-        if self._make_images:
+        if self.make_images:
             indices = torch.argsort(L**2, descending=True)
             Q_sorted = torch.gather(Q, 2, indices.unsqueeze(1).expand(-1, self.n, -1))
 
@@ -266,7 +266,7 @@ class Cholesky(Benchmark):
 
         loss = self.criterion(LLh, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("L", L, to_uint8=True)
             self.log_image("LL*", LLh, to_uint8=True, show_best=True)
             self.log_image("residual", (LLh - self.A).abs(), to_uint8=True)
@@ -321,7 +321,7 @@ class LDL(Benchmark):
 
         loss = self.criterion(LDLh, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("L", L, to_uint8=True)
             self.log_image("LD", LD, to_uint8=True)
             self.log_image("LDL*", LDLh, to_uint8=True, show_best=True)
@@ -377,7 +377,7 @@ class LU(Benchmark):
         LU_ = algebras.matmul(L, U, self.algebra)
         loss = self.criterion(LU_, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("L", L, to_uint8=True, log_difference=True)
             self.log_image("U", U, to_uint8=True, log_difference=True)
             self.log_image("LU", LU_, to_uint8=True, show_best=True)
@@ -445,7 +445,7 @@ class LUP(Benchmark):
         PLU = P.mT @ LU_
         loss = self.criterion(PLU, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("P raw", self.P, to_uint8=True, log_difference=True)
             self.log_image("P", P, to_uint8=True, log_difference=True)
             self.log_image("L", L, to_uint8=True, log_difference=True)
@@ -506,7 +506,7 @@ class Polar(Benchmark):
 
         loss = self.criterion(UP, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("U", U, to_uint8=True)
             self.log_image("L", L, to_uint8=True)
             self.log_image("P", P, to_uint8=True)
@@ -566,7 +566,7 @@ class RankFactorization(Benchmark):
         CF = algebras.matmul(C, F, self.algebra)
         loss = self.criterion(CF, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("C", C, to_uint8=True)
             self.log_image("F", F, to_uint8=True)
             self.log_image("CF", CF, to_uint8=True, show_best=True)
@@ -625,7 +625,7 @@ class NNMF(Benchmark):
         WH = algebras.matmul(W, H, self.algebra)
         loss = self.criterion(WH, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("W", W, to_uint8=True,)
             self.log_image("H", H, to_uint8=True,)
             self.log_image("WH", WH, to_uint8=True, show_best=True)
@@ -691,7 +691,7 @@ class KroneckerFactorization(Benchmark):
         rec = torch.stack([algebras.kron(b, c, self.algebra) for b,c in zip(B, C)])
         loss = self.criterion(rec, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("B", B, to_uint8=True, log_difference=True)
             self.log_image("C", C, to_uint8=True, log_difference=True)
             self.log_image("B⊗C", rec, to_uint8=True, show_best=True)
@@ -763,7 +763,7 @@ class Schur(Benchmark):
 
         loss = self.criterion(QTQh, self.A)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image("Q", Q, to_uint8=True, log_difference=True)
             self.log_image("T", T, to_uint8=True, log_difference=True)
             self.log_image("QTQ*", QTQh, to_uint8=True, show_best=True)

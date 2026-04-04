@@ -110,7 +110,7 @@ class StyleTransfer(Benchmark):
         for i, (f, w) in enumerate(zip(style, self.style_weights)): # Layers 19
             style_loss += self.style_loss(f, getattr(self, f'style_feature_{i}')) * w
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('generated', self.generated, to_uint8=True, log_difference=True)
 
 

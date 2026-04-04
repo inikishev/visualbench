@@ -109,7 +109,7 @@ class CharRNN(Benchmark):
         outputs: torch.Tensor = self.net(x)
         loss = self.criterion(outputs.view(-1, outputs.size(-1)), y.ravel())
 
-        if self._make_images and self.test_ints is not None:
+        if self.make_images and self.test_ints is not None:
             with torch.no_grad():
                 outputs = self.net(self.test_ints.to(x.device))[0]
                 text_ints = outputs.argmax(-1).cpu().numpy().astype(np.uint8)

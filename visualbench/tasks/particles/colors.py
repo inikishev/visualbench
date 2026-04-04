@@ -100,7 +100,7 @@ class ColoredParticles(Benchmark):
         penalty = torch.sum(lb**2) + torch.sum(ub**2)
         loss = loss + 0.1 * penalty
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('points', self._make_frame(), to_uint8=False, show_best=True)
 
         return loss

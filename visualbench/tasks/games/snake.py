@@ -250,7 +250,7 @@ class Snake(Benchmark):
         self.log("distance to food", self.dist_to_food_)
 
         # Render
-        if self._make_images:
+        if self.make_images:
             self.log_image(name='snake', image=self._render_frame(), to_uint8=False)
 
         return total_loss

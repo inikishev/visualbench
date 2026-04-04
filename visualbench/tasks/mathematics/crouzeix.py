@@ -83,7 +83,7 @@ class CrouzeixConjecture(Benchmark):
         self.log("||p(A)||", s_max)
         self.log("max|p(z)|", max_pz)
 
-        if self._make_images:
+        if self.make_images:
             img = self.render_numerical_range(A, z_boundary, pz_vals)
             self.log_image(name="NumericalRange", image=img, to_uint8=False)
 

@@ -53,7 +53,7 @@ class SumOfKrons(Benchmark):
         rec = algebras.sum(torch.stack(krons, 0), self.algebra, dim=0)
         loss = self.criterion(rec, self.A)
 
-        if self._make_images:
+        if self.make_images:
             for i in range(self.k):
                 self.log_image(f"B_{i}", self.B[i], to_uint8=True, log_difference=True)
                 self.log_image(f"C_{i}", self.C[i], to_uint8=True, log_difference=True)

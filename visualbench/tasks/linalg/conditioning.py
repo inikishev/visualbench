@@ -46,7 +46,7 @@ class Preconditioner(Benchmark):
         A_precond, P_inv = _get_A_precond(P, A, self.inverse, self.algebra)
         loss = torch.linalg.cond(A_precond, p=self.p).mean() # pylint:disable=not-callable
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('P', P, to_uint8=True, log_difference=True)
             if P_inv is not None: self.log_image('P^-1', P_inv, to_uint8=True)
             self.log_image('A preconditioned', A_precond, to_uint8=True)
@@ -92,7 +92,7 @@ class StochasticPreconditioner(Benchmark):
             test_loss = torch.linalg.cond(A_precond).mean() # pylint:disable=not-callable
             self.log('test loss', test_loss)
 
-            if self._make_images:
+            if self.make_images:
                 self.log_image('P', P, to_uint8=True, log_difference=True)
                 if P_inv is not None: self.log_image('P^-1', P_inv, to_uint8=True)
                 self.log_image('A preconditioned', A_precond, to_uint8=True)

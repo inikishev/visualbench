@@ -36,7 +36,7 @@ class Inverse(Benchmark):
             loss1 = loss1 * torch.inf
 
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 self.log_image('B', self.B, to_uint8=True, log_difference=True)
                 self.log_image('AB', AB, to_uint8=True)
@@ -110,7 +110,7 @@ class StochasticInverse(Benchmark):
             self.log('test loss', loss1+loss2+loss3)
 
             # ---------------------------------- images ---------------------------------- #
-            if self._make_images:
+            if self.make_images:
                 with torch.no_grad():
                     self.log_image('B', self.B, to_uint8=True, log_difference=True)
                     self.log_image('AB', AB, to_uint8=True)
@@ -154,7 +154,7 @@ class MoorePenrose(Benchmark):
         loss3 = self.criterion(AB, AB.mH)
         loss4 = self.criterion(BA, BA.mH)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)
             self.log_image('AB', AB, to_uint8=True)
             self.log_image('BA', BA, to_uint8=True)
@@ -233,7 +233,7 @@ class Drazin(Benchmark):
         loss2 = self.criterion(BAB, self.B)
         loss3 = self.criterion(AB, BA)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('B', self.B, to_uint8=True, log_difference=True)
             self.log_image('AB', AB, to_uint8=True)
             self.log_image('BA', BA, to_uint8=True)

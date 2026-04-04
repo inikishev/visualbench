@@ -64,7 +64,7 @@ class Glimmer(Benchmark):
 
         loss = Y_dists - self.X_dists
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 frame = _make_frame(self._colors, self.Y.numpy(force=True), self.resolution)
                 self.log_image('data', frame, to_uint8=False)

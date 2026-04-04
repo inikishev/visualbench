@@ -155,7 +155,7 @@ class GaussianProcesses(Benchmark):
         if self.maximize: loss = -loss
 
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 self.eval()
                 try: pred = self.likelihood(self.model(self.X_vis)).mean

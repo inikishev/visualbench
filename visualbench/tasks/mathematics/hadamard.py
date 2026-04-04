@@ -54,7 +54,7 @@ class Hadamard(Benchmark):
         total_loss = loss_hadamard + self.binarization_weight * loss_binarization
 
         # vis
-        if self._make_images:
+        if self.make_images:
             frame = self._make_frame(H)
             self.log_image('image', frame, to_uint8=False)
 

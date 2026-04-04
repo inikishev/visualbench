@@ -43,7 +43,7 @@ class StochasticRLstsq(Benchmark):
         self.batch_size = batch_size
         self.sampler = sampler
 
-        if self._make_images:
+        if self.make_images:
             self.add_reference_image('A', A, to_uint8=True)
             self.add_reference_image('B', B, to_uint8=True)
 
@@ -83,7 +83,7 @@ class StochasticRLstsq(Benchmark):
             test_loss2 = self.criterion(B, B_hat)
             test_loss3 = self.criterion(A@X, B)
             self.log("test loss", test_loss1 + test_loss2 + test_loss3)
-            if self._make_images:
+            if self.make_images:
                 self.log_image("A_hat", A_hat, to_uint8=True, log_difference=True)
                 self.log_image("B_hat", B_hat, to_uint8=True, log_difference=True)
                 self.log_image("X", self.X, to_uint8=True, log_difference=True)

@@ -46,7 +46,7 @@ class ClosestFurthestParticles(Benchmark):
         penalty = self.points.clip(max=0).pow(2).sum() + (self.points-1).clip(min=0).pow(2).sum()
         loss = penalty + max_dist*self.w_pull - min_dist*self.w_push
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 points_rel = self.points.detach().cpu().nan_to_num(nan=0.0, posinf=0.0, neginf=0.0).clip(-1e10,1e10).numpy() # pylint:disable=not-callable
                 points_px = points_rel * self.resolution # Scale to pixel coordinates

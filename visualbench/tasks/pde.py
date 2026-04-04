@@ -206,7 +206,7 @@ class WavePINN(Benchmark):
 
         total_loss = loss_pde + 100*(loss_ic_u + loss_ic_ut + loss_bc)
 
-        if self._make_images:
+        if self.make_images:
             self.net.eval()
             with torch.no_grad():
                 u_render = self.net(self.render_points)

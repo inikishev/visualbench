@@ -75,7 +75,7 @@ class YangMillsLattice(Benchmark):
         # Total loss = Vacuum minimization + resisting the source
         total_loss = action_density.mean() + 0.1 * source_loss
 
-        if self._make_images:
+        if self.make_images:
             # Fix: Use a constant normalization so we don't see microscopic noise
             # Field strength is roughly 0 to 1
             field_viz = plaq[..., 1:]

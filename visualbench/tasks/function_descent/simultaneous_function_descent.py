@@ -54,7 +54,7 @@ class SimultaneousFunctionDescent(Benchmark):
         else:
             loss = self.func(self.P) # type:ignore
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 v_loss = loss.flip(0)
                 if self.log_scale: v_loss = (loss+1e-10).log()

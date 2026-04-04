@@ -65,7 +65,7 @@ class Sorting(Benchmark):
         PPt = P @ P.transpose(-2, -1)
         ortho_loss = torch.norm(PPt - self.identity, p='fro')
 
-        if self._make_images:
+        if self.make_images:
             self.log_image('image logits', self.P_logits, to_uint8=True)
             self.log_image('image permutation', P, to_uint8=True)
 

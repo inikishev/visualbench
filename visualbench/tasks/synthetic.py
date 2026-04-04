@@ -45,7 +45,7 @@ class Sphere(Benchmark):
 
     def get_loss(self):
         # log current recreated image if target is an image
-        if self._make_images and len(self._reference_images) != 0:
+        if self.make_images and len(self._reference_images) != 0:
             with torch.no_grad():
                 self.log_image('preds', self.x, to_uint8=True, log_difference=True)
                 self.log_image('residual', (self.x-self.target).abs_(), to_uint8=True, log_difference=True)

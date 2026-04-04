@@ -99,7 +99,7 @@ class Tammes(Benchmark):
 
         loss = 1 / pdists.amin()
 
-        if self._make_images:
+        if self.make_images:
             frame = self._make_frame(cartesian, img_size=self.resolution, draw_lines=self.draw_lines)
             self.log_image('solution', frame, to_uint8=False, show_best=True)
 

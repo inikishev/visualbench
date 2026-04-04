@@ -140,7 +140,7 @@ class Colorization(Benchmark):
 
         spreader = torch.sum(diff_ver**self.power) + torch.sum(diff_hor**self.power)
 
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 frame = (w + (1-self.mask)*0.1)[:,:,None].repeat_interleave(3, 2)
                 red_overflow = (frame - 1).clip(min=0)

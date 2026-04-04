@@ -164,7 +164,7 @@ class LennardJonesClusters(Benchmark):
         self.positions = torch.nn.Parameter(torch.randn((n, 3), generator=self.rng.torch('cpu'))*10)
 
     def get_loss(self):
-        if self._make_images:
+        if self.make_images:
             frame = visualize_cluster(self.positions.detach().cpu().view(-1)) # pylint:disable=not-callable
             self.log_image('cluster', frame, to_uint8=False)
 

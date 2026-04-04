@@ -167,7 +167,7 @@ class FitData(Benchmark):
         y_hat = self.model(self.x)
         loss = self.criterion(y_hat, self.y)
 
-        if self._make_images:
+        if self.make_images:
             y_vis = self.model(self.x_vis)
             frame = self.vis.render_frame(self.x_vis_np, y_vis.numpy(force=True))
             self.log_image("model", frame, to_uint8=False, show_best=True)

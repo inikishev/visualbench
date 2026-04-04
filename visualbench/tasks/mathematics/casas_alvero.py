@@ -84,7 +84,7 @@ class CasasAlvero(Benchmark):
             total_loss = total_loss + shared_root_loss
             self.log(f"deriv_{k}_loss", shared_root_loss)
 
-        if self._make_images:
+        if self.make_images:
             self.log_image(name="complex_plane", image=self.render_plane(roots), to_uint8=False)
 
         return total_loss

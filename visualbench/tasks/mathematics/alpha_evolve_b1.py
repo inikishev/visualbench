@@ -224,7 +224,7 @@ class AlphaEvolveB1(Benchmark):
 
         autoconv_values = _compute_autoconvolution_values(2*self.P*F.softmax(heights, dim=0), self.delta_x, self.P)
 
-        if self._make_images:
+        if self.make_images:
             max_val, max_idx = torch.max(autoconv_values, dim=0)
             loss = max_val.amax()
 

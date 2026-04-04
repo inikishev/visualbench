@@ -83,7 +83,7 @@ class SpherePacking(Benchmark):
         total_loss = (overlaps**2).sum() + self.spread_coeff * (pos**2).sum()
 
         # Visualization
-        if self._make_images:
+        if self.make_images:
             with torch.no_grad():
                 # Scale to fit spheres in view
                 combined = torch.cat([pos - radii.unsqueeze(-1),

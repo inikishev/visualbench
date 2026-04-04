@@ -109,7 +109,7 @@ class RacingTrack(Benchmark):
         self.log("wall_penalty", barrier_loss)
         self.history.append(self.position.detach().cpu().numpy().copy()) # pylint:disable=not-callable
 
-        if self._make_images:
+        if self.make_images:
             self.log_image(name='race', image=self._render_frame(), to_uint8=False)
 
         return total_loss

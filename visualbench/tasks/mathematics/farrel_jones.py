@@ -81,7 +81,7 @@ class FarrellJonesAssembly(Benchmark):
         self.log("MSE Loss", reconstruction_loss)
         self.log("Sparsity", sparsity_loss)
 
-        if self._make_images:
+        if self.make_images:
             # 1. The Assembled Result
             self.log_image(name='Assembled Global', image=prediction, to_uint8=True)
 

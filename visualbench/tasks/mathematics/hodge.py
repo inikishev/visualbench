@@ -90,7 +90,7 @@ class HodgeConjecture(Benchmark):
         loss = torch.nn.functional.mse_loss(current_cycle_density, self.target_class)
         self.log("MSE Loss", loss)
 
-        if self._make_images:
+        if self.make_images:
             # 1. Visualize Magnitude (where it is dark, zeros exist)
             f_abs = f_sq_mag.sqrt()
             self.log_image("Function Magnitude |f|", f_abs, to_uint8=True)
