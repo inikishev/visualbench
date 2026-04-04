@@ -28,12 +28,12 @@ class StochasticMatrixRecovery(Benchmark):
     def __init__(self, A:Any=512, batch_size: int = 1, criterion = F.mse_loss, l1:float=0, l2:float=0, linf:float=0, vec=True, algebra=None, sampler = torch.randn, seed=0):
         super().__init__(seed=seed)
         generator = self.rng.torch()
-        self.make_images = False # will be True if A or B are an image.
+        self._make_images = False # will be True if A or B are an image.
 
         if isinstance(A, int): A = torch.randn(1, A, A, generator=generator)
         elif isinstance(A, tuple) and len(A) == 2: A = torch.randn((1, *A), generator=generator)
         else:
-            self.make_images = True
+            self._make_images = True
             A = format.to_CHW(A, generator=self.rng.torch())
         self.A = nn.Buffer(A)
         self.min = self.A.min().item(); self.max = self.A.max().item()

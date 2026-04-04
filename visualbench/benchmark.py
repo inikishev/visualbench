@@ -174,6 +174,10 @@ class Benchmark(torch.nn.Module, ABC):
     def make_images(self):
         return self._make_images and (self.num_forwards % self._render_every) == 0
 
+    @make_images.setter
+    def make_images(self, value: bool):
+        self._make_images = value
+
     def set_noise(self, p: float | None = None, g: float | None = None):
         if p is not None: self._param_noise_alpha = p
         if g is not None: self._grad_noise_alpha = g

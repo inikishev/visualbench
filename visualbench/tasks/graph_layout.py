@@ -148,7 +148,6 @@ class GraphLayout(Benchmark):
         k_repulsion: float = 1e7,
         epsilon: float = 1e-4,
         init_pos: np.ndarray | None = None,
-        make_images: bool = True,
         node_radius: int = 5,
         line_thickness: int = 1,
         node_color: tuple[int, int, int] = (255, 0, 0),
@@ -169,7 +168,6 @@ class GraphLayout(Benchmark):
         self.k_attraction = k_attraction
         self.k_repulsion = k_repulsion
         self.epsilon = epsilon
-        self.make_images = make_images
         self.camera_smoothing_factor = camera_smoothing_factor
 
         self.node_radius = node_radius
