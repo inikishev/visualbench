@@ -134,7 +134,10 @@ class OlivettiFacesAutoencoding(DatasetBenchmark):
             train_split=train_split,
             shuffle_split=True,
             normalize=(normalize_x,),
+            store_tensors=True,
         )
+        assert self.data_tensors is not None
+        self.data_tensors.append(torch.tensor(y))
 
 
 class Digits(DatasetBenchmark):
@@ -167,6 +170,42 @@ class Digits(DatasetBenchmark):
             dtypes = (torch.float32, torch.int64),
             normalize=(normalize_x, False),
         )
+
+
+class DigitsAutoencoding(DatasetBenchmark):
+    """
+    autoencoding (1,797 samples)
+
+    input - ``(B, 64)``
+
+    output - ``(B, 64)``
+    """
+    def __init__(
+        self,
+        model,
+        criterion=F.mse_loss,
+        batch_size: int | None = None,
+        test_batch_size: int | None = None,
+        train_split=0.8,
+        normalize_x=True,
+    ):
+        import sklearn.datasets
+        x,y = sklearn.datasets.load_digits(return_X_y=True)
+        super().__init__(
+            data_train = (x, ), # type:ignore
+            model = model,
+            criterion = criterion,
+            batch_size = batch_size,
+            test_batch_size = test_batch_size,
+            train_split = train_split,
+            shuffle_split = True,
+            normalize = (normalize_x,),
+            store_tensors=True,
+        )
+        assert self.data_tensors is not None
+        self.data_tensors.append(torch.tensor(y))
+
+
 class Covertype(DatasetBenchmark):
     """
     classification (581,012 samples)

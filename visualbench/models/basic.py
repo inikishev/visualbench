@@ -1,9 +1,12 @@
+import itertools
 import math
+import random
 from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from importlib.util import find_spec
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -22,6 +25,7 @@ else:
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
+    from ..tasks.datasets import DatasetBenchmark
 
 def _visualize_linear(linear: nn.Module, benchmark: "Benchmark", vis_shape: tuple[int,int] | None, max_tiles:int):
     if vis_shape is None: return
@@ -248,3 +252,112 @@ class RNN(nn.Module):
             x = out[:, -1, :] # last timestep's output (batch_size, hidden_size)
 
         return self.fc(x) # (batch_size, num_classes)
+
+
+def _make_colors(n, seed):
+    # generate colors for boxes
+    colors = []
+    i = 2
+    while len(colors) < i:
+        colors = list(itertools.product(np.linspace(0, 255, n).tolist(), repeat=3)) # type:ignore
+        if (255., 255., 255.) in colors: colors.remove((255., 255., 255.))
+        i+=1
+
+    rng = random.Random(seed)
+    rgbs = rng.sample(colors, k = n)
+
+    # remove almost black colors
+    for i in range(len(rgbs)): # pylint:disable=consider-using-enumerate
+        while sum(rgbs[i]) < 150: # type:ignore
+            rgbs[i] = rng.sample(colors, k = 1)[0]
+
+    return rgbs
+
+@torch.no_grad
+def _scatter_2d_latents_(
+    benchmark: "DatasetBenchmark | Any",
+    encoder: nn.Module,
+    resolution: tuple[int, int],
+    colors,
+    prep_fn=None,
+):
+    device = next(iter(encoder.parameters())).device
+
+    latents_list = []
+    labels_list = []
+
+    if hasattr(benchmark, "data_tensors") and benchmark.data_tensors is not None:
+        dl = (benchmark.data_tensors, )
+    else:
+        assert benchmark._dltrain is not None
+        dl = benchmark._dltrain
+
+    for batch in dl:
+        if isinstance(batch, torch.Tensor):
+            x = batch
+        else:
+            if len(batch) == 1:
+                x = batch[0]
+            else:
+                x, y = batch
+                labels_list.append(y)
+
+        if prep_fn is not None:
+            x = prep_fn(x)
+
+        latent = encoder(x.to(device)).squeeze()
+        assert latent.shape[-1] == 2
+        while latent.ndim < 2: latent = latent.unsqueeze(0)
+        latents_list.append(latent)
+
+    latents = torch.cat(latents_list, 0) # (B, 2)
+    latents -= latents.amin(0, keepdim=True)
+    latents /= latents.amax(0, keepdim=True).clip(min=1e-10)
+    latents[:, 0] = (latents[: , 0] * resolution[0]).clip(max=resolution[0] - 1)
+    latents[:, 1] = (latents[: , 1] * resolution[1]).clip(max=resolution[1] - 1)
+    latents = latents.long()
+
+
+    if len(labels_list) == 0:
+        frame = torch.zeros(resolution, device=latents.device, dtype=torch.uint8)
+        frame[latents[:, 0], latents[:, 1]] = 255
+
+    else:
+        labels = torch.stack(labels_list).to(device=device).squeeze()
+        frame = torch.zeros((3, *resolution), device=latents.device, dtype=torch.uint8)
+        if labels.is_floating_point():
+            labels = ((labels - labels.amin()) * (255 / labels.amax())).clip(0, 255).to(torch.uint8)
+            frame[0, latents[:, 0], latents[:, 1]] = labels # red
+            frame[2, latents[:, 0], latents[:, 1]] = 255-labels # blue
+        else:
+            if colors is None:
+                unique = len(torch.unique(labels, sorted=False))
+                colors = torch.tensor(_make_colors(unique, 0)).to(device=frame.device, dtype=torch.uint8)
+            points = colors[labels]
+            frame[0, latents[:, 0], latents[:, 1]] = points[:, 0]
+            frame[1, latents[:, 0], latents[:, 1]] = points[:, 1]
+            frame[2, latents[:, 0], latents[:, 1]] = points[:, 2]
+
+    benchmark.log_image("latents", frame, to_uint8=False)
+    return colors
+
+class Autoencoder(nn.Module):
+    """Can visualize latents if they are 2d"""
+    def __init__(self, encoder: nn.Module, decoder: nn.Module, resolution: tuple[int, int] | None = (256, 256)):
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+        self.is_2d = False
+        self.resolution = resolution # visualize_latents
+        self.colors = None
+
+    def forward(self, x: torch.Tensor):
+        x = self.encoder(x)
+        self.is_2d = (x.ndim <= 2) and (x.size(-1) == 2)
+        x = self.decoder(x)
+        return x
+
+    @torch.no_grad
+    def after_get_loss(self, benchmark: "DatasetBenchmark"):
+        if self.is_2d and self.resolution is not None:
+            self.colors = _scatter_2d_latents_(benchmark, self.encoder, self.resolution, self.colors)

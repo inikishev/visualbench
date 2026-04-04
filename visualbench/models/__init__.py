@@ -1,4 +1,4 @@
-from .basic import MLP, RecurrentMLP, RNN, Regularized
+from .basic import MLP, RecurrentMLP, RNN, Regularized, Autoencoder
 from . import act, vision
 from . import ssm
 from .torchvision import pretrained_squeezenet

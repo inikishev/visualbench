@@ -6,14 +6,14 @@ from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import torch
-import torchzero as tz
+import torchalgos as ta
 from accelerate import Accelerator
+from myai.legacy import torchzero as tz
 from torch import nn
 from torch.nn import functional as F
 
 from .. import data, models, tasks
 from .. import losses as losses_
-from ..models.ode import NeuralODE
 from ..utils import CUDA_IF_AVAILABLE
 from ..utils.clean_mem import clean_mem
 from ..utils.python_tools import format_number, to_valid_fname
@@ -145,7 +145,7 @@ class MBSBenchmarkBenchmark:
         self.run_optimizer(opt, "Adam", tune=True, max_dim=None)
 
         opt = lambda p, lr: torch.optim.Adam(p, lr, betas=(0.95, 0.95))
-        self.run_optimizer(opt, "Adam(0.95,0.95)", tune=True, max_dim=None)
+        self.run_optimizer(opt, "Adam(0.95, 0.95)", tune=True, max_dim=None)
 
         opt = lambda p, lr: torch.optim.Adagrad(p, lr)
         self.run_optimizer(opt, "Adagrad", tune=True, max_dim=None)
@@ -153,8 +153,11 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: torch.optim.RMSprop(p, lr)
         self.run_optimizer(opt, "RMSprop", tune=True, max_dim=None)
 
-        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(max_dim=2048), tz.m.LR(lr))
+        opt = lambda p, lr: ta.SOAP(p, max_dim=2048, weight_decay=0)
         self.run_optimizer(opt, "SOAP", tune=True, max_dim=None)
+
+        opt = lambda p, lr: ta.SPlus(p, max_dim=2048, weight_decay=0)
+        self.run_optimizer(opt, "SPlus", tune=True, max_dim=None)
 
 
     def run(self, stochastic=True, non_stochastic=True, vr=True, qn=True, newton=True, zo=True, noop=True):
@@ -198,7 +201,7 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: tz.Optimizer(p, tz.m.GGT(), tz.m.LR(lr))
         self.run_optimizer(opt, "GGT", tune=True, max_dim=None)
 
-        opt = lambda p, lr: tz.Optimizer(p, tz.m.SOAP(max_dim=2048), tz.m.LR(lr))
+        opt = lambda p, lr: ta.SOAP(p, max_dim=2048)
         self.run_optimizer(opt, "SOAP", tune=True, max_dim=None)
 
         # PSGD Kron

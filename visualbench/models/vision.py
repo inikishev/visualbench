@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 import torch
 from torch import nn
 from torch.nn import functional as F
-
+from .basic import _scatter_2d_latents_
 
 def _raise_torchvision(*args, **kwargs):
     raise ModuleNotFoundError("torchvision is required for linear layer visualization")
@@ -332,6 +332,9 @@ class ConvNetAutoencoder(nn.Module):
         dropout=None,
         sparse_reg: float | None = None,
         squeeze:bool=True,
+        reshape: tuple[int,...] | None = None,
+        n_vis: int | None = 32,
+        resolution: tuple[int, int] | None = (256, 256),
 
     ):
         super().__init__()
@@ -350,7 +353,7 @@ class ConvNetAutoencoder(nn.Module):
 
         self.head = nn.Sequential(
             *convblocknd(rev[-2], rev[-2], 2, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, transpose=True, ndim=ndim),
-            convblocknd(rev[-2], out_channels, 2, 1, 0, act_cls=None, bn=False, dropout=None, ndim=ndim)
+            *convblocknd(rev[-2], out_channels, 2, 1, 0, act_cls=None, bn=False, dropout=None, ndim=ndim)
         )
 
         self.sparse_reg = sparse_reg
@@ -358,13 +361,33 @@ class ConvNetAutoencoder(nn.Module):
         self.squeeze = squeeze
         self.out_channels = out_channels
         self.ndim = ndim
+        self.reshape = reshape
         self.x_vis = None
+        self.logged_reference = False
 
-    def forward(self, x):
+        self.n_vis = n_vis
+        self.resolution = resolution
+        self.colors = None
+
+    def _prepare_x(self, x: torch.Tensor):
+        if self.reshape is not None:
+            x = x.reshape(x.shape[0], *self.reshape)
+
         if x.ndim == self.ndim+1: x = x.unsqueeze(1)
-        if self.x_vis is None: self.x_vis = x[:100]
+        return x
+
+    def forward(self, x: torch.Tensor):
+        shape = x.shape
+
+        x = self._prepare_x(x)
+
+        if self.x_vis is None and self.ndim == 2:
+            if self.n_vis is not None:
+                self.x_vis = x[:self.n_vis]
 
         features = self.enc(x)
+        self.features_shape = features.shape
+        self.is_2d = math.prod(features.shape[1:]) == 2
         x = self.dec(features)
 
         x = self.head(x)
@@ -377,21 +400,26 @@ class ConvNetAutoencoder(nn.Module):
             assert x.size(1) == 1
             x = x.squeeze(1)
 
+        x = x.reshape(shape)
+
         if self.sparse_reg is not None: return x, features.abs().mean() * self.sparse_reg
 
         return x
 
     @torch.no_grad
     def after_get_loss(self, benchmark: "Benchmark"):
-        if self.ndim in (1, 3): return
+        if self.x_vis is not None:
+            if not self.logged_reference:
+                grid = make_grid(self.x_vis, nrow=max(math.ceil(math.sqrt(self.x_vis.size(0))), 1), padding=1, normalize=True, scale_each=True)
+                benchmark.add_reference_image("inputs", grid, to_uint8=True)
 
-        x = self.x_vis
-        features = self.enc(x)
-        x = self.dec(features)
-        x = self.head(x)
+            features = self.enc(self.x_vis)
+            x = self.dec(features)
+            x = self.head(x)
 
-        grid = make_grid(x, nrow=max(math.ceil(math.sqrt(x.size(0))), 1), padding=1, normalize=True, scale_each=True)
-        benchmark.log_image("outputs", grid, to_uint8=True)
+            grid = make_grid(x, nrow=max(math.ceil(math.sqrt(x.size(0))), 1), padding=1, normalize=True, scale_each=True)
+            benchmark.log_image("outputs", grid, to_uint8=True)
 
-
+        if self.resolution is not None and self.is_2d:
+            self.colors = _scatter_2d_latents_(benchmark, self.enc, self.resolution, self.colors, self._prepare_x)
 

@@ -60,9 +60,30 @@ class FastMLBench(OptimizerBenchPack):
 
     def run(self):
         torch.manual_seed(0)
+        self.run_visual()
         self.run_mlp()
         self.run_rnn()
+        self.run_autoencoder()
 
+
+    def run_visual(self):
+        bench = tasks.FunctionDescent('ill2')
+        self.run_bench(bench, '2D - ill2', passes=1000, sec=10, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('rosen')
+        self.run_bench(bench, '2D - rosenbrock', passes=1000, sec=30, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('rosenabs')
+        self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('medianreg1d')
+        self.run_bench(bench, '2D - medianreg1d', passes=1000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Projected - Rosenbrock 384', passes=5_000, sec=120, metrics='train loss', vid_scale=4)
+
+        bench = tasks.Colorization.small().to(CUDA_IF_AVAILABLE)
+        self.run_bench(bench, 'Visual - Colorization', passes=5_000, sec=120, metrics='train loss', vid_scale=4)
 
     # ------------------------------ MLP (Colinear) ------------------------------ #
     def run_mlp(self):
@@ -85,3 +106,16 @@ class FastMLBench(OptimizerBenchPack):
         ).to(CUDA_IF_AVAILABLE)
         bench_name = 'MLS - Mnist1d-5_000 BS-128 - RNN(2x40)'
         self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=20, metrics='test loss', vid_scale=None)
+
+    # --------------------------- Autoencoder (MNIST-1D) --------------------------- #
+    def run_autoencoder(self):
+        torch.manual_seed(0)
+
+        # ndim = 20,410
+        # 11s. ~ 3m. 30s.
+        bench = tasks.Mnist1dAutoencoding(
+            model = models.vision.ConvNetAutoencoder(1, 1, 1, 40, hidden=(32, 16, 8, 4, 2), act_cls=nn.ELU),
+            batch_size=32,
+        ).to(CUDA_IF_AVAILABLE)
+        bench_name = 'MLS - Mnist1d-5_000 BS-32 - ConvNetAutoencoder(32-16-8-4-2 ELU)'
+        self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=20, metrics='test loss', vid_scale=2)

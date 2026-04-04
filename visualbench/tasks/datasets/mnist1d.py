@@ -127,7 +127,7 @@ class Mnist1dAutoencoding(DatasetBenchmark):
         batch_size: int | None = None,
         test_batch_size: int | None = None,
     ):
-        (x,_), (x_test, _) = get_mnist1d(num_samples=num_samples)
+        (x,y), (x_test, y_test) = get_mnist1d(num_samples=num_samples)
         super().__init__(
             data_train = (x, ),
             data_test = (x_test, ),
@@ -135,6 +135,10 @@ class Mnist1dAutoencoding(DatasetBenchmark):
             criterion=criterion,
             batch_size=batch_size,
             test_batch_size = test_batch_size,
-            dtypes = (torch.float32,)
+            dtypes = (torch.float32,),
+            store_tensors = True,
         )
+        assert self.data_tensors is not None
+        y = torch.cat([y, y_test], 0)
+        self.data_tensors.append(y)
 

@@ -283,7 +283,7 @@ class Benchmark(torch.nn.Module, ABC):
     @torch.no_grad
     def log(self, metric: str, value: Any, plot: bool = True, log_scale:bool=True):
         """
-        Log `value` under `metric` key.
+        Log ``value`` under ``metric`` key.
         Either "train " or "test " prefix will be added to "metric" automatically unless it is specified manually.
 
         Note that if value is a scalar (single element tensor, array or python number),
@@ -540,16 +540,28 @@ class Benchmark(torch.nn.Module, ABC):
             if (self._test_every_epochs is not None) and (self.num_steps % self._test_every_epochs == 0):
                 self._maybe_test_epoch()
 
-    @torch.inference_mode()
     def _test_epoch(self):
         assert self._dltest is not None
         test_start = time.time()
         self.eval()
+
+        # this shouldn't be called in inference mode
+        # to avoid creating tensors that can't be updated inplace
+        def try_call_opt_method(method: str):
+            if hasattr(self._optimizer, method):
+                attr = getattr(self._optimizer, method)
+                if callable(attr):
+                    try: attr()
+                    except Exception: pass
+
+        try_call_opt_method("eval")
+
         batch_backup = self.batch
 
-        for batch in self._dltest:
-            self.batch = batch
-            self._one_step(optimizer=None)
+        with torch.inference_mode():
+            for batch in self._dltest:
+                self.batch = batch
+                self._one_step(optimizer=None)
 
         self._last_test_time = time.time()
         self.log("test time", self._last_test_time - test_start, plot=False)
@@ -557,6 +569,8 @@ class Benchmark(torch.nn.Module, ABC):
         self._last_test_pass = self.num_passes
         self.batch = batch_backup
         self.train()
+        try_call_opt_method("train")
+
         _benchmark_utils._aggregate_test_metrics_(self) # this needs to be called after .train because log checks if training
 
     def _maybe_test_epoch(self):

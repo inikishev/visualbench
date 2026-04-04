@@ -142,8 +142,20 @@ class MLBench(OptimizerBenchPack):
         bench = tasks.FunctionDescent('booth')
         self.run_bench(bench, '2D - booth', passes=200, sec=10, metrics='train loss', vid_scale=1, fps=10)
 
+        bench = tasks.FunctionDescent('logreg1d')
+        self.run_bench(bench, '2D - logreg1d', passes=200, sec=60, metrics='train loss', vid_scale=1, fps=10)
+
         bench = tasks.FunctionDescent('ill2')
         self.run_bench(bench, '2D - ill2', passes=1000, sec=10, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('linfreg2d_lasso')
+        self.run_bench(bench, '2D - linfreg2d_lasso', passes=1000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('medianreg1d')
+        self.run_bench(bench, '2D - medianreg1d', passes=1000, sec=60, metrics='train loss', vid_scale=1)
+
+        bench = tasks.FunctionDescent('qrmsereg1d')
+        self.run_bench(bench, '2D - qrmsereg1d', passes=1000, sec=60, metrics='train loss', vid_scale=1)
 
         bench = tasks.FunctionDescent('dipole_field')
         self.run_bench(bench, '2D - dipole field', passes=1000, sec=60, metrics='train loss', vid_scale=1)
@@ -153,6 +165,7 @@ class MLBench(OptimizerBenchPack):
 
         bench = tasks.FunctionDescent('rosenabs')
         self.run_bench(bench, '2D - rosenbrock abs', passes=2000, sec=60, metrics='train loss', vid_scale=1)
+
 
         # ------------------------------ Rosenbrock-384 ------------------------------ #
         bench = tasks.projected.Rosenbrock(384).to(CUDA_IF_AVAILABLE)

@@ -30,7 +30,8 @@ class DatasetBenchmark(Benchmark):
         resolution = 192,
         boundary_act = None,
         batch_transform: Callable | None = None,
-        seed = 0
+        seed = 0,
+        store_tensors: bool = False
     ):
         """dataset benchmark
 
@@ -118,16 +119,25 @@ class DatasetBenchmark(Benchmark):
 
         if not isinstance(dtypes, Sequence): dtypes = [dtypes] * len(data_train)
 
+        # Store all data as tensors for visualizations
+        if store_tensors:
+            if data_test is None:
+                self.data_tensors = [i.to(device=data_device, dtype=dt) for i, dt in zip(data_train, dtypes)]
+            else:
+                self.data_tensors = [torch.cat([tr,te]).to(device=data_device, dtype=dt) for tr,te, dt in zip(data_train, data_test, dtypes)]
+        else:
+            self.data_tensors = None
+
         # if batch size is None we pass train and test data at once for ultra speed
         if batch_size is None:
 
             # stack train and test data
             if data_test is None:
-                data_train = [i.to(device = data_device, dtype = dt) for i, dt in zip(data_train, dtypes)]
+                data_train = [i.to(device=data_device, dtype=dt) for i, dt in zip(data_train, dtypes)]
                 self.test_start_idx = None
             else:
                 self.test_start_idx = len(data_train[0])
-                data_train = [torch.cat([tr,te]).to(data_device, dtype = dt) for tr,te, dt in zip(data_train, data_test, dtypes)]
+                data_train = [torch.cat([tr,te]).to(device=data_device, dtype=dt) for tr,te, dt in zip(data_train, data_test, dtypes)]
 
             dltrain = (data_train, )
             dltest = None
@@ -135,11 +145,11 @@ class DatasetBenchmark(Benchmark):
         # otherwise make dataloaders
         else:
             self.test_start_idx = None
-            data_train = [i.to(device = data_device, dtype = dt) for i, dt in zip(data_train, dtypes)]
+            data_train = [i.to(device=data_device, dtype=dt) for i, dt in zip(data_train, dtypes)]
             dltrain = TensorDataLoader(data_train, batch_size=batch_size, shuffle=True, seed = seed)
 
             if data_test is not None:
-                data_test = [i.to(device = data_device, dtype = dt) for i, dt in zip(data_test, dtypes)]
+                data_test = [i.to(device=data_device, dtype=dt) for i, dt in zip(data_test, dtypes)]
                 if test_batch_size is None:
                     dltest = (data_test, )
                 else:

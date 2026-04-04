@@ -10,6 +10,7 @@ from .sklearn import (
     CaliforniaHousing,
     Covertype,
     Digits,
+    DigitsAutoencoding,
     Friedman1,
     Friedman2,
     Friedman3,
