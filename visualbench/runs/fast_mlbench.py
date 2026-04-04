@@ -114,8 +114,9 @@ class FastMLBench(OptimizerBenchPack):
         # ndim = 20,410
         # 11s. ~ 3m. 30s.
         bench = tasks.Mnist1dAutoencoding(
-            model = models.vision.ConvNetAutoencoder(1, 1, 1, 40, hidden=(32, 16, 8, 4, 2), act_cls=nn.ELU),
-            batch_size=32,
+            model = models.vision.ConvNetAutoencoder(1, 1, 1, 40, hidden=(64, 64, 64, 64, 2), act_cls=nn.ELU),
+            batch_size=128,
+            test_batch_size=512,
         ).to(CUDA_IF_AVAILABLE).set_render_every(2)
-        bench_name = 'MLS - Mnist1d-5_000 BS-32 - ConvNetAutoencoder(32-16-8-4-2 ELU)'
-        self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=100, metrics='test loss', vid_scale=2)
+        bench_name = 'MLS - Mnist1d-5_000 BS-128 - ConvNetAutoencoder(64-64-64-64-2 ELU)'
+        self.run_bench(bench, bench_name, passes=10_000, sec=1_000, test_every=100, metrics='test loss', vid_scale=2)

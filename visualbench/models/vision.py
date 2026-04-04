@@ -359,6 +359,7 @@ class ConvNetAutoencoder(nn.Module):
         self.sparse_reg = sparse_reg
         self.out_size = out_size
         self.squeeze = squeeze
+        self.in_channels = in_channels
         self.out_channels = out_channels
         self.ndim = ndim
         self.reshape = reshape
@@ -378,7 +379,7 @@ class ConvNetAutoencoder(nn.Module):
 
     def forward(self, x: torch.Tensor):
         shape = list(x.shape)
-        shape[1] = self.out_channels
+        if self.out_channels != self.in_channels: shape[1] = self.out_channels
 
         x = self._prepare_x(x)
 
