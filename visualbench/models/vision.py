@@ -377,7 +377,8 @@ class ConvNetAutoencoder(nn.Module):
         return x
 
     def forward(self, x: torch.Tensor):
-        shape = x.shape
+        shape = list(x.shape)
+        shape[1] = self.out_channels
 
         x = self._prepare_x(x)
 
