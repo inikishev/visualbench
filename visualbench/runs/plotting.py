@@ -79,6 +79,8 @@ _YSCALES: dict[str, Any] = {
     "2D - spiral": "log",
     "2D - illppc": "log",
     "2D - oscillating": dict(value='symlog', linthresh=1e-6),
+    "2D - medianreg1d": "log",
+    "2D - ill2": dict(value='symlog', linthresh=1e-10),
     # "2D simultaneous - rosenbrock-10": "log",
     # "2D simultaneous - rosenbrock": "log",
     # "2D simultaneous - rosenbrock abs": "log",

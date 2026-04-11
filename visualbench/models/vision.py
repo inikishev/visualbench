@@ -326,7 +326,8 @@ class ConvNetAutoencoder(nn.Module):
         in_channels: int,
         out_channels: int,
         out_size: int,
-        hidden=(32, 64, 128, 256),
+        encoder=(32, 64, 128, 256),
+        decoder=None,
         act_cls:Callable=nn.ReLU,
         bn=True,
         dropout=None,
@@ -338,22 +339,27 @@ class ConvNetAutoencoder(nn.Module):
 
     ):
         super().__init__()
-        if isinstance(hidden, int): hidden = [hidden]
-        channels = [in_channels] + list(hidden) # in_channels is always 1 cos conv net
+        if isinstance(encoder, int): encoder = [encoder]
+        channels = [in_channels] + list(encoder) # in_channels is always 1 cos conv net
 
         self.enc = nn.Sequential(
             *[convblocknd(i, o, 2, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, ndim=ndim) for i, o in zip(channels[:-1], channels[1:])]
         )
 
+        if decoder is None:
+            decoder = list(reversed(channels))
+            decoder[-1] = out_channels
+        else:
+            if isinstance(decoder, int): decoder = [decoder]
+            decoder = decoder + [out_channels]
 
-        rev = list(reversed(channels))
         self.dec = nn.Sequential(
-            *[convblocknd(i, o, 3, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, transpose=True, ndim=ndim) for i, o in zip(rev[:-2], rev[1:-1])]
+            *[convblocknd(i, o, 3, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, transpose=True, ndim=ndim) for i, o in zip(decoder[:-2], decoder[1:-1])]
         )
 
         self.head = nn.Sequential(
-            *convblocknd(rev[-2], rev[-2], 2, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, transpose=True, ndim=ndim),
-            *convblocknd(rev[-2], out_channels, 2, 1, 0, act_cls=None, bn=False, dropout=None, ndim=ndim)
+            *convblocknd(decoder[-2], decoder[-2], 2, 2, 0, act_cls=act_cls, bn=bn, dropout=dropout, transpose=True, ndim=ndim),
+            *convblocknd(decoder[-2], out_channels, 2, 1, 0, act_cls=None, bn=False, dropout=None, ndim=ndim)
         )
 
         self.sparse_reg = sparse_reg

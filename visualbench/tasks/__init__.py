@@ -2,7 +2,6 @@ from importlib.util import find_spec
 from typing import TYPE_CHECKING, Literal, cast
 
 from . import projected
-from .cartpole import CartPole
 from .char_rnn import CharRNN
 from .colorization import Colorization
 from .cutest import CUTEst

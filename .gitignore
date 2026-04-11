@@ -160,7 +160,4 @@ cython_debug/
 #.idea/
 
 
-# no
-
-glioblastoma_diff/
-HistogramLayer.py
+optimizationproblems/
