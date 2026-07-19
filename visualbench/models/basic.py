@@ -310,7 +310,7 @@ def _scatter_2d_latents_(
         while latent.ndim < 2: latent = latent.unsqueeze(0)
         latents_list.append(latent)
 
-    latents = torch.cat(latents_list, 0) # (B, 2)
+    latents = torch.cat(latents_list, 0).nan_to_num(0,1,-1) # (B, 2)
     latents -= latents.amin(0, keepdim=True)
     latents /= latents.amax(0, keepdim=True).clip(min=1e-10)
     latents[:, 0] = (latents[: , 0] * resolution[0]).clip(max=resolution[0] - 1)
