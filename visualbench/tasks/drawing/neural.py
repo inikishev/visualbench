@@ -76,33 +76,31 @@ class NeuralDrawer(Benchmark):
         with torch.no_grad():
             mask = None
             idxs = None
-            if self.make_images:
-                if self.expand != 0:
-                    inputs = self.expanded_coords
-                    targets = self.targets
-                    mask = self.loss_mask
-
-                else:
-                    inputs = self.coords
-                    targets = self.targets
-
-                if self.batch_size is not None:
-                    idxs = torch.randperm(self.targets.size(0))[:self.batch_size]
-                    targets = self.targets[idxs]
+            if self.expand != 0 and self.make_images:
+                inputs = self.expanded_coords
+                batch_targets = self.targets
+                mask = self.loss_mask
 
             else:
-                batch_idxs = torch.randperm(self.targets.size(0))[:self.batch_size]
-                inputs = self.coords[batch_idxs]
-                targets = self.targets[batch_idxs]
-                mask = None
+                inputs = self.coords
+                batch_targets = self.targets
+
+            if self.batch_size is not None:
+                idxs = torch.randperm(self.targets.size(0))[:self.batch_size]
+                batch_targets = self.targets[idxs]
 
 
         full_preds: torch.Tensor = self.model(inputs) # (pixels, channels)
-        if mask is None: preds = full_preds
-        else: preds = full_preds[mask]
-        if idxs is not None: preds = preds[idxs]
+        if mask is not None: masked_preds = full_preds[mask]
+        else: masked_preds = full_preds
 
-        loss = maybe_per_sample_loss(self.criterion, (preds, targets), per_sample=self._multiobjective)
+        if self.batch_size is not None:
+            test_loss = self.criterion(masked_preds, self.targets)
+            self.log("test loss", test_loss)
+
+        if idxs is not None: batch_preds = masked_preds[idxs]
+        else: batch_preds = masked_preds
+        loss = maybe_per_sample_loss(self.criterion, (batch_preds, batch_targets), per_sample=self._multiobjective)
 
         with torch.no_grad():
             if self.make_images:

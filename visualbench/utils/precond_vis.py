@@ -356,7 +356,7 @@ class PreconditionerVisualizer:
 
         if isinstance(f, TestFunction):
             if x0 is None: x0 = f.x0()
-            if minima is None: minima = f.minima()
+            if minima is None: minima = f.compute_minima()
 
         else:
             assert x0 is not None

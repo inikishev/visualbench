@@ -1,34 +1,42 @@
 # pylint: disable = unnecessary-lambda
 import os
+import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from functools import partial
+from importlib.util import find_spec
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
+import pytorch_optimizer
 import torch
 import torchalgos as ta
-from accelerate import Accelerator
 from myai.legacy import torchzero as tz
 from torch import nn
 from torch.nn import functional as F
 
-from .. import data, models, tasks
-from .. import losses as losses_
-from ..utils import CUDA_IF_AVAILABLE
-from ..utils.clean_mem import clean_mem
-from ..utils.python_tools import format_number, to_valid_fname
-from .run import Run, Sweep, Task, _target_metrics_to_dict, mbs_search, single_run
+from ... import data, models, tasks
+from ... import losses as losses_
+from ...utils import CUDA_IF_AVAILABLE
+from ...utils.clean_mem import clean_mem
+from ...utils.python_tools import format_number, to_valid_fname
+from ..run import Run, Sweep, Task, _target_metrics_to_dict, mbs_search, single_run
 
 if TYPE_CHECKING:
-    from ..benchmark import Benchmark
+    from ...benchmark import Benchmark
 
+# non-required imports
+if find_spec("accelerate") is not None:
+    from accelerate import Accelerator
+else:
+    print("accelerate not installed!")
+    Accelerator = None
 
 tz.enable_compilation(True)
 
 
 LOSSES = ("train loss", "test loss")
 
-class MBSBenchmarkBenchmark:
+class BenchBench:
     def __init__(
         self,
         benchmark: "Benchmark",
@@ -38,7 +46,7 @@ class MBSBenchmarkBenchmark:
         passes: int,
         sec: float,
         metrics:str | Sequence[str] | dict[str, bool],
-        vid_scale:int|None,
+        vid_scale:float | None,
         fps=60,
         binary_mul: float = 1,
         test_every: int | None = None,
@@ -48,12 +56,14 @@ class MBSBenchmarkBenchmark:
         skip:str | Sequence[str] | None = None,
 
         # storage
-        root: str = "benchmarks",
+        root: str = "BenchBench",
         print_progress: bool = True,
+        print_time: bool = False,
         save: bool = True,
         accelerate: bool = True,
         load_existing: bool = True,
         render_vids: bool = False,
+        accelerate_kwargs = None
     ):
         # sweep_name: str,
         # num_extra_passes: float | Callable[[int], float] = 0,
@@ -62,6 +72,7 @@ class MBSBenchmarkBenchmark:
         dim = sum(p.numel() for p in benchmark.parameters() if p.requires_grad)
         if skip is None: skip = ()
         if isinstance(skip, str): skip = (skip, )
+        if accelerate_kwargs is None: accelerate_kwargs = {}
 
         self.root = root
         self.task_name = task_name
@@ -71,6 +82,7 @@ class MBSBenchmarkBenchmark:
         self.yscale = yscale
         self.passes = passes
         self.benchmark = benchmark
+        self.accelerator = None
 
 
         def run_optimizer(
@@ -85,7 +97,7 @@ class MBSBenchmarkBenchmark:
             grid: Iterable[float] = (2, 1, 0, -1, -2, -3, -4, -5),
             step: float = 1,
             num_candidates: int = 2,
-            num_binary: int = 12,
+            num_binary: int = 5,
             num_expansions: int = 12,
             rounding=1,
             fixed_hyperparams: dict | None = None,
@@ -95,19 +107,33 @@ class MBSBenchmarkBenchmark:
             if max_dim is not None and dim > max_dim: return
             clean_mem()
 
-            if accelerate and next(bench.parameters()).is_cuda: # skip CPU because accelerator state can't change.
-                accelerator = Accelerator()
-                bench = accelerator.prepare(bench)
+            # skip CPU because accelerator state can't change.
+            if (accelerate) and (Accelerator is not None) and (next(bench.parameters()).is_cuda):
+                self.accelerator = Accelerator(**accelerate_kwargs)
+                bench = bench.accelerator_prepare(self.accelerator)
+
+            test_time = 0
 
             def logger_fn(value: float):
                 if dim > 10_000: clean_mem()
                 bench.reset().set_performance_mode().set_print_interval(None)
                 opt = opt_fn([p for p in bench.parameters() if p.requires_grad], value)
+
+                # run
                 bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
+
+                # print progress
                 if print_progress and bench.seconds_passed is not None and bench.seconds_passed > sec:
                     print(f"{sweep_name}: '{task_name}' timeout, {bench.seconds_passed} > {sec}!")
+
+                # add test time
+                if "test time" in bench.logger:
+                    nonlocal test_time
+                    test_time += bench.logger.sum("test time")
+
                 return bench.logger
 
+            start = time.time()
             if hyperparam is None or (not tune):
                 sweep = single_run(logger_fn, metrics=metrics, fixed_hyperparams=fixed_hyperparams, root=root, task_name=task_name, run_name=sweep_name, print_records=False, print_progress=print_progress, save=save, load_existing=load_existing)
 
@@ -115,9 +141,10 @@ class MBSBenchmarkBenchmark:
                 sweep = mbs_search(logger_fn, metrics=metrics, search_hyperparam=hyperparam, fixed_hyperparams=fixed_hyperparams, log_scale=log_scale, grid=grid, step=step, num_candidates=num_candidates, num_binary=max(1, int(num_binary*binary_mul)), num_expansions=num_expansions, rounding=rounding, root=root, task_name=task_name, run_name=sweep_name, print_records=False, save=save, load_existing=load_existing, print_progress=print_progress)
 
             # render video
+            render_start = time.time()
             if render_vids and vid_scale is not None:
                 for metric, maximize in _target_metrics_to_dict(metrics).items():
-                    video_path = os.path.join(self.summary_dir, f'{task_name} - {metric}')
+                    video_path = os.path.join(self.summary_dir, f'{sweep_name} - {metric}')
                     if os.path.exists(f'{video_path}.mp4'): continue
 
                     best_run = sweep.best_runs(metric, maximize, 1)[0]
@@ -131,18 +158,28 @@ class MBSBenchmarkBenchmark:
                     bench.render(f'{video_path} __TEMP__', scale=vid_scale, fps=fps, progress=False)
                     os.rename(f'{video_path} __TEMP__.mp4', f'{video_path}.mp4')
 
+            if print_time:
+                if print_progress: print(" " * 1000, end="\r")
+                s = f"{sweep_name} took {(time.time() - start):.2f} s."
+                if render_vids:
+                    s = f'{s}; rendering took {(time.time() - render_start):.2f} s.'
+                if test_time != 0: s = f"{s}; test epochs took {float(test_time):.2f} s."
+                print(s)
 
         self.run_optimizer = run_optimizer
 
     def quickrun(self):
+        opt = lambda p, _: torch.optim.Rprop(p)
+        self.run_optimizer(opt, "Rprop", tune=False, max_dim=None)
+
         opt = lambda p, lr: torch.optim.SGD(p, lr)
         self.run_optimizer(opt, "SGD", tune=True, max_dim=None)
 
         opt = lambda p, lr: torch.optim.SGD(p, lr, momentum=0.9, nesterov=True)
         self.run_optimizer(opt, "NAG(0.95)", tune=True, max_dim=None)
 
-        opt = lambda p, lr: torch.optim.Adam(p, lr)
-        self.run_optimizer(opt, "Adam", tune=True, max_dim=None)
+        opt = lambda p, lr: torch.optim.AdamW(p, lr)
+        self.run_optimizer(opt, "AdamW", tune=True, max_dim=None)
 
         opt = lambda p, lr: torch.optim.Adam(p, lr, betas=(0.95, 0.95))
         self.run_optimizer(opt, "Adam(0.95, 0.95)", tune=True, max_dim=None)
@@ -153,11 +190,17 @@ class MBSBenchmarkBenchmark:
         opt = lambda p, lr: torch.optim.RMSprop(p, lr)
         self.run_optimizer(opt, "RMSprop", tune=True, max_dim=None)
 
-        opt = lambda p, lr: ta.SOAP(p, max_dim=2048, weight_decay=0)
+        opt = lambda p, lr: ta.SOAP(p, lr, weight_decay=0)
         self.run_optimizer(opt, "SOAP", tune=True, max_dim=None)
 
-        opt = lambda p, lr: ta.SPlus(p, max_dim=2048, weight_decay=0)
+        opt = lambda p, lr: ta.SPlus(p, lr, weight_decay=0, ema_rate=0.99)
         self.run_optimizer(opt, "SPlus", tune=True, max_dim=None)
+
+        opt = lambda p, lr: pytorch_optimizer.Muon(ta.make_muon_param_groups(p), lr, adamw_lr=lr*0.015)
+        self.run_optimizer(opt, "Muon", tune=True, max_dim=None)
+
+        opt = lambda p, _: torch.optim.LBFGS(p, line_search_fn='strong_wolfe')
+        self.run_optimizer(opt, "L-BFGS", tune=False, max_dim=None)
 
 
     def run(self, stochastic=True, non_stochastic=True, vr=True, qn=True, newton=True, zo=True, noop=True):
@@ -246,8 +289,6 @@ class MBSBenchmarkBenchmark:
 
 
     def run_qn(self):
-        from torchzero.optim.wrappers.scipy import ScipyMinimize
-
         opt = lambda p, lr: torch.optim.LBFGS(p, line_search_fn='strong_wolfe')
         self.run_optimizer(opt, "LBFGS", tune=False, max_dim=None)
 
@@ -287,14 +328,14 @@ class MBSBenchmarkBenchmark:
 
 
     def run_zo(self):
-        from torchzero.optim.wrappers.scipy import ScipyMinimize
+        from myai.legacy.torchzero.optim.wrappers.scipy import ScipyMinimize
         opt = lambda p, lr: ScipyMinimize(p, 'powell')
         self.run_optimizer(opt, "Powell", tune=False, max_dim=1000)
 
 
 
     def render(self, axsize=(6,3), dpi=300):
-        from .plotting import (
+        from ..plotting import (
             REFERENCE_OPTS,
             bar_chart,
             make_axes,

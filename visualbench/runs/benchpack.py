@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 if find_spec("accelerate") is not None:
     from accelerate import Accelerator
 else:
+    print("accelerate not installed!")
     Accelerator = None
 
 LOSSES = ("train loss", "test loss")
@@ -51,6 +52,7 @@ class OptimizerBenchPack:
         print_time: bool = False,
         save: bool = True,
         accelerate: bool = True,
+        accelerate_kwargs: dict[str, Any] | None = None,
         load_existing: bool = True,
         render_vids: bool = True,
 
@@ -62,6 +64,7 @@ class OptimizerBenchPack:
     ):
         if skip is None: skip = ()
         if isinstance(skip, str): skip = (skip, )
+        if accelerate_kwargs is None: accelerate_kwargs = {}
         self.sweep_name = sweep_name
 
         self.root = root
@@ -76,6 +79,7 @@ class OptimizerBenchPack:
         self.tune = tune
         self.opt_fn = opt_fn
         self.init_fn = init_fn
+        self.accelerator = None
 
         self.results: defaultdict[str, dict[str, tuple[float, bool, float]]] = defaultdict(dict)
         """keys are task name, dicts where keys are metrics, values are tuple (value, maximize, lr)"""
@@ -89,10 +93,11 @@ class OptimizerBenchPack:
             metrics = _target_metrics_to_dict(metrics)
             clean_mem()
 
-             # skip CPU because accelerator state can't change.
+            # skip CPU because accelerator state can't change.
+
             if (accelerate) and (Accelerator is not None) and (next(bench.parameters()).is_cuda):
-                accelerator = Accelerator()
-                bench = accelerator.prepare(bench)
+                self.accelerator = Accelerator(**accelerate_kwargs)
+                bench = bench.accelerator_prepare(self.accelerator)
 
             # -------------------------------- logger func ------------------------------- #
             def logger_fn(value: float):
@@ -106,6 +111,7 @@ class OptimizerBenchPack:
                 # run
                 bench.reset().set_performance_mode().set_print_interval(None)
                 opt = init_fn(opt_fn, bench, value)
+
                 bench.run(opt, max_passes=passes, max_seconds=sec, test_every_forwards=test_every, num_extra_passes=num_extra_passes, step_callbacks=step_callbacks)
 
                 # print progress

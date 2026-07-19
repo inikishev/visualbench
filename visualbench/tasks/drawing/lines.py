@@ -40,7 +40,7 @@ class LinesDrawer(Benchmark):
     def __init__(
         self,
         target_image,
-        num_lines: int,
+        num_lines: int = 100,
         loss=F.mse_loss,
         per_line_thickness: bool = False,
         initial_line_thickness: float = 1.5,
@@ -147,6 +147,5 @@ class LinesDrawer(Benchmark):
             with torch.no_grad():
                 img = rendered_image.detach() * 255
                 self.log_image('reconstructed', img.cpu().to(torch.uint8), to_uint8=False, show_best=True)
-                self.log_image('residual', ((rendered_image - target_image).abs_() * 255).cpu().to(torch.uint8), to_uint8=False)
         return loss
 

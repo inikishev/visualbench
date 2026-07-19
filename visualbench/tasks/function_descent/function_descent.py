@@ -66,7 +66,7 @@ class FunctionDescent(Benchmark):
         if isinstance(f, TestFunction):
             if x0 is None: x0 = f.x0()
             if domain is None: domain = f.domain()
-            if minima is None: minima = f.minima()
+            if minima is None: minima = f.compute_minima()
             if mo_func is None: mo_func = f.mo_func()
             unpack = True
 
@@ -193,7 +193,7 @@ class FunctionDescent(Benchmark):
         contour_thickness: float = 0.1,
         line_alpha: float = 0.5,
         progress: bool = True,
-        scale: int = 1,
+        scale: int = 1, # for compatibility
     ):
         import cv2
         bounds = self._get_domain()

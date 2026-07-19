@@ -102,7 +102,7 @@ class MFMovieLens(Benchmark):
         preds = self.model(users, items)
         loss = maybe_per_sample_loss(self.criterion, (preds,ratings), per_sample=self._multiobjective)
 
-        if _should_run_test_epoch(self, check_dltest=False):
+        if _should_run_test_epoch(self, check_test_epoch_support=False):
             self._test_epoch()
 
         return loss

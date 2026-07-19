@@ -8,13 +8,13 @@ import torch
 from monai.losses.dice import DiceFocalLoss
 from torch import nn
 
-from .. import data, models, tasks
-from ..utils import CUDA_IF_AVAILABLE
-from .benchpack import OptimizerBenchPack
-from .colab_utils import load_movie_lens
+from ... import data, models, tasks
+from ...utils import CUDA_IF_AVAILABLE
+from ..benchpack import OptimizerBenchPack
+from ..colab_utils import load_movie_lens
 
 if TYPE_CHECKING:
-    from ..benchmark import Benchmark
+    from ...benchmark import Benchmark
 
 LOSSES = ("train loss", "test loss")
 
@@ -45,6 +45,7 @@ class FastMLBench(OptimizerBenchPack):
         print_time: bool = False,
         save: bool = True,
         accelerate: bool = True,
+        accelerate_kwargs: dict[str, Any] | None = None,
         load_existing: bool = True,
         render_vids: bool = True,
 
@@ -92,7 +93,7 @@ class FastMLBench(OptimizerBenchPack):
         model = models.MLP([32, 64, 96, 128, 256, 10])
         bench = tasks.Collinear(model, batch_size=64, test_batch_size=4096).to(CUDA_IF_AVAILABLE)
         bench_name = 'MLS - Colinear BS-64 - MLP(32-64-96-128-256-10)'
-        self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=100, metrics='test loss', vid_scale=None)
+        self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=10, metrics='test loss', vid_scale=None)
 
     # ------------------------------- RNN (MNIST-1D) ------------------------------ #
     def run_rnn(self):
@@ -103,9 +104,10 @@ class FastMLBench(OptimizerBenchPack):
         bench = tasks.Mnist1d(
             models.RNN(1, 10, hidden_size=40, num_layers=2, rnn=torch.nn.RNN),
             batch_size=128,
+
         ).to(CUDA_IF_AVAILABLE)
         bench_name = 'MLS - Mnist1d-5_000 BS-128 - RNN(2x40)'
-        self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=20, metrics='test loss', vid_scale=None)
+        self.run_bench(bench, bench_name, passes=20_000, sec=1_000, test_every=10, metrics='test loss', vid_scale=None)
 
     # --------------------------- Autoencoder (MNIST-1D) --------------------------- #
     def run_autoencoder(self):
@@ -119,4 +121,4 @@ class FastMLBench(OptimizerBenchPack):
             test_batch_size=256,
         ).to(CUDA_IF_AVAILABLE).set_render_every(2)
         bench_name = 'MLS - Mnist1d-5_000 BS-128 - ConvNetAutoencoder(256-128-64-32-2 ELU)'
-        self.run_bench(bench, bench_name, passes=5_000, sec=1_000, test_every=50, metrics='test loss', vid_scale=2)
+        self.run_bench(bench, bench_name, passes=5_000, sec=1_000, test_every=10, metrics='test loss', vid_scale=2)

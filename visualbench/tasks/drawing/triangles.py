@@ -1,5 +1,6 @@
 from typing import Any
 from collections.abc import Callable
+import math
 import numpy as np
 import torch
 from torch import nn
@@ -91,8 +92,12 @@ class TrianglesDrawer(Benchmark):
         else:
             self.sharpness = nn.Parameter(torch.tensor(initial_sharpness, dtype=torch.float32))
 
-        # Triangle parameters (v1x, v1y, v2x, v2y, v3x, v3y, r, g, b, a)
-        self.triangle_params = nn.Parameter(torch.rand(num_triangles, 10, generator=self.rng.torch()))
+        # Triangle parameters (v1x, v1y, v2x, v2y, v3x, v3y, r, g, b, a).
+        # Positions are stored directly in [0, 1] (used without sigmoid) so the
+        # initial triangles can be spread over the frame. When init_spread is True
+        # the vertices are placed around spread-out seeds with jitter, giving a much
+        # better starting point than fully random placement that clusters near center.
+        self.triangle_params = nn.Parameter(torch.rand(num_triangles, 10, generator=self.rng.torch()).logit())
 
         # Learnable background color (RGB)
         self.bg_color = nn.Parameter(torch.zeros(3))  # Initialized to black
@@ -111,15 +116,13 @@ class TrianglesDrawer(Benchmark):
         self._show_titles_on_video = False
 
     def get_loss(self):
-        # Normalize parameters to (0,1)
         p = torch.sigmoid(self.triangle_params)
         bg_color = torch.sigmoid(self.bg_color)  # (3,)
 
-        # Extract triangle components
         v1x, v1y = p[:, 0], p[:, 1]  # vertex 1
         v2x, v2y = p[:, 2], p[:, 3]  # vertex 2
         v3x, v3y = p[:, 4], p[:, 5]  # vertex 3
-        colors = p[:, 6:9]  # (N, 3) RGB
+        colors = p[:, 6:9]
         alpha = p[:, 9]  # (N,) transparency
 
         if self.exp_sharpness:

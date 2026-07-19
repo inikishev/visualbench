@@ -144,7 +144,6 @@ def _render(self: "Benchmark", file: os.PathLike | str, fps: int = 60, scale: in
     logger_images: dict[str, dict[int, Any]] = {}
     lowest_images: dict[str, Any] = {}
     last_images: dict[str, Any] = {}
-    length = max(len(v) for v in self.logger.values())
 
     # initialize all keys
     for key, values_dict in self.logger.items():

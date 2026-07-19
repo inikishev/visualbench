@@ -5,17 +5,17 @@ from typing import TYPE_CHECKING, Any
 import torch
 from torch import nn
 
-from .. import models, tasks
-from ..models.ode import NeuralODE
-from ..utils import CUDA_IF_AVAILABLE
-from .benchpack import OptimizerBenchPack
+from ... import models, tasks
+from ...models.ode import NeuralODE
+from ...utils import CUDA_IF_AVAILABLE
+from ..benchpack import OptimizerBenchPack
 
 if TYPE_CHECKING:
-    from ..benchmark import Benchmark
+    from ...benchmark import Benchmark
 
 LOSSES = ("train loss", "test loss")
 
-class MBSOptimizerBenchmark(OptimizerBenchPack):
+class OptimizerTinyBench(OptimizerBenchPack):
     def __init__(
         self,
         opt_fn: Callable,

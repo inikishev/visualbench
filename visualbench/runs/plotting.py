@@ -25,11 +25,11 @@ if TYPE_CHECKING:
 # region reference opts
 REFERENCE_OPTS = (
     "GD",
-    "torch.NAG(0.95)",
-    "torch.Adagrad",
-    "torch.RMSprop",
+    # "torch.NAG(0.95)",
+    # "torch.Adagrad",
+    # "torch.RMSprop",
     "torch.Adam",
-    "torch.AdamW",
+    # "torch.AdamW",
     "torch.LBFGS(strong_wolfe)",
     "ta.SOAP",
 )

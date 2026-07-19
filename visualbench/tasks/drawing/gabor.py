@@ -84,7 +84,7 @@ class GaborFiltersDrawer(Benchmark):
         # - log_aspect: log of aspect ratio (1)
         # - RGB color (3)
         # - alpha: transparency (1)
-        self.filter_params = nn.Parameter(torch.rand(num_filters, 11, generator=self.rng.torch()))
+        self.filter_params = nn.Parameter(torch.rand(num_filters, 11, generator=self.rng.torch()).logit())
 
         # Learnable background color (RGB)
         self.bg_color = nn.Parameter(torch.zeros(3))

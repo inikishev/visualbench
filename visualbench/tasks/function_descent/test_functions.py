@@ -6,7 +6,7 @@ import copy
 import math
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Sequence
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 import torch
@@ -22,7 +22,7 @@ TEST_FUNCTIONS:"RelaxedMultikeyDict[TestFunction]" = RelaxedMultikeyDict() # typ
 def _to(self: "FunctionTransform | TestFunction", device=None, dtype=None):
     c = copy.copy(self)
     for k,v in c.__dict__.items():
-        if isinstance(v, (torch.Tensor, FunctionTransform, TestFunction)):
+        if isinstance(v, (torch.Tensor, FunctionTransform, TestFunction, nn.Module)):
             setattr(c, k, v.to(device=device, dtype=dtype))
     return c
 
@@ -69,8 +69,38 @@ class Scale(FunctionTransform):
         return x / self.x, y / self.y
 
     def transform_domain(self, xmin, xmax, ymin, ymax):
+        # avoid changing aspect ratio
         min_scale = min(self.x, self.y)
         return [i/min_scale for i in (xmin, xmax, ymin, ymax)]
+
+class ScaleToDomain(FunctionTransform):
+    def __init__(self, init_domain: Sequence, target_domain: Sequence):
+        x1_init, x2_init, y1_init, y2_init = init_domain
+        x1_target, x2_target, y1_target, y2_target = target_domain
+
+        self.x1_init, self.x2_init = x1_init, x2_init
+        self.y1_init, self.y2_init = y1_init, y2_init
+        self.x1_target, self.x2_target = x1_target, x2_target
+        self.y1_target, self.y2_target = y1_target, y2_target
+
+    def transform_parameters(self, x, y):
+        # map a target/display coordinate into the init/base domain
+        xn = (x - self.x1_target) / (self.x2_target - self.x1_target)
+        yn = (y - self.y1_target) / (self.y2_target - self.y1_target)
+        x = self.x1_init + xn * (self.x2_init - self.x1_init)
+        y = self.y1_init + yn * (self.y2_init - self.y1_init)
+        return x, y
+
+    def transform_point(self, x, y):
+        # inverse: map an init/base coordinate into the target/display domain
+        xn = (x - self.x1_init) / (self.x2_init - self.x1_init)
+        yn = (y - self.y1_init) / (self.y2_init - self.y1_init)
+        x = self.x1_target + xn * (self.x2_target - self.x1_target)
+        y = self.y1_target + yn * (self.y2_target - self.y1_target)
+        return x, y
+
+    def transform_domain(self, xmin, xmax, ymin, ymax):
+        return [self.x1_target, self.x2_target, self.y1_target, self.y2_target]
 
 class Lambda(FunctionTransform):
     def __init__(
@@ -109,12 +139,94 @@ class TestFunction(torch.nn.Module, ABC):
     def minima(self) -> Sequence[float] | torch.Tensor | None:
         ...
 
+    def compute_minima(self) -> Sequence[float] | torch.Tensor:
+        minima = self.minima()
+        if minima is not None: return minima
+
+        # by default finds minima via grid search
+        x1,x2, y1,y2 = self.domain()
+        x_space = torch.linspace(x1,x2,1000)
+        y_space = torch.linspace(y1,y2,1000)
+        X, Y = torch.meshgrid(x_space, y_space, indexing='ij')
+        Z = self(X, Y)
+        minima_flat = torch.argmin(Z)
+        num_cols = Z.shape[1]
+        row = minima_flat // num_cols
+        col = minima_flat % num_cols
+        return x_space[int(row.item())].item(), y_space[int(col.item())].item()
+
     def register(self, *names):
         TEST_FUNCTIONS[names] = self
         return self
 
     def __call__(self, x:torch.Tensor, y:torch.Tensor):
         return self.objective(x, y)
+
+    def __add__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(self, other, combine_func=torch.add, align_target=self)
+        return self.value_tfm(lambda x: x + other)
+
+    def __radd__(self, other: "TestFunction | Any"):
+        return self + other
+
+    def __sub__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(self, other, combine_func=torch.sub, align_target=self)
+        return self.value_tfm(lambda x: x - other)
+
+    def __rsub__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(other, self, combine_func=torch.sub, align_target=self)
+        return self.value_tfm(lambda x: other - x)
+
+    def __mul__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(self, other, combine_func=torch.mul, align_target=self)
+        return self.value_tfm(lambda x: x * other)
+
+    def __rmul__(self, other: "TestFunction | Any"):
+        return self * other
+
+    def __truediv__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(self, other, combine_func=torch.div, align_target=self)
+        return self.value_tfm(lambda x: x / other)
+
+    def __rtruediv__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(other, self, combine_func=torch.div, align_target=self)
+        return self.value_tfm(lambda x: other / x)
+
+    def __floordiv__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(self, other, combine_func=torch.floor_divide, align_target=self)
+        return self.value_tfm(lambda x: x // other)
+
+    def __rfloordiv__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(other, self, combine_func=torch.floor_divide, align_target=self)
+        return self.value_tfm(lambda x: other // x)
+
+    def __pow__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(self, other, combine_func=torch.pow, align_target=self)
+        return self.value_tfm(lambda x: x ** other)
+
+    def __rpow__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(other, self, combine_func=torch.pow, align_target=self)
+        return self.value_tfm(lambda x: other ** x)
+
+    def __mod__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(self, other, combine_func=torch.remainder, align_target=self)
+        return self.value_tfm(lambda x: x % other)
+
+    def __rmod__(self, other: "TestFunction | Any"):
+        if isinstance(other, TestFunction):
+            return CombinedFunction(other, self, combine_func=torch.remainder, align_target=self)
+        return self.value_tfm(lambda x: other % x)
 
     def transformed(self, transforms: FunctionTransform | Sequence[FunctionTransform]):
         return TransformedFunction(self, transforms=transforms)
@@ -124,6 +236,9 @@ class TestFunction(torch.nn.Module, ABC):
 
     def scaled(self, x, y):
         return self.transformed(Scale(x, y))
+
+    def scaled_to_domain(self, x1, x2, y1, y2):
+        return self.transformed(ScaleToDomain(self.domain(), (x1, x2, y1, y2)))
 
     def xy_tfm(self, fn: Callable[[torch.Tensor,torch.Tensor],tuple[torch.Tensor,torch.Tensor]]):
         return self.transformed(Lambda(xy=fn))
@@ -163,6 +278,34 @@ class TestFunction(torch.nn.Module, ABC):
     def mo_func(self) -> Callable | None:
         return None
 
+class CombinedFunction(TestFunction):
+    def __init__(self, *args: TestFunction, combine_func: Callable[..., torch.Tensor], align_target: TestFunction | None = None):
+        super().__init__()
+
+        if align_target is not None:
+            args = tuple(fn.scaled_to_domain(*align_target.domain()) for fn in args)
+
+        self.functions = cast(list[TestFunction], nn.ModuleList(args))
+        self.combine_func = combine_func
+
+    def objective(self, x, y):
+        return self.combine_func(*(fn(x, y) for fn in self.functions))
+
+    def x0(self): return self.functions[0].x0()
+
+    def domain(self):
+        # x1, x2, y1, y2
+        domains = [fn.domain() for fn in self.functions]
+        x1 = min(d[0] for d in domains)
+        x2 = max(d[1] for d in domains)
+        y1 = min(d[2] for d in domains)
+        y2 = max(d[3] for d in domains)
+        return x1, x2, y1, y2
+
+    def minima(self):
+        return None
+
+
 class TransformedFunction(TestFunction):
     def __init__(self, function: TestFunction, transforms: FunctionTransform | Sequence[FunctionTransform]):
         super().__init__()
@@ -191,9 +334,11 @@ class TransformedFunction(TestFunction):
     def domain(self):
         domain = totensor(self.function.domain())
         xmin,xmax, ymin,ymax = domain
+
         for tfm in self.transforms:
             ret = tfm.transform_domain(xmin,xmax,ymin,ymax)
             if ret is not None: xmin,xmax,ymin,ymax = ret
+
         return (float(xmin),float(xmax), float(ymin),float(ymax))
 
     def minima(self):
@@ -205,6 +350,7 @@ class TransformedFunction(TestFunction):
             ret = tfm.transform_point(x, y)
             if ret is not None: x, y = ret
         return (float(x), float(y))
+
 
     def mo_func(self):
         return self.function.mo_func()
@@ -575,7 +721,7 @@ class IllPiecewise(TestFunction):
     def minima(self): return (0, 0)
 
 ill_piecewise = IllPiecewise().shifted(-1, 2).register('ill_piecewise', 'piecewise', 'illp')
-ill_piecewise_pseudoconvex = IllPiecewise().shifted(-1, 2).register('illppc')
+ill_piecewise_pseudoconvex = IllPiecewise().divadd(0.1).shifted(-1, 2).register('illppc')
 
 class Quadratic(TestFunction):
     """Another quadratic. Good for testing CG"""
@@ -940,3 +1086,38 @@ class LogisticRegression2D(TestFunction):
 
 logreg2d = LogisticRegression2D().register('logreg2d')
 
+
+class Noise2D(TestFunction):
+    def __init__(self, num_layers=200, base_frequency=50.0, seed=0):
+        super().__init__()
+        gen = torch.Generator()
+        gen.manual_seed(seed)
+
+        theta = torch.rand(num_layers, generator=gen) * 2 * torch.pi
+        phi = torch.rand(num_layers, generator=gen) * 2 * torch.pi
+
+        k_indices = torch.arange(1, num_layers + 1, dtype=torch.float32)
+        frequencies = base_frequency * k_indices
+
+        self.kx = frequencies * torch.cos(theta)
+        self.ky = frequencies * torch.sin(theta)
+        self.phi = phi
+
+        self.norm = 1.0 / torch.sqrt(torch.tensor(num_layers, dtype=torch.float32))
+
+    def objective(self, x, y):
+        dims = [1] * x.ndim
+        kx = self.kx.view(-1, *dims)
+        ky = self.ky.view(-1, *dims)
+        phi = self.phi.view(-1, *dims)
+
+        projections = kx * x + ky * y + phi
+
+        noise_grid = torch.sum(torch.sin(projections), dim=0) * self.norm
+        return noise_grid
+
+    def x0(self): return (0.4, 0.7)
+    def domain(self): return (-1, 1, -1, 1)
+    def minima(self): return None
+
+noise = Noise2D().register("noise")

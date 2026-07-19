@@ -8,17 +8,17 @@ import torch
 from monai.losses.dice import DiceFocalLoss
 from torch import nn
 
-from .. import data, models, tasks
-from ..utils import CUDA_IF_AVAILABLE
-from .benchpack import OptimizerBenchPack
-from .colab_utils import load_movie_lens
+from ... import data, models, tasks
+from ...utils import CUDA_IF_AVAILABLE
+from ..benchpack import OptimizerBenchPack
+from ..colab_utils import load_movie_lens
 
 if TYPE_CHECKING:
-    from ..benchmark import Benchmark
+    from ...benchmark import Benchmark
 
 LOSSES = ("train loss", "test loss")
 
-class MLBench(OptimizerBenchPack):
+class OptimizerMLBench(OptimizerBenchPack):
     def __init__(
         self,
         opt_fn: Callable,

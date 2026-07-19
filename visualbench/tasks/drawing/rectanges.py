@@ -63,7 +63,7 @@ class RectanglesDrawer(Benchmark):
             self.sharpness = nn.Parameter(torch.tensor(initial_sharpness, dtype=torch.float32))
 
         # Rectangle parameters (cx, cy, w, h, r, g, b, a)
-        self.rect_params = nn.Parameter(torch.rand(num_rectangles, 8, generator = self.rng.torch()))
+        self.rect_params = nn.Parameter(torch.rand(num_rectangles, 8, generator = self.rng.torch()).logit())
 
         # Learnable background color (RGB)
         self.bg_color = nn.Parameter(torch.zeros(3))  # Initialized to black

@@ -9,19 +9,19 @@ from sklearn.datasets import make_swiss_roll
 from torch import nn
 from torch.nn import functional as F
 
-from .. import data, models, tasks
-from ..utils import CUDA_IF_AVAILABLE
-from .benchpack import OptimizerBenchPack
+from ... import data, models, tasks
+from ...utils import CUDA_IF_AVAILABLE
+from ..benchpack import OptimizerBenchPack
 
 if TYPE_CHECKING:
-    from ..benchmark import Benchmark
+    from ...benchmark import Benchmark
 
 LOSSES = ("train loss", "test loss")
 
 def _unbatched_ssim(x,y):
     return ssim_loss(x[None,:], y[None,:],5)
 
-class Visualbench(OptimizerBenchPack):
+class OptimizerVisualbench(OptimizerBenchPack):
     def __init__(
         self,
         opt_fn: Callable,

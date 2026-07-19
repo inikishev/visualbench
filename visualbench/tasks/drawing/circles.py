@@ -48,6 +48,7 @@ class CirclesDrawer(Benchmark):
         min_sharpness: float = 50,
         penalty: float = 0.1,
         loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = F.mse_loss,
+        init_spread: bool = True,
     ):
         super().__init__()
         target_image = normalize(to_HW3(target_image, generator=self.rng.torch()).float(), 0, 1).moveaxis(-1, 0)
@@ -72,7 +73,29 @@ class CirclesDrawer(Benchmark):
         # - log_radius: log of radius for better optimization (1)
         # - RGB color (3)
         # - alpha: transparency (1)
-        self.stipple_params = nn.Parameter(torch.rand(num_stipples, 7, generator=self.rng.torch()))
+        if init_spread:
+            # Spread initial centers over a roughly uniform grid covering the frame,
+            # with small jitter to avoid exact alignment. This gives a better starting
+            # point than fully random placement which tends to cluster.
+            side = math.ceil(math.sqrt(num_stipples))
+            rows = torch.linspace(0, 1, side)
+            cols = torch.linspace(0, 1, side)
+            gy, gx = torch.meshgrid(rows, cols, indexing='ij')
+            centers = torch.stack([gx.reshape(-1), gy.reshape(-1)], dim=1)[:num_stipples]
+            jitter = (torch.rand(num_stipples, 2, generator=self.rng.torch()) - 0.5) / side
+            centers = torch.clamp(centers + jitter, 0, 1)
+
+            # Random colors/radius/alpha, but positions spread over the frame so the
+            # initial render is spread out rather than clustered. Alpha is biased low so
+            # overlapping circles don't average up to a white/gray blob, and colors are
+            # kept moderate (not near 1) for the same reason.
+            params = torch.rand(num_stipples, 7, generator=self.rng.torch())
+            params[:, 0:2] = centers
+            params[:, 2] = torch.rand(num_stipples, generator=self.rng.torch()) * 0.3  # small radius
+            params[:, 6] = torch.rand(num_stipples, generator=self.rng.torch()) * 0.3  # low alpha
+            self.stipple_params = nn.Parameter(params)
+        else:
+            self.stipple_params = nn.Parameter(torch.rand(num_stipples, 7, generator=self.rng.torch()))
 
         # Learnable background color (RGB)
         self.bg_color = nn.Parameter(torch.zeros(3))
@@ -90,14 +113,17 @@ class CirclesDrawer(Benchmark):
         self._show_titles_on_video = False
 
     def get_loss(self):
-        # Normalize parameters
+        # Normalize parameters. Positions are used directly in [0, 1] (they are already
+        # bounded by the init), while color/alpha/radius-channel go through sigmoid so
+        # they stay in valid ranges. Previously positions were also sigmoided, which
+        # compressed a [0,1] grid into [0.5,0.73] and clustered everything near center.
         p = torch.sigmoid(self.stipple_params)
         bg_color = torch.sigmoid(self.bg_color)  # (3,)
 
         # Extract stipple components
-        # Position (normalized to image coordinates 0 to 1)
-        cx = p[:, 0]  # x position in [0, 1]
-        cy = p[:, 1]  # y position in [0, 1]
+        # Position (normalized to image coordinates 0 to 1), used directly
+        cx = self.stipple_params[:, 0]  # x position in [0, 1]
+        cy = self.stipple_params[:, 1]  # y position in [0, 1]
 
         # Radius (log scale for better optimization, range roughly 0.005 to 0.1 of image size)
         log_radius = torch.lerp(

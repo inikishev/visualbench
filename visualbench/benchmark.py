@@ -4,8 +4,9 @@ import warnings
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
+from contextlib import contextmanager
 from os import PathLike
-from typing import TYPE_CHECKING, Any, Literal, final, overload
+from typing import TYPE_CHECKING, Any, Literal, final, overload, cast
 
 import numpy as np
 import torch
@@ -18,10 +19,10 @@ from .utils import (
     python_tools,
     torch_tools,
 )
-from .utils.autograd_counter import AutogradCounter
 
 if TYPE_CHECKING:
     import optuna
+    from accelerate import Accelerator
 
 #class StopCondition(BaseException): pass
 class StopCondition(Exception): pass
@@ -29,9 +30,20 @@ class StopCondition(Exception): pass
 def _sum_of_squares(x: torch.Tensor):
     return x.pow(2).sum()
 
+class DummyAccelerator:
+
+    @contextmanager
+    def autocast(self):
+        yield
+
+    def prepare(self, *args):
+        if len(args) == 1: return args[0]
+        return args
+
 class Benchmark(torch.nn.Module, ABC):
     _IS_BENCHMARK = True # for type checking
     num_steps: int
+    accelerator: "Accelerator | DummyAccelerator"
 
     "same as number of batches"
     def __init__(
@@ -73,6 +85,7 @@ class Benchmark(torch.nn.Module, ABC):
         """Whether to plot given key in log scale"""
         self._blacklisted_keys: set[str] = set()
         """Keys that won't be plotted/rendered."""
+        self._test_logged_keys: set[str] = set()
 
         self._basis: torch.Tensor | None = None
         self._print_interval_s: float | None = 0.1
@@ -84,7 +97,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._render_every: int = 1
 
         self._forward_called = False
-
+        self.accelerator = DummyAccelerator()
         self.reset()
 
     @torch.no_grad
@@ -146,6 +159,19 @@ class Benchmark(torch.nn.Module, ABC):
             self.load_state_dict(utils.torch_tools.copy_state_dict(self._initial_state_dict, device=self.device), assign=True)
 
         return self
+
+    def accelerator_prepare(self, accelerator: "Accelerator"):
+        if self._dltrain is not None:
+            self._dltrain = accelerator.prepare(self._dltrain)
+            self._dltrain_iter = itertools.cycle(self._dltrain) # type:ignore
+
+        if self._dltest is not None:
+            self._dltest = accelerator.prepare(self._dltest)
+            self._dltest_iter = itertools.cycle(self._dltest) # type:ignore
+
+        bench = accelerator.prepare(self)
+        self.accelerator = accelerator
+        return bench
 
     @property
     def device(self): return next(iter(self.parameters())).device
@@ -326,11 +352,21 @@ class Benchmark(torch.nn.Module, ABC):
         if self.training:
             if not metric.startswith(('train ', 'test ')): metric = f'train {metric}'
             if metric == self._trial_report_metric: self._trial_report(value)
+            if metric in self._test_logged_keys:
+                # don't log train metrics that are already logged in test mode
+                # for example if we have get_loss logging test loss,
+                # and we have an optimizers that has different train and eval weights (e.g. EMA for eval),
+                # test epoch switches to eval weights and runs self.forward, logging "test loss" in test mode;
+                # train epochs will also log "test loss" with train weights, but it will be ignored
+                return
+
             self.logger.log(self.num_forwards, metric, value)
 
         else:
-            if metric.startswith('train'): warnings.warn(f"Logging {metric} in eval() mode (while testing)")
             if not metric.startswith(('train ', 'test ')): metric = f'test {metric}'
+            self._test_logged_keys.add(metric)
+            if metric.startswith('train'): warnings.warn(f"Logging {metric} in eval() mode (while testing)")
+            if metric == self._trial_report_metric: self._trial_report(value)
             if utils.format.is_scalar(value): self._test_scalar_metrics[metric].append(value)
             else: self._test_other_metrics[metric] = value
 
@@ -368,26 +404,41 @@ class Benchmark(torch.nn.Module, ABC):
             name = f'{name} (perturbed)'
             log_difference=False; show_best=False
 
+        if not to_uint8:
+            if image.dtype not in (np.uint8, torch.uint8):
+                raise RuntimeError(f"image {name} needs to be in uint8 dtype, or to_uint8 needs to be True, got {image.dtype}")
+        if (not to_uint8) and (min is not None or max is not None):
+            raise RuntimeError(f"{name}: min and max are only for to_uint8=True")
+
+        # Ensure train / test prefix
+        if not name.startswith(('train ', 'test ')):
+            if self.training: name = f'train {name}'
+            else: name = f'test {name}'
+
+        if self.training:
+            if name in self._test_logged_keys: return
+        else:
+            self._test_logged_keys.add(name)
+
+
+        # Add name with prefix to image keys
         self._image_keys.add(name)
         if show_best: self._image_lowest_keys.add(name)
 
-        if not to_uint8:
-            if image.dtype not in (np.uint8, torch.uint8):
-                raise RuntimeError(f"image needs to be in uint8 dtype, or to_uint8 needs to be True, got {image.dtype}")
-        if (not to_uint8) and (min is not None or max is not None): raise RuntimeError("min and max are only for to_uint8=True")
-
-        if isinstance(image, torch.Tensor): image = image.detach().cpu().clone()
+        # Convert to tensor
+        if isinstance(image, torch.Tensor):
+            image = image.detach().cpu().clone()
 
         # difference
-        k = difference = None
+        k_difference = v_difference = None
         if log_difference:
-            k = f'{name} (difference)'
+            k_difference = f'{name} (difference)'
 
-            if name not in self._previous_images: difference = image
-            else: difference = self._previous_images[name] - image
+            if name not in self._previous_images: v_difference = image
+            else: v_difference = self._previous_images[name] - image
 
             self._previous_images[name] = image
-            if to_uint8: difference = utils.format.normalize_to_uint8(difference)
+            if to_uint8: v_difference = utils.format.normalize_to_uint8(v_difference)
 
         # value
         if to_uint8:
@@ -396,9 +447,9 @@ class Benchmark(torch.nn.Module, ABC):
         self.logger.log(self.num_forwards, name, image)
 
         # log difference after image so that order is better
-        if (k is not None) and (difference is not None):
-            self._image_keys.add(k)
-            self.logger.log(self.num_forwards, k, difference)
+        if (k_difference is not None) and (v_difference is not None):
+            self._image_keys.add(k_difference)
+            self.logger.log(self.num_forwards, k_difference, v_difference)
 
     def pre_step(self):
         pass
@@ -428,7 +479,9 @@ class Benchmark(torch.nn.Module, ABC):
 
         # get loss and log it
         with torch.enable_grad():
-            ret = self.get_loss()
+            with self.accelerator.autocast():
+                ret = self.get_loss()
+
             if ret.numel() > 1:
                 if self._multiobjective_func is None:
                     raise RuntimeError(f"{self.__class__.__name__} returned multiple values but multiobjective "
@@ -485,7 +538,7 @@ class Benchmark(torch.nn.Module, ABC):
             # so it usually on 1st step as 0%x = 0
             # this happens after backward so there are .grad attributes already
             # so the only way this could cause issues is if forward pass calcualtes and uses gradients wrt parameters
-            if _benchmark_utils._should_run_test_epoch(self): self._test_epoch()
+            if _benchmark_utils._should_run_test_epoch(self): self._maybe_test_epoch()
 
             # increments
             self.num_forwards += 1
@@ -550,11 +603,10 @@ class Benchmark(torch.nn.Module, ABC):
             self.num_epochs += 1
 
             # test epoch every train epochs
-            if (self._test_every_epochs is not None) and (self.num_steps % self._test_every_epochs == 0):
+            if (self._test_every_epochs is not None) and (self.num_epochs % self._test_every_epochs == 0):
                 self._maybe_test_epoch()
 
     def _test_epoch(self):
-        assert self._dltest is not None
         test_start = time.time()
         self.eval()
 
@@ -572,9 +624,13 @@ class Benchmark(torch.nn.Module, ABC):
         batch_backup = self.batch
 
         with torch.inference_mode():
-            for batch in self._dltest:
-                self.batch = batch
+            if self._dltest is None:
+                # one step with test parameters (e.g. weight EMA)
                 self._one_step(optimizer=None)
+            else:
+                for batch in self._dltest:
+                    self.batch = batch
+                    self._one_step(optimizer=None)
 
         self._last_test_time = time.time()
         self.log("test time", self._last_test_time - test_start, plot=False)
@@ -587,7 +643,13 @@ class Benchmark(torch.nn.Module, ABC):
         _benchmark_utils._aggregate_test_metrics_(self) # this needs to be called after .train because log checks if training
 
     def _maybe_test_epoch(self):
-        if self._dltest is not None:
+        if any(i is not None for i in (
+                self._dltest,
+                self._test_every_steps,
+                self._test_every_epochs,
+                self._test_every_forwards,
+                self._test_every_seconds,
+            )):
             if (self._last_test_pass is None) or (self.num_passes != self._last_test_pass):
                 self._test_epoch()
 
@@ -768,6 +830,9 @@ class Benchmark(torch.nn.Module, ABC):
         Returns:
             _type_: _description_
         """
+        try: optimizer = cast(Any, self.accelerator.prepare(optimizer))
+        except Exception as e: warnings.warn(f"Unable to accelerate optimizer: {e}")
+
         self._should_stop = False
         self._optimizer = optimizer
         self._max_passes = max_passes; self._max_forwards = max_forwards

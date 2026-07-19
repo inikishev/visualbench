@@ -105,6 +105,5 @@ class PartitionDrawer(Benchmark):
         if self.make_images:
             with torch.no_grad():
                 self.log_image('reconstructed', render, to_uint8=True, show_best=True)
-                self.log_image('residual', (render - self.target).abs_(), to_uint8=True)
 
         return loss

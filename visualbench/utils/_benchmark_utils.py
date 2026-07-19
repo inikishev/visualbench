@@ -187,9 +187,15 @@ def _should_stop(self: "Benchmark") -> str | None:
 
 
 
-def _should_run_test_epoch(self: "Benchmark", check_dltest:bool=True) -> bool:
+def _should_run_test_epoch(self: "Benchmark", check_test_epoch_support:bool=True) -> bool:
     """runs after every train closure evaluation, returns True if should test"""
-    if check_dltest and self._dltest is None:
+    if check_test_epoch_support and all(i is None for i in (
+            self._dltest,
+            self._test_every_steps,
+            self._test_every_epochs,
+            self._test_every_forwards,
+            self._test_every_seconds,
+        )):
         return False
 
     if (self._last_test_pass is not None) and (self.num_passes == self._last_test_pass):

@@ -152,7 +152,7 @@ class MetaLearning(Benchmark):
         if isinstance(f, TestFunction):
             if x0 is None: x0 = f.x0()
             if domain is None: domain = f.domain()
-            if minima is None: minima = f.minima()
+            if minima is None: minima = f.compute_minima()
             unpack = True
 
         x0 = totensor(x0, dtype=dtype)

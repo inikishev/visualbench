@@ -47,7 +47,6 @@ class VoronoiDrawer(Benchmark):
         num_cells: int = 100,
         edge_thickness: float = 0.002,
         edge_sharpness: float = 100.0,
-        edge_color: tuple = (0, 0, 0),
         edge_alpha: float = 0.5,
         loss_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = F.mse_loss,
     ):
@@ -58,16 +57,14 @@ class VoronoiDrawer(Benchmark):
         self.add_reference_image('target', (target_image * 255).detach().cpu().numpy().astype(np.uint8), to_uint8=False)
 
         self.num_cells = num_cells
-        self.edge_thickness = edge_thickness
-        self.edge_sharpness = edge_sharpness
-        self.edge_color = nn.Parameter(torch.tensor(edge_color, dtype=torch.float32) / 255.0)
-        self.edge_alpha = edge_alpha
+        self.edge_params = nn.Parameter(torch.tensor([edge_thickness, edge_sharpness, edge_alpha]))
         self.loss_fn = loss_fn
 
         # Cell parameters (5 per cell):
         # - x, y: site position (2)
         # - RGB color (3)
-        self.cell_params = nn.Parameter(torch.rand(num_cells, 5, generator=self.rng.torch()))
+        # - edge RGB (3)
+        self.cell_params = nn.Parameter(torch.rand(num_cells, 8, generator=self.rng.torch()).logit())
 
         # Coordinate grid
         H, W = target_image.shape[-2:]
@@ -82,13 +79,16 @@ class VoronoiDrawer(Benchmark):
         self._show_titles_on_video = False
 
     def get_loss(self):
+        edge_thickness, edge_sharpness, edge_alpha = self.edge_params
+
         # Normalize parameters
         p = torch.sigmoid(self.cell_params)
 
         # Extract cell components
         cx = p[:, 0]  # x position in [0, 1]
         cy = p[:, 1]  # y position in [0, 1]
-        colors = p[:, 2:5]  # (N, 3) RGB
+        cell_color_choices = p[:, 2:5]  # (N, 3) RGB
+        edge_color_choices = p[:, 5:]  # (N, 3) RGB
 
         # Compute distance from each pixel to each cell site
         # cx, cy: (N,), x_grid, y_grid: (H, W)
@@ -108,7 +108,8 @@ class VoronoiDrawer(Benchmark):
         # Create the cell color image by indexing into colors
         # colors: (N, 3), cell_assignment: (H, W)
         # result: (H, W, 3)
-        cell_colors = colors[cell_assignment]  # (H, W, 3)
+        cell_colors = cell_color_choices[cell_assignment]  # (H, W, 3)
+        edge_colors = edge_color_choices[cell_assignment]  # (H, W, 3)
 
         # Compute edge mask: pixels near Voronoi boundaries
         # A pixel is on the boundary if its distance to the nearest site
@@ -121,16 +122,14 @@ class VoronoiDrawer(Benchmark):
         # Edge detection: where first and second distances are similar
         # Use sigmoid to create soft edge mask
         edge_diff = second_dist - first_dist  # (H, W)
-        edge_mask = torch.sigmoid((self.edge_thickness - edge_diff) * self.edge_sharpness)  # (H, W)
-
-        # Blend cell colors with edge color
-        edge_color = self.edge_color.to(self.target_image.device)  # (3,)
-        edge_color_expanded = edge_color.view(1, 1, 3)  # (1, 1, 3)
+        edge_mask = torch.sigmoid((edge_thickness - edge_diff) * edge_sharpness)  # (H, W)
 
         # Final image: blend cell colors with edge based on edge_mask
         # cell_colors: (H, W, 3), edge_mask: (H, W)
         edge_mask_expanded = edge_mask.unsqueeze(-1)  # (H, W, 1)
-        reconstructed = cell_colors * (1 - edge_mask_expanded * self.edge_alpha) + edge_color_expanded * (edge_mask_expanded * self.edge_alpha)  # (H, W, 3)
+        reconstructed_cells = cell_colors * (1 - edge_mask_expanded * edge_alpha)
+        reconstructed_edges = edge_colors * (edge_mask_expanded * edge_alpha)
+        reconstructed = reconstructed_cells + reconstructed_edges  # (H, W, 3)
 
         # Apply background where no cells cover (shouldn't happen with Voronoi, but for completeness)
         reconstructed = reconstructed.permute(2, 0, 1)  # (3, H, W)

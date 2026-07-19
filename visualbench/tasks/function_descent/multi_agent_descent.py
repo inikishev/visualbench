@@ -74,7 +74,7 @@ class MultiAgentDescent(Benchmark):
             if domain is None:
                 domain = f.domain()
             if minima is None:
-                minima = f.minima()
+                minima = f.compute_minima()
             unpack = True
         else:
             # Custom callable - require x0 or initialize randomly with default domain

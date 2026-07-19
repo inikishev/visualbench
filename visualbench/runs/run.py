@@ -37,7 +37,8 @@ def _get_stats(logger: "Logger") -> dict[str, dict[str, float]]:
     stats: dict[str, dict[str, float]] = {}
     for metric, values in logger.items():
         if len(values) == 0: continue
-        if isinstance(values[0], (np.ndarray, torch.Tensor)) and _numel(values[0]) != 1: continue
+        first_value = next(iter(values.values()))
+        if isinstance(first_value, (np.ndarray, torch.Tensor)) and _numel(first_value) != 1: continue
 
         stats[metric] = {}
         try:
