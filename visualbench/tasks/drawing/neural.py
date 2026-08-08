@@ -95,8 +95,9 @@ class NeuralDrawer(Benchmark):
         else: masked_preds = full_preds
 
         if self.batch_size is not None:
-            test_loss = self.criterion(masked_preds, self.targets)
-            self.log("test loss", test_loss)
+            with torch.no_grad():
+                test_loss = self.criterion(masked_preds, self.targets)
+                self.log("test loss", test_loss)
 
         if idxs is not None: batch_preds = masked_preds[idxs]
         else: batch_preds = masked_preds

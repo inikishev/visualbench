@@ -99,8 +99,6 @@ class FastMLBench(OptimizerBenchPack):
     def run_rnn(self):
         torch.manual_seed(0)
 
-        # ndim = 20,410
-        # 11s. ~ 3m. 30s.
         bench = tasks.Mnist1d(
             models.RNN(1, 10, hidden_size=40, num_layers=2, rnn=torch.nn.RNN),
             batch_size=128,
@@ -113,8 +111,6 @@ class FastMLBench(OptimizerBenchPack):
     def run_autoencoder(self):
         torch.manual_seed(0)
 
-        # ndim = 20,410
-        # 11s. ~ 3m. 30s.
         bench = tasks.Mnist1dAutoencoding(
             model = models.vision.ConvNetAutoencoder(1, 1, 1, 40, encoder=(256, 128, 64, 32, 2), act_cls=nn.ELU),
             batch_size=64,

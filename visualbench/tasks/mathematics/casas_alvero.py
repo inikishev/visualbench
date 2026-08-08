@@ -46,7 +46,33 @@ def nan_to_num(x):
     return 0
 
 class CasasAlvero(Benchmark):
-    """optimize some points doing something"""
+    """Search for a counterexample to the Casas-Alvero conjecture.
+
+    The Casas-Alvero conjecture states that if a degree-``n`` polynomial P over
+    the complex numbers has the property that P and each of its derivatives
+    P^(1), ..., P^(n-1) share at least one root, then P must have only a single
+    distinct root (i.e. P(z) = a(z - b)^n for some a, b).
+
+    Two roots are fixed at +1 and -1, and the remaining ``n - 2`` roots are
+    learnable complex parameters initialized near the origin. The loss drives
+    every derivative to vanish at at least one learned root, minimizing the
+    magnitude of each derivative evaluated at the current roots. The problem is
+    over-determined and hard to satisfy, so a low loss effectively confirms the
+    conjecture holds (no counterexample exists) while a converged solution at
+    nonzero loss hints at a candidate.
+
+    Args:
+        n (int): Degree of the polynomial (at least 2). Defaults to 6.
+        min_method (Literal["min", "prod", "softmin"]): How to aggregate the
+            values of each derivative at the roots into a per-derivative loss:
+            "min" takes the closest root, "prod" a geometric mean-like product,
+            and "softmin" a smooth soft-minimum. Defaults to "min".
+
+    Renders:
+        complex_plane: log-magnitude of the polynomial over the complex plane
+            with the roots drawn (green for the fixed roots, cyan for the
+            learnable ones).
+    """
     def __init__(self, n: int = 6, min_method: Literal["min", "prod", "softmin"] = "min"):
         super().__init__()
         self.n = n

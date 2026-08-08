@@ -7,7 +7,23 @@ from ...benchmark import Benchmark
 
 
 class EilenbergGanea(Benchmark):
-    """optiomize some matrices"""
+    """Search for a nontrivial two-generator unitary matrix representation tied to the Eilenberg-Ganea conjecture.
+
+    The Eilenberg-Ganea conjecture concerns the cohomological dimension of groups
+    (specifically, that a group with a 2-dimensional Eilenberg-MacLane space actually
+    admits a free action on a 2-complex). As a search/optimization task, this benchmark
+    looks for an assignment of two unitary matrices (X, Y) that satisfy the group
+    presentation given by the Akbulut-Kirby relations
+
+        X Y X^-1 Y^-2 = I   and   Y X Y^-1 X^-2 = I
+
+    which encode a braid-type group carrying highly non-trivial unitary representations.
+    The parameters ``x_params``/``y_params`` are optimized so that the residual of the
+    relations is driven toward zero, while a hinge-style repulsion term keeps X and Y
+    far enough from the identity matrix so that the discovered representation is not the
+    trivial one. The joint (X-I, Y-I) vs (R1-I, R2-I) grid is rendered as a heatmap
+    ("internal_tension") to expose the braid structure.
+    """
     def __init__(self, dim: int = 64):
         super().__init__()
         self.dim = dim
@@ -73,7 +89,24 @@ class EilenbergGanea(Benchmark):
 
 
 class GroupRepresentation(Benchmark):
-    """optiomize some matrices"""
+    """Discover a faithful non-trivial unitary representation of the trefoil knot group.
+
+    The trefoil knot group is the group of the trefoil knot complement, and it has the two
+    generator braid presentation
+
+        <X, Y | X Y X = Y X Y>
+
+    This benchmark optimizes two unitary matrices (X, Y) encoding a representation of that
+    group. The primary loss is the residual of the braid relation
+
+        X Y X (Y X Y)^-1  ->  I
+
+    which must be driven to identity for the matrices to actually represent the group.
+    A secondary repulsion term pushes the generators a fixed distance away from the identity
+    matrix so the optimization finds a non-trivial (and high-dimensional) representation
+    rather than collapsing all generators to the identity. The generators and relation error
+    are visualized as a pair of MAGMA heatmaps ("representation").
+    """
     def __init__(self, dim: int = 64):
         super().__init__()
         self.dim = dim

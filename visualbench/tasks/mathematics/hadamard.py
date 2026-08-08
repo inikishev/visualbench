@@ -9,7 +9,33 @@ from ...benchmark import Benchmark
 
 
 class Hadamard(Benchmark):
-    """
+    """A PyTorch benchmark that learns an N x N Hadamard matrix by gradient descent.
+
+    A Hadamard matrix is a square matrix whose entries are either +1 or -1 and whose
+    rows (equivalently columns) are pairwise orthogonal. Any such matrix satisfies
+    ``H @ H.T = N*I``. Hadamard matrices are widely used in error-correcting codes,
+    Walsh transforms, and orthogonal designs.
+
+    This benchmark constructs an N x N matrix of the form ``H = [[A, B], [B, -A]]``,
+    where ``A`` and ``B`` are circulant matrices derived from two learnable first-row
+    vectors (passed through a tanh to keep entries in ``(-1, 1)``). ``N = 2 * n_half``.
+
+    The optimisation is driven by a composite loss:
+      1. **Hadamard loss**: ``mean((H @ H.T - N * I)**2)`` -- encourages rows to be
+         orthogonal, so that ``H @ H.T`` approximates ``N * I``.
+      2. **Binarization loss**: ``mean((H**2 - 1)**2)`` -- pushes every entry toward
+         ``+1`` or ``-1``, so the continuous entries become binary.
+
+    The total loss is the Hadamard loss plus ``binarization_weight`` times the
+    binarization loss. During each forward pass a visualization frame of the current
+    matrix is logged if image output is enabled. After training, ``get_final_H`` snaps
+    the continuous matrix to a pure +1/-1 matrix using an optional threshold.
+
+    Args:
+        n_half: Half the matrix dimension; the resulting matrix is ``2 * n_half``
+            squared. Must be a positive integer.
+        binarization_weight: Scaling factor for the binarization loss term
+            (default: ``0.1``).
     """
     def __init__(self, n_half: int, binarization_weight: float = 0.1):
         super().__init__()

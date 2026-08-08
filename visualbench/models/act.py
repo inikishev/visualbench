@@ -164,7 +164,7 @@ class ActNet(nn.Module):
 
     def forward(self, x:torch.Tensor):
         x = self.acts[0](x)
-        for w,b,a in zip(self.weights, self.biases, self.acts[1:]):
+        for w,b,a in zip(self.weights, self.biases, self.acts[1:], strict=True):
             x = a(w*x+b)
         return x
 

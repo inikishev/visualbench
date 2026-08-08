@@ -102,7 +102,6 @@ class CharRNN(Benchmark):
         self.history = []
         self.resolution = resolution
 
-
     def get_loss(self):
         x,y = self.dataloader()
 

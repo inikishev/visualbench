@@ -1,5 +1,8 @@
+from collections.abc import Callable
+
 import torch
 from torch import nn
+
 
 class Rank1(torch.nn.Module):
     def __init__(self, in_channels, out_channels, bias=True):
@@ -98,3 +101,58 @@ class Rank1PlusDiagonal(torch.nn.Module):
         if self.b is not None: x_out = x_out + self.b
 
         return x_out
+
+
+
+def op_matmul(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    mul_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = torch.mul,
+    sum_fn: Callable[..., torch.Tensor] = torch.sum,
+):
+
+    x_squeeze = False
+    y_squeeze = False
+
+    if x.ndim == 1:
+        x_squeeze = True
+        x = x.unsqueeze(0)
+
+    if y.ndim == 1:
+        y_squeeze = True
+        y = y.unsqueeze(1)
+
+    res = sum_fn(mul_fn(x.unsqueeze(-1), y.unsqueeze(-3)), dim = -2)
+
+    if x_squeeze: res = res.squeeze(-2)
+    if y_squeeze: res = res.squeeze(-1)
+
+    return res
+
+class FuncLinear(nn.Module):
+    def __init__(
+        self,
+        d_in: int,
+        d_out: int,
+        bias: bool = True,
+        mul_fn: Callable[[torch.Tensor, torch.Tensor], torch.Tensor] = torch.mul,
+        sum_fn: Callable[..., torch.Tensor] = torch.sum,
+    ):
+        super().__init__()
+
+        self.W = nn.Parameter(torch.empty(d_in, d_out))
+        torch.nn.init.orthogonal_(self.W)
+
+        if bias:
+            self.b = nn.Parameter(torch.zeros(d_out))
+        else:
+            self.b = None
+
+        self.mul_fn = mul_fn
+        self.sum_fn = sum_fn
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = op_matmul(x, self.W, mul_fn=self.mul_fn, sum_fn=self.sum_fn)
+        if self.b is not None:
+            x = x + self.b
+        return x

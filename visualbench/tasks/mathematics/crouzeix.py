@@ -7,7 +7,36 @@ from ...benchmark import Benchmark
 
 
 class CrouzeixConjecture(Benchmark):
-    """optimize a ball"""
+    """Explore the Crouzeix conjecture by optimizing the Crouzeix ratio.
+
+    The Crouzeix conjecture states that for any matrix A and any polynomial p,
+
+        ||p(A)||_2 <= 2 * max_{z in W(A)} |p(z)|,
+
+    where ||.||_2 is the spectral norm and W(A) is the numerical range of A
+    (the set of all z = v*Av for unit vectors v). This benchmark tries to find
+    counterexamples by searching over a learnable matrix A and polynomial p for
+    the pair that maximizes the ratio ||p(A)|| / max_{z in W(A)} |p(z)|, i.e.
+    minimizing the negative ratio.
+
+    Parameters are optimized directly: A is stored as real and imaginary parts
+    (a complex matrix parameter) and p is stored as complex polynomial
+    coefficients. The maximum |p(z)| over the numerical range is approximated by
+    sampling the boundary of W(A). For each direction in the complex plane, a
+    point on the boundary is obtained from the eigenvector of the largest
+    eigenvalue of H_t = (e^{-it} A + e^{it} A^*) / 2, the standard
+    parametrization of the boundary of a numerical range.
+
+    Attributes:
+        n (int): The matrix dimension of A; the learned matrix A is n x n.
+        poly_degree (int): Degree of the polynomial p; it has poly_degree + 1
+            complex coefficients.
+        A_real: Real part of the learnable matrix A (nn.Parameter).
+        A_imag: Imaginary part of the learnable matrix A (nn.Parameter).
+        c_real: Real parts of the learnable polynomial coefficients (nn.Parameter).
+        c_imag: Imaginary parts of the learnable polynomial coefficients (nn.Parameter).
+        thetas: Sample angles used to trace the boundary of W(A).
+    """
     def __init__(self, n=8, poly_degree=8):
         super().__init__()
         self.n = n

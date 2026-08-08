@@ -133,7 +133,7 @@ class BenchBench:
 
                 return bench.logger
 
-            start = time.time()
+            start = time.perf_counter()
             if hyperparam is None or (not tune):
                 sweep = single_run(logger_fn, metrics=metrics, fixed_hyperparams=fixed_hyperparams, root=root, task_name=task_name, run_name=sweep_name, print_records=False, print_progress=print_progress, save=save, load_existing=load_existing)
 
@@ -141,7 +141,7 @@ class BenchBench:
                 sweep = mbs_search(logger_fn, metrics=metrics, search_hyperparam=hyperparam, fixed_hyperparams=fixed_hyperparams, log_scale=log_scale, grid=grid, step=step, num_candidates=num_candidates, num_binary=max(1, int(num_binary*binary_mul)), num_expansions=num_expansions, rounding=rounding, root=root, task_name=task_name, run_name=sweep_name, print_records=False, save=save, load_existing=load_existing, print_progress=print_progress)
 
             # render video
-            render_start = time.time()
+            render_start = time.perf_counter()
             if render_vids and vid_scale is not None:
                 for metric, maximize in _target_metrics_to_dict(metrics).items():
                     video_path = os.path.join(self.summary_dir, f'{sweep_name} - {metric}')
@@ -160,9 +160,9 @@ class BenchBench:
 
             if print_time:
                 if print_progress: print(" " * 1000, end="\r")
-                s = f"{sweep_name} took {(time.time() - start):.2f} s."
+                s = f"{sweep_name} took {(time.perf_counter() - start):.2f} s."
                 if render_vids:
-                    s = f'{s}; rendering took {(time.time() - render_start):.2f} s.'
+                    s = f'{s}; rendering took {(time.perf_counter() - render_start):.2f} s.'
                 if test_time != 0: s = f"{s}; test epochs took {float(test_time):.2f} s."
                 print(s)
 

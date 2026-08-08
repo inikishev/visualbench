@@ -125,7 +125,7 @@ class OptimizerBenchPack:
 
                 return bench.logger
 
-            start = time.time()
+            start = time.perf_counter()
 
             # --------------------------------- single run ------------------------------- #
             if (hyperparam is None) or (not tune):
@@ -176,6 +176,7 @@ class OptimizerBenchPack:
                     self.results[task_name][metric] = (v, maximize, 0)
 
             # ------------------------------- render video ------------------------------- #
+            render_start = time.perf_counter()
             if (render_vids) and (vid_scale is not None) and (self.summaries_root is not None):
                 assert self.summary_dir is not None
                 for metric, maximize in metrics.items():
@@ -205,7 +206,9 @@ class OptimizerBenchPack:
             # -------------------------------- print time -------------------------------- #
             if print_time:
                 if print_progress: print(" " * 1000, end="\r")
-                s = f"{task_name} took {(time.time() - start):.2f} s."
+                s = f"{task_name} took {(time.perf_counter() - start):.2f} s."
+                if render_vids:
+                    s = f'{s}; rendering took {(time.perf_counter() - render_start):.2f} s.'
                 if test_time != 0: s = f"{s}; test epochs took {float(test_time):.2f} s."
                 print(s)
 

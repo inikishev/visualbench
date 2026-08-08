@@ -20,10 +20,36 @@ def _get_derivative_kernels(dtype=torch.float32):
     }
 
 class NormalScalarCurvature(Benchmark):
-    """TODO
+    """Shape a differentiable height field so its Gaussian (scalar) curvature matches a target.
+
+    A learnable scalar field `z(x, y)` (a ``grid_size`` x ``grid_size`` array) is optimized
+    so that its Gaussian curvature `K` equals `target_curvature` on as much of the domain as
+    possible. Partial derivatives up to second order are estimated with finite-difference
+    convolution kernels:
+
+        fx, fy   -- first derivatives (central differences, / 2*dx)
+        fxx, fyy -- second derivatives ([/1, -2, 1] stencil, / dx**2)
+        fxy      -- mixed derivative, obtained by differentiating `fx` again in y
+
+    The Gaussian curvature of the graph ``z = f(x, y)`` at each point is
+
+        K = 2 * ( (1 + fy^2) * fxx - 2 * fx * fy * fxy + (1 + fx^2) * fyy )
+              / ( (1 + fx^2 + fy^2)^2 )
+
+    with a small `epsilon` added to the denominator for numerical stability. The loss drives
+    curvature *up to* the target, penalizing only where `K` falls below `target_curvature`:
+
+        loss = mean( relu(target_curvature - K)^2 )
+
+    Training pushes the field until its curvature saturates at the requested value. Because
+    only `self.z_field` is a trainable parameter, this provides a smooth, differentiable
+    surface-fitting problem useful as a benchmark (e.g. for testing optimizers or
+    optimization-solver baselines).
 
     Renders:
-        z field and solution.
+        z field: the raw height field.
+        solution: the curvature field K colored so that the target curvature region is
+            visually distinct.
     """
     def __init__(self, grid_size=128, domain=16.0, target_curvature=0.3, cmap='coolwarm'):
         super().__init__()

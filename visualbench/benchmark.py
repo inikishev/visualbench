@@ -137,6 +137,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._test_every_seconds: float | None = None
         self._last_test_time: float = 0
         self._last_test_pass: float | None = None
+        self._logged_test_loss_this_forward: bool = False
 
         self.logger = Logger()
         self._test_scalar_metrics = defaultdict(list)
@@ -364,6 +365,13 @@ class Benchmark(torch.nn.Module, ABC):
 
         else:
             if not metric.startswith(('train ', 'test ')): metric = f'test {metric}'
+
+            if metric == "test loss":
+                # Avoid overriding test loss logged in get_loss
+                if self._logged_test_loss_this_forward: return
+                self._logged_test_loss_this_forward = True
+                self._last_test_loss = value
+
             self._test_logged_keys.add(metric)
             if metric.startswith('train'): warnings.warn(f"Logging {metric} in eval() mode (while testing)")
             if metric == self._trial_report_metric: self._trial_report(value)
@@ -477,6 +485,10 @@ class Benchmark(torch.nn.Module, ABC):
                 if self._use_stop_condition_exception: raise StopCondition(msg)
             if self._is_perturbed: _benchmark_utils._add_param_noise_(self, sub=False)
 
+        # if benchmark logs "test loss" in get_loss, it will set this to True
+        # to avoid overwriting it with self.log('loss')
+        self._logged_test_loss_this_forward = False
+
         # get loss and log it
         with torch.enable_grad():
             with self.accelerator.autocast():
@@ -505,7 +517,7 @@ class Benchmark(torch.nn.Module, ABC):
             if self.num_forwards == 2:
                 self.start_time = time.time()
 
-        else:
+        elif not self._logged_test_loss_this_forward:
             self._last_test_loss = cpu_loss
 
         if self._multiobjective: return ret

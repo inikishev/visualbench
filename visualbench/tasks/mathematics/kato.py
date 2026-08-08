@@ -14,8 +14,9 @@ class Kato(Benchmark):
         image and its laplacian.
 
     """
-    def __init__(self, target):
+    def __init__(self, target, criterion=F.mse_loss):
         super().__init__()
+        self.criterion = criterion
         self.target = nn.Buffer(to_CHW(target).float().unsqueeze(0))
 
         self.u = nn.Parameter(torch.randn_like(self.target) * 0.1)
@@ -31,7 +32,7 @@ class Kato(Benchmark):
 
     def get_loss(self):
         u_laplacian = F.conv2d(self.u, self.kernel, groups=self.u.size(1), padding='same')# pylint:disable=not-callable
-        loss = F.mse_loss(u_laplacian, self.target)
+        loss = self.criterion(u_laplacian, self.target)
 
         if self.make_images:
             with torch.no_grad():
