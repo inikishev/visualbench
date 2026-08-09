@@ -416,6 +416,9 @@ class ConvNetAutoencoder(nn.Module):
 
     @torch.no_grad
     def after_get_loss(self, benchmark: "Benchmark"):
+        if not (benchmark.training and benchmark.make_images):
+            return
+
         if self.x_vis is not None:
             if not self.logged_reference:
                 grid = make_grid(self.x_vis, nrow=max(math.ceil(math.sqrt(self.x_vis.size(0))), 1), padding=1, normalize=True, scale_each=True)

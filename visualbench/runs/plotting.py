@@ -24,19 +24,63 @@ if TYPE_CHECKING:
 
 # region reference opts
 REFERENCE_OPTS = (
-    "GD",
     # "torch.NAG(0.95)",
     # "torch.Adagrad",
     # "torch.RMSprop",
-    "torch.Adam",
     # "torch.AdamW",
-    "torch.LBFGS(strong_wolfe)",
+    "GD",
+    "torch.Adam",
+    "torch.LBFGS",
     "ta.SOAP",
 )
 # endregion
 
 # region yscales
 _YSCALES: dict[str, Any] = {
+    # ----------------------------------- newer ---------------------------------- #
+    "Visual - NeuralDrawer - MLP(2-16-16-16-16-16-16-16-3 ReLU+bn)": "log",
+    "Visual - NeuralDrawer - MLP(2-16-16-16-16-16-16-16-3 ELU)": "log",
+    "Visual - NeuralDrawer BS-16 - MLP(2-16-16-16-16-16-16-16-3 ELU)": "log",
+    "Visual - NeuralDrawer - MLP(2-12-12-12-12-12-12-12-3 Sine)": "log",
+    "Visual - NeuralDrawer - MLP(2-1024-3 ReLU)": "log",
+    "Visual - CirclesDrawer": "log",
+    "Visual - Polynomial fit": "log",
+    "Visual - Kato": "log",
+    "Visual - NormalScalarCurvature": "log",
+
+    "Synthetic - Rosenbrock 384": dict(value='symlog', linthresh=1e-8),
+    "Synthetic - Rotated quadratic 384": dict(value='symlog', linthresh=1e-12),
+    "Synthetic - Rastrigin 384": dict(value='symlog', linthresh=1e-8),
+
+    "Linalg - Inverse": "log",
+    "Linalg - StochasticInverse": "log",
+    "Linalg - LeastSquares": "log",
+    "Linalg - MatrixIdempotent-10": "log",
+    "Linalg - StochasticMatrixIdempotent-10": "log",
+    # "Linalg - TensorSpectralNorm": "log", # has negative values!
+    "Linalg - Schur": "log",
+
+    "Real - Human heart dipole": "log",
+    "Real - Propane combustion": "log",
+    "Real - Muon coefficients": "log",
+    "Real - Style Transfer": "log",
+
+    "ML - TinyConvNet": "log",
+    "ML - Wave PDE - FLS": "log",
+    "ML - Logistic Regression (Full-Batch)": "log",
+
+    "MLS - Logistic Regression (BS-128)": "log",
+    "MLS - Logistic Regression (Online)": "log",
+    "MLS - Matrix Factorization (BS-32)": "log",
+    "MLS - TinyConvNet (BS-32)": "log",
+    "MLS - ConvNet Sparse Autoencoder (BS-32)": "log",
+    "MLS - ConvNet DiceFocal (BS-64)": "log",
+    "MLS - CIFAR10 ResNet (BS-64)": "log",
+    "MLS - MNIST1D FTTransformer (BS-32)": "log",
+    "MLS - M2NIST SegResNetDS (BS-64)": "log",
+    "ML - MNIST1D TinyConvNet (Full-batch)": "log",
+
+
     # ------------------------------------ new ----------------------------------- #
     "MLS - Colinear BS-64 - MLP(32-64-96-128-256-10)": "log",
     "MLS - Ill-conditioned logistic regression BS-1": "log",
@@ -54,7 +98,7 @@ _YSCALES: dict[str, Any] = {
     "S - Rotated quadratic 384": dict(value='symlog', linthresh=1e-12),
     "S - Nonsmooth Chebyshev-Rosenbrock 384": "log",
     "S - Rastrigin 384": "log",
-    "MLS - MovieLens BS-32 - Matrix Factorization": "log",
+
     "Visual - NeuralDrawer - ReLU+bn": "log",
     "Visual - NeuralDrawer - ELU": "log",
     "Visual - NeuralDrawer - Sine": "log",
@@ -66,21 +110,23 @@ _YSCALES: dict[str, Any] = {
     "ML - Friedman 1 - Linear Regression - L1": "log",
     "ML - MNIST-1D FB - NeuralODE": "log",
     "ML - Wave PDE - TinyFLS": "log",
-    "ML - Wave PDE - FLS": "log",
     "ML - WDBC FB - ElasticNet": "log",
     "MLS - MNIST-1D Sparse Autoencoder BS-32 - ConvNet": "log",
 
     # 2D
-    "2D - booth": dict(value='symlog', linthresh=1e-8),
-    "2D - ill": dict(value='symlog', linthresh=1e-6),
+    "2D - booth": dict(value='symlog', linthresh=1e-10),
+    "2D - booth + noise": dict(value='symlog', linthresh=1e-6),
+    "2D - ill": dict(value='symlog', linthresh=1e-10),
+    "2D - ill2": dict(value='symlog', linthresh=1e-10),
+    "2D - ill4": dict(value='symlog', linthresh=1e10),
     "2D - star": "log",
+    "2D - rosenbrock-10": dict(value='symlog', linthresh=1e-8),
     "2D - rosenbrock": dict(value='symlog', linthresh=1e-8),
     "2D - rosenbrock abs": "log",
     "2D - spiral": "log",
     "2D - illppc": "log",
-    "2D - oscillating": dict(value='symlog', linthresh=1e-6),
+    "2D - oscillating": dict(value='symlog', linthresh=1e-8),
     "2D - medianreg1d": "log",
-    "2D - ill2": dict(value='symlog', linthresh=1e-10),
     # "2D simultaneous - rosenbrock-10": "log",
     # "2D simultaneous - rosenbrock": "log",
     # "2D simultaneous - rosenbrock abs": "log",
@@ -125,11 +171,6 @@ _YSCALES: dict[str, Any] = {
     "Visual - Graph layout optimization": "log",
     "Visual - Sine Approximator - Tanh 7-4": "log",
 
-    # real
-    "Real - Human heart dipole": "log",
-    "Real - Propane combustion": "log",
-    "Real - Style Transfer": "log",
-    "Real - Muon coefficients": "log",
 }
 # endregion
 

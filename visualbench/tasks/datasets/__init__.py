@@ -32,3 +32,4 @@ if TYPE_CHECKING or find_spec("torchvision") is not None:
         TorchvisionDataset,
     )
 from .xor import XOR
+from .m2nist import M2NIST

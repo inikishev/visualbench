@@ -1,3 +1,4 @@
+import os
 from functools import partial
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -76,7 +77,7 @@ class TorchvisionDataset(CustomDataset):
     def __init__(
         self,
         cls,
-        root: str,
+        root: str | os.PathLike,
         model: torch.nn.Module,
         criterion: Callable,
         batch_size: int | None = None,
@@ -127,7 +128,7 @@ class MNIST(TorchvisionDataset):
     """
     def __init__(
         self,
-        root: str,
+        root: str | os.PathLike,
         model: torch.nn.Module,
         criterion: Callable = F.cross_entropy,
         batch_size: int | None = None,
@@ -165,7 +166,7 @@ class CIFAR10(TorchvisionDataset):
     """
     def __init__(
         self,
-        root: str,
+        root: str | os.PathLike,
         model: torch.nn.Module,
         criterion: Callable = F.cross_entropy,
         batch_size: int | None = None,
@@ -203,7 +204,7 @@ class CIFAR100(TorchvisionDataset):
     """
     def __init__(
         self,
-        root: str,
+        root: str | os.PathLike,
         model: torch.nn.Module,
         criterion: Callable = F.cross_entropy,
         batch_size: int | None = None,
@@ -241,7 +242,7 @@ class FashionMNIST(TorchvisionDataset):
     """
     def __init__(
         self,
-        root: str,
+        root: str | os.PathLike,
         model: torch.nn.Module,
         criterion: Callable = F.cross_entropy,
         batch_size: int | None = None,
@@ -279,7 +280,7 @@ class FashionMNISTAutoencoding(TorchvisionDataset):
     """
     def __init__(
         self,
-        root: str,
+        root: str | os.PathLike,
         model: torch.nn.Module,
         criterion: Callable = F.mse_loss,
         batch_size: int | None = None,

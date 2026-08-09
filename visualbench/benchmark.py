@@ -635,7 +635,7 @@ class Benchmark(torch.nn.Module, ABC):
 
         batch_backup = self.batch
 
-        with torch.inference_mode():
+        with torch.no_grad():
             if self._dltest is None:
                 # one step with test parameters (e.g. weight EMA)
                 self._one_step(optimizer=None)

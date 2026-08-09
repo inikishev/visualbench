@@ -359,5 +359,8 @@ class Autoencoder(nn.Module):
 
     @torch.no_grad
     def after_get_loss(self, benchmark: "DatasetBenchmark"):
+        if not (benchmark.training and benchmark.make_images):
+            return
+
         if self.is_2d and self.resolution is not None:
             self.colors = _scatter_2d_latents_(benchmark, self.encoder, self.resolution, self.colors)
