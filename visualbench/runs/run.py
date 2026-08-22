@@ -194,7 +194,9 @@ class Sweep(UserList[Run]):
 
         runs = []
         for id in os.listdir(sweep_path):
-            run = Run.load(os.path.join(sweep_path, id), load_logger=load_loggers, decoder=decoder)
+            run_dir = os.path.join(sweep_path, id)
+            if not os.path.isdir(run_dir): continue
+            run = Run.load(run_dir, load_logger=load_loggers, decoder=decoder)
             runs.append(run)
 
         return cls(runs)
@@ -236,7 +238,9 @@ class Task(UserDict[str, Sweep]):
 
         sweeps = {}
         for sweep_name in os.listdir(task_path):
-            sweep = Sweep.load(os.path.join(task_path, sweep_name), load_loggers=load_loggers, decoder=decoder)
+            sweep_path = os.path.join(task_path, sweep_name)
+            if not os.path.isdir(sweep_path): continue
+            sweep = Sweep.load(sweep_path, load_loggers=load_loggers, decoder=decoder)
             sweeps[sweep_name] = sweep
 
         return cls(sweeps)

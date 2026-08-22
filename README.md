@@ -136,6 +136,7 @@ Datasets with two features (like `Moons`) support visualizing/rendering the deci
 - Segmentation: `SynthSeg1d` (synthetic 1d semantic segmentation dataset)
 - torchvision: `MNIST`, `FashionMNIST`, `FashionMNISTAutoencoding`, `EMNIST`, `CIFAR10`, `CIFAR100`
 - other: `WDBC`
+- `OneLayerDeeper` - repeated squaring mod N (`y = x**(2**T) mod N`) from <https://onelayerdeeper.ai/problem>, tokenized as `N<digits>X<digits>T<digits>ANS<answer>`
 
 #### Other machine learning
 

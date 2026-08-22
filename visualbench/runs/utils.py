@@ -15,16 +15,17 @@ def _maybe_format(x):
 def _dict_to_str(d: dict):
     return ' '.join([f"{k}={_maybe_format(v)}" for k,v in d.items()])
 
-def print_task_summary(root: str, task_name:str, metric: str = "train loss", maximize=False) -> None:
+def print_task_summary(root: str, task_name:str, metric: str = "train loss", maximize=False, ljust: bool = True, max_runs:int = 1000) -> None:
     task = Task.load(os.path.join(root, task_name), load_loggers=False, decoder=None)
-    sweeps = task.best_sweeps(metric, maximize, n=1000)
+    sweeps = task.best_sweeps(metric, maximize, n=max_runs)
     runs = [s.best_runs(metric, maximize, n=1)[0] for s in sweeps]
 
     for i, r in enumerate(runs):
         key = 'max' if maximize else 'min'
         if len(r.hyperparams) == 0: n = f"{i+1}: {r.run_name}"
         else: n = f"{i+1}: {r.run_name} ({_dict_to_str(r.hyperparams)})"
-        print(n.ljust(100)[:100], f"{format_number(r.stats[metric][key], 5)}")
+        if ljust: n = n.ljust(100)
+        print(n[:100], f"{format_number(r.stats[metric][key], 5)}")
 
 
 def rename_run(root:str, old: str, new:str) -> None:

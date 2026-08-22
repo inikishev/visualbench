@@ -15,6 +15,7 @@ from .run import _target_metrics_to_dict, mbs_search, single_run
 
 if TYPE_CHECKING:
     from ..benchmark import Benchmark
+    from ..logger import Logger
 
 # non-required imports
 if find_spec("accelerate") is not None:
@@ -38,9 +39,9 @@ class OptimizerBenchPack:
         grid: Iterable[float] = (2, 1, 0, -1, -2, -3, -4, -5),
         step: float = 1,
         num_candidates: int = 2,
-        num_binary: int = 12,
+        num_binary: int = 5,
         num_expansions: int = 12,
-        rounding=1,
+        rounding = 1,
         fixed_hyperparams: dict | None = None,
         max_dim: int | None = None,
         tune: bool = True,
@@ -51,6 +52,7 @@ class OptimizerBenchPack:
         print_progress: bool = True,
         print_time: bool = False,
         save: bool = True,
+        store_loggers: bool = False,
         accelerate: bool = True,
         accelerate_kwargs: dict[str, Any] | None = None,
         load_existing: bool = True,
@@ -59,11 +61,13 @@ class OptimizerBenchPack:
         # pass stuff
         num_extra_passes: float | Callable[[int], float] = 0,
         step_callbacks: "Callable[[Benchmark], Any] | Sequence[Callable[[Benchmark], Any]] | None" = None,
+        bench_callbacks: "Callable[[Benchmark, float], Any] | Sequence[Callable[[Benchmark, float], Any]] | None" = None,
 
         init_fn = lambda opt_fn, bench, value: opt_fn([p for p in bench.parameters() if p.requires_grad], value)
     ):
         if skip is None: skip = ()
         if isinstance(skip, str): skip = (skip, )
+        if callable(bench_callbacks): bench_callbacks = [bench_callbacks]
         if accelerate_kwargs is None: accelerate_kwargs = {}
         self.sweep_name = sweep_name
 
@@ -82,7 +86,11 @@ class OptimizerBenchPack:
         self.accelerator = None
 
         self.results: defaultdict[str, dict[str, tuple[float, bool, float]]] = defaultdict(dict)
-        """keys are task name, dicts where keys are metrics, values are tuple (value, maximize, lr)"""
+        """keys are task name, values are dicts where keys are metrics, values are tuple (value, maximize, lr)"""
+
+        self.loggers: "defaultdict[str, dict[float, Logger]]" = defaultdict(dict)
+        """Keys are task name, values are dicts where keys are lrs, values are loggers.
+        Only saved if `store_loggers=True` (default is False)."""
 
         def run_bench(bench: "Benchmark", task_name: str, passes: int, sec: float, metrics:str | Sequence[str] | dict[str, bool], vid_scale:int|None, fps=60, binary_mul: float = 1, test_every: int | None = None):
             if task_name in skip: return
@@ -118,10 +126,18 @@ class OptimizerBenchPack:
                 if print_progress and bench.seconds_passed is not None and bench.seconds_passed > sec:
                     print(f"{sweep_name}: '{task_name}' timeout, {bench.seconds_passed} > {sec}!")
 
+                # save logger
+                if store_loggers:
+                    self.loggers[task_name][value] = bench.logger.copy()
+
                 # add test time
                 if "test time" in bench.logger:
                     nonlocal test_time
                     test_time += bench.logger.sum("test time")
+
+                # bench callbacks
+                if bench_callbacks is not None:
+                    for cb in bench_callbacks: cb(bench, value)
 
                 return bench.logger
 
@@ -228,14 +244,14 @@ class OptimizerBenchPack:
                 print_task_summary(root=self.root, task_name=task_name, metric=metric, maximize=maximize)
             if i != len(self.results) - 1: print()
 
-    def print_sweep_and_summary(self):
+    def print_sweep_and_summary(self, ljust: bool = True, max_runs: int = 1000):
         assert self.root is not None
         from .utils import print_task_summary
         for i, (task_name, metrics) in enumerate(self.results.items()):
             for metric, (value, maximize, lr) in metrics.items():
                 print(f"{task_name}: {self.sweep_name} achived {metric} = {value:.4g} at lr={lr:.4g}")
                 print("Best runs so far:")
-                print_task_summary(root=self.root, task_name=task_name, metric=metric, maximize=maximize)
+                print_task_summary(root=self.root, task_name=task_name, metric=metric, maximize=maximize, ljust=ljust, max_runs=max_runs)
             if i != len(self.results) - 1: print()
 
     def render(self, axsize=(6,3), dpi=300, extra_references: str | Sequence | None = None, n_best:int=1):

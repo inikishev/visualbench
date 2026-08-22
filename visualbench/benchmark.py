@@ -121,6 +121,7 @@ class Benchmark(torch.nn.Module, ABC):
         self._last_print_time: float = 0
         self._optimizer = None
         self.batch = None
+        self._epoch_losses: list[float] = []
 
         # ------------------------------ stop conditions ----------------------------- #
         self._max_passes: int | None = None
@@ -501,8 +502,9 @@ class Benchmark(torch.nn.Module, ABC):
                 loss = self._multiobjective_func(ret)
             else: loss = ret
 
-        cpu_loss = utils.format.tofloat(loss)
-        self.log('loss', cpu_loss)
+        float_loss = utils.format.tofloat(loss)
+        self.log('loss', float_loss)
+        self._epoch_losses.append(float_loss)
 
         if self._is_perturbed:
             _benchmark_utils._add_param_noise_(self, sub=True)
@@ -510,7 +512,7 @@ class Benchmark(torch.nn.Module, ABC):
             return loss
 
         if self.training:
-            self._last_train_loss = cpu_loss
+            self._last_train_loss = float_loss
 
             # start timer right after forward pass before 3rd optimizer step to let things compile and warm up.
             # plus it runs the 1st test epoch
@@ -518,7 +520,7 @@ class Benchmark(torch.nn.Module, ABC):
                 self.start_time = time.time()
 
         elif not self._logged_test_loss_this_forward:
-            self._last_test_loss = cpu_loss
+            self._last_test_loss = float_loss
 
         if self._multiobjective: return ret
         return loss
@@ -606,10 +608,14 @@ class Benchmark(torch.nn.Module, ABC):
     def _train_epoch(self, optimizer):
         if self._dltrain is None: self._one_step(optimizer)
         else:
+            self._epoch_losses.clear()
             for batch in self._dltrain:
                 self.batch = batch
                 self._one_step(optimizer)
                 if self._should_stop: break
+
+            if len(self._epoch_losses) > 0:
+                self.logger.log(self.num_forwards, "train epoch mean loss", np.mean(self._epoch_losses))
 
         if self.training:
             self.num_epochs += 1

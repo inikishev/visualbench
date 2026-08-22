@@ -146,7 +146,7 @@ class MBS:
                 if t == 'expansion': self.num_expansions -= 1
                 elif t == 'binary': self.num_binary -= 1
 
-                if self.num_binary < 0:
+                if self.num_binary <= 0:
                     terminate = True
                     break
 
