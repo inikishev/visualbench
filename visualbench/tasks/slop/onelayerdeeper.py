@@ -23,7 +23,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from ...utils import CUDA_IF_AVAILABLE
-from .dataset import DatasetBenchmark
+from ..datasets.dataset import DatasetBenchmark
 
 # ---------------------------------- vocab ---------------------------------- #
 N_TOKEN = 10   # 'N' field marker
